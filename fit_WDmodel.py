@@ -65,11 +65,7 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
 
     wave = spec.wave
     flux = spec.flux
-
-    fluxvar = spec.fluxvar
-    fluxerr = (fluxvar/3.)**0.5 #HACK HACK HACK 
-    #Tom stacked three spectra but the variance he sent was the total, not the variance of the mean
-    #in future, we'll get fluxerr = standard err of the mean (which is what we actually want)    
+    fluxerr = spec.flux_err
 
     if photfile is not None:
         phot = read_phot(photfile)
@@ -273,7 +269,7 @@ def read_spec(filename):
     """
     Really quick little read spectrum from file routine
     """
-    spec = np.recfromtxt(filename, names='wave,flux,fluxvar', dtype='float64,float64,float64')
+    spec = np.recfromtxt(filename, names=True, dtype='float64,float64,float64')
     WDmodel.WDmodel._wave_test(spec.wave)
     return spec
 
