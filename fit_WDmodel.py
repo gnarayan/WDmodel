@@ -5,6 +5,7 @@ import cProfile
 import argparse
 import numpy as np
 import scipy.optimize as op
+import scipy.integrate as scinteg
 import george
 import emcee
 import WDmodel
@@ -18,15 +19,17 @@ from matplotlib.font_manager import FontProperties as FM
 from matplotlib import rc
 from matplotlib.mlab import rec2txt
 import corner
-rc('text', usetex=True)
-rc('font', family='serif')
-rc('ps', usedistiller='xpdf')
+#rc('text', usetex=True)
+#rc('font', family='serif')
+#rc('ps', usedistiller='xpdf')
+#rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 #**************************************************************************************************************
 
 
 def lnprior(theta):
-    teff, logg, av = theta
-    if 20000. < teff < 75000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5:
+    #a, tau, teff, logg, av  = np.exp(theta)
+    a, tau, teff, logg, av  = theta
+    if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5 and 1. < tau < 1000. and  0.01 < a < 10.:
         return 0.
     return -np.inf
 
@@ -38,22 +41,30 @@ def lnprob(theta, wave, model, data, kernel, balmer):
 
 
 def lnlike(theta, wave, model, data, kernel, balmer):
-    #teff, logg, m, c  = theta
-    teff, logg, av = theta
-
+    #a, tau, teff, logg, av  = np.exp(theta)
+    a, tau, teff, logg, av  = theta
     xi = model._get_xi(teff, logg, wave)
     mod = model._get_model(xi)
+
+    # redden the model
     bluening = reddening(wave*u.Angstrom, av, r_v=3.1, model='od94')
     mod*=bluening
-    smoothed = convolve(mod, kernel)
-    W0, ZE = balmer
+
+    # smooth the model, and extract the section that overlays the model
+    # since we smooth the full model, computed on the full wavelength range of the spectrum
+    # and then extract the subset range that overlaps with the data
+    # we avoid any edge effects with smoothing at the end of the range
+    smoothedmod = convolve(mod, kernel)
+    W0, ZE, data_flux_norm = balmer
+    we, smoothedfn = model._extract_from_indices(wave, smoothedmod, ZE)
+    model_flux_norm = scinteg.simps(smoothedfn*we, we)
     datawave, datafn, datafnerr = data
-    we, fe = model._extract_from_indices(wave, smoothed, ZE)
-    smoothedfn = fe #+ 10.**(m*np.log10(we) + c)
-    res = (datafn - smoothedfn)
-    sig = datafnerr
-    chisqr = np.sum((res**2.)/(sig**2.))
-    return -0.5*chisqr 
+    #gp  = george.GP(a*george.kernels.Matern32Kernel(tau))
+    #gp.compute(datawave, datafnerr)
+    smoothedfn*=(data_flux_norm/model_flux_norm)
+    #return gp.lnlikelihood(datafn - smoothedfn)
+    return -0.5*np.sum(((datafn-smoothedfn)/datafnerr)**2.)
+
 
 def nll(*args):
     return -lnlike(*args)
@@ -80,54 +91,74 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
         balmer = np.array(sorted(balmer))
 
     nbalmer = len(balmer)
-    nparam  = 3 #this is terrible
+    nparam  = 5 #this is terrible
 
+    # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
     gsig     = smooth*(0.5/(np.log(2.)**0.5))
     kernel   = Gaussian1DKernel(gsig)
+
+
+    # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
     data = {}
-    model._normalize_model(spec)
-    print model._fluxnorm, "flux_norm"
      
-
+    
+    # figure out what range of data we're fitting
+    # we go from slightly blue of the bluest line, to slightly red of the reddest line requested
+    # we do not fit the whole range of the data, because the flux cannot be trusted as the QE rolls off
     redlinelim  = balmer.min()
     bluelinelim = balmer.max()
-     
     _, Wred,  WIDr, DWr = model._lines[redlinelim]
     _, Wblue, WIDb, DWb = model._lines[bluelinelim]
     WA = Wblue - WIDb - DWb
     WB = Wred  + WIDr + DWr
+
+    # extract the section of the data that covers the requested wavelength range
+    # note that it's left to user to make sure they requested Balmer lines that are actually covered by the data
     W0, ZE = model._get_indices_in_range(wave, WA, WB)
+    data_flux_norm = scinteg.simps(flux[ZE]*wave[ZE],wave[ZE])
     data = (wave[ZE], flux[ZE], fluxerr[ZE])
-    balmerwaveindex = (W0, ZE)
+
+    # save the indices so we can extract the same section in the likelihood function without recomputing wastefully
+    balmerwaveindex = (W0, ZE, data_flux_norm)
 
     p0 = np.ones(nparam).tolist()
     bounds = []
-    p0[0] = 40000.
-    p0[1] = 7.5
-    p0[2] = 0.1
+
+    # these are just hard-coded initial guesses
+    # eventually we should make these options but the fit does wander away from them pretty quickly
+    # bounds is for the scipy least squares minimizer 
+    p0[0] = 1.
+    p0[1] = 1.
+    p0[2] = 40000.
+    p0[3] = 7.5
+    p0[4] = 0.1
+    bounds.append((0.5,1.5))
+    bounds.append((0.,1.))
     bounds.append((17000,80000))
     bounds.append((7.,9.499999))
     bounds.append((0.,0.5))
-    #for i in range(2, nparam):
-    #    bounds.append((None, None))
     
 
     # do a quick fit with minimize to get a decent starting guess
-    result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerwaveindex), bounds=bounds)
-    print result
+    # HACK HACK HACK - disable scipy for now, until we can figure out how to call it with the new args
+    #result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerwaveindex), bounds=bounds)
+    #print result
 
     # setup the sampler
     ndim, nwalkers = nparam, 100
-    pos = [result["x"] + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [p0 + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerwaveindex)) 
 
     # do a short burn-in
+    print "Burn-in"
     pos, prob, state = sampler.run_mcmc(pos, 500)
     sampler.reset()
 
     # production
-    sampler.run_mcmc(pos, 1000)   
+    print "Production"
+    pos = pos[np.argmax(prob)] + 1e-8 * np.random.randn(nwalkers, ndim)
+    pos, prob, state = sampler.run_mcmc(pos,1000)   
 
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
@@ -137,74 +168,85 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec, data, model, samples, kernel, balmer, nparam):
-
+def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, nparam):
+    
     font  = FM(size='small')
     font2 = FM(size='x-small')
     font3 = FM(size='large')
     font4 = FM(size='medium')
 
-#    wave = spec.wave
-#    flux = spec.flux
+    wave = spec.wave
+    flux = spec.flux
+    fluxerr = spec.flux_err
+    WO, ZE, data_flux_norm  = balmer
 
-#   expsamples = np.ones(samples.shape)
-#   expsamples[:, 1] = np.exp(samples[:, 1])
-#   teff_mcmc, logg_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-#                            zip(*np.percentile(samples, [16, 50, 84],
-#                                               axis=0)))
-#
-#   print teff_mcmc, logg_mcmc
-#
-#   with PdfPages(outfilename) as pdf:
-#       fig = plt.figure(figsize=(8,8))
-#       ax  = fig.add_subplot(1,1,1)
-#
-#       _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave)
-#       _, modelhi   = model.get_model(teff_mcmc[0]+teff_mcmc[2], logg_mcmc[0]+logg_mcmc[2], wave=wave)
-#       _, modellow  = model.get_model(teff_mcmc[0]-teff_mcmc[1], logg_mcmc[0]-logg_mcmc[1], wave=wave)
-#       smoothed   = convolve(modelflux, kernel)
-#       smoothedhi = convolve(modelhi, kernel)
-#       smoothedlo = convolve(modellow, kernel)
-#
-#
-#       for line in data:
-#           wn, fn, fnerr, wc, fc, fcerr = data[line]
-#
-#           offset = 0.2*line-0.2
-#           W0, ZE = balmer[line]
-#           we, fe = model._extract_from_indices(wave, smoothed, ZE)
-#           smoothedwn, smoothedfn, norm, swc, sfc, norm2  = model._normalize_line(X, Y, we, fe, W0)
-#
-#           we, fe = model._extract_from_indices(wave, smoothedhi, ZE)
-#           smoothedwnhi, smoothedfnhi, norm, swchi, sfchi, norm2hi  = model._normalize_line(X, Y, we, fe, W0)
-#
-#           we, fe = model._extract_from_indices(wave, smoothedlo, ZE)
-#           smoothedwnlo, smoothedfnlo, norm, swclo, sfclo, norm2lo  = model._normalize_line(X, Y, we, fe, W0)
-#
-#           ax.fill(np.concatenate([smoothedwnhi, smoothedwnlo[::-1]]), np.concatenate([smoothedfnhi, smoothedfnlo[::-1]])+offset,\
-#                   alpha=0.5, fc='grey', ec='None')
-#           ax.errorbar(wn, fn+offset, fnerr, capsize=0, linestyle='-', lw=0.5, color='k', marker='None')
-#           bluewing = (wc <= wn.min())
-#           redwing  = (wc >= wn.min())
-#           ax.errorbar(wc[bluewing], fc[bluewing]+offset, fcerr[bluewing], capsize=0, linestyle='-', lw=0.5, color='k', marker='None')
-#           ax.errorbar(wc[redwing], fc[redwing]+offset, fcerr[redwing], capsize=0, linestyle='-', lw=0.5, color='k', marker='None')
-#           ax.axhline(1.+offset,color='grey',linestyle='-.', alpha=0.3, xmin=wc.min(), xmax=wc.max())
-#           ax.plot(smoothedwn, smoothedfn+offset, 'r-', alpha=0.75, marker='None')
-#
-#           linename = model._lines[line][0]
-#           ax.annotate(r"H$_"+"\\"+linename+"$", xy=(wn[-1], offset+fn[-1]), xycoords='data', xytext= (8.,0.),\
-#                    textcoords="offset points", fontproperties=font3,  ha='left', va="bottom")
-#           indzero = np.abs(wn).argmin()
-#           ax.annotate(str(W0)+'\AA', xy = (wn[indzero], offset+fn[indzero]),  xycoords='data',\
-#                 xytext= (0.,-8.), textcoords="offset points", fontproperties=font4,  ha='center', va="top")
-#
-#       ax.set_xlabel('$\Delta$Wavelength~(\AA)',fontproperties=font3, ha='center')
-#       ax.set_ylabel('Normalized Flux', fontproperties=font3)
-#       pdf.savefig(fig)
+    fig = plt.figure(figsize=(10,8))
+    ax_spec  = fig.add_axes([0.075,0.4,0.85,0.55])
+    ax_resid = fig.add_axes([0.075, 0.1,0.85, 0.25])
+
+    ax_spec.errorbar(wave, flux, fluxerr, color='grey', alpha=0.5, capsize=0, linestyle='-', marker='None')
+    if samples is not None:
+        expsamples = np.ones(samples.shape)
+        expsamples[:, 1] = np.exp(samples[:, 1])
+        crap_a, crap_tau, teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+                                                            zip(*np.percentile(samples, [16, 50, 84],
+                                                            axis=0)))
+
+        print teff_mcmc
+        print logg_mcmc
+        print av_mcmc
+
+
+        _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave)
+        _, modelhi   = model.get_model(teff_mcmc[0]+teff_mcmc[2], logg_mcmc[0]+logg_mcmc[2], wave=wave)
+        _, modello   = model.get_model(teff_mcmc[0]-teff_mcmc[1], logg_mcmc[0]-logg_mcmc[1], wave=wave)
+
+        # redden the model
+        bluening   = reddening(wave*u.Angstrom, av_mcmc[0], r_v=3.1, model='od94')
+        blueninglo = reddening(wave*u.Angstrom, av_mcmc[0]+av_mcmc[2], r_v=3.1, model='od94')
+        blueninghi = reddening(wave*u.Angstrom, av_mcmc[0]-av_mcmc[1], r_v=3.1, model='od94')
+        modelflux*=bluening
+        modelhi  *=blueninghi
+        modello  *=blueninglo
+
+        smoothed   = convolve(modelflux, kernel)
+        smoothedhi = convolve(modelhi, kernel)
+        smoothedlo = convolve(modello, kernel)
+
+        model_flux_norm = scinteg.simps((smoothed*wave)[ZE], wave[ZE])
+        model_flux_norm_hi = scinteg.simps((smoothedhi*wave)[ZE], wave[ZE])
+        model_flux_norm_lo = scinteg.simps((smoothedlo*wave)[ZE], wave[ZE])
+
+        smoothed *=(data_flux_norm/model_flux_norm)
+        smoothedhi *=(data_flux_norm/model_flux_norm_hi)
+        smoothedlo *=(data_flux_norm/model_flux_norm_lo)
+
+
+        ax_spec.fill(np.concatenate([wave, wave[::-1]]), np.concatenate([smoothedhi, smoothedlo[::-1]]),\
+                alpha=0.5, fc='grey', ec='None')
+        ax_spec.plot(wave, smoothed, color='red', linestyle='-',marker='None')
+        ax_resid.errorbar(wave, flux-smoothed, fluxerr, linestyle='-', marker=None, capsize=0, color='grey', alpha=0.5)
+        ax_resid.errorbar(wave[ZE], (flux-smoothed)[ZE], fluxerr[ZE], linestyle='-',\
+                    marker=None, capsize=0, color='black', alpha=0.7)
+
+    ax_spec.errorbar(wave[ZE], flux[ZE], fluxerr[ZE], color='black', capsize=0, linestyle='-', marker='None',alpha=0.7)
+
+    ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
+    ax_spec.set_ylabel('Normalized Flux', fontproperties=font3)
+    ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font3)
+    return fig
+
+#**************************************************************************************************************
+
+def plot_model(objname, spec, data, model, samples, kernel, balmer, nparam):
 
     outfilename = objname.replace('.flm','.pdf')
     with PdfPages(outfilename) as pdf:
-        labels = ["$T_eff$" , r"$log(g)$", r"A$_V$"]
+        fig =  plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, nparam)
+        pdf.savefig(fig)
+
+        #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
+        labels = ['Nuisance Amplitude', 'Nuisance Scale', r"Teff" , r"log(g)", r"A_V"]
         fig = corner.corner(samples, bins=41, labels=labels, show_titles=True,quantiles=(0.16,0.84),\
              use_math_text=True)
         pdf.savefig(fig)
