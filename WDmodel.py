@@ -77,8 +77,8 @@ class WDmodel:
 
     def _get_model(self, xi, log=False):
         if log:
-            return self._model(xi)/self._fluxnorm
-        return (10.**self._model(xi))/self._fluxnorm
+            return self._model(xi)
+        return (10.**self._model(xi))
 
 
     @classmethod
@@ -141,6 +141,11 @@ class WDmodel:
             
 
     def _normalize_model(self, spec, log=False):
+        """
+        Imprecise normalization for visualization only
+        If you want to normalize model and data, get the model, and the data,
+        compute the integrals and use the ratio to properly normalize
+        """
         wave = spec.wave
         flux = spec.flux
         ind = np.where((self._wave >= wave.min()) & (self._wave <= wave.max()))[0]
