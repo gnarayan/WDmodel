@@ -27,9 +27,10 @@ import corner
 
 
 def lnprior(theta):
-    #a, tau, teff, logg, av  = np.exp(theta)
-    a, tau, teff, logg, av  = theta
-    if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5 and 1. < tau < 1000. and  0.01 < a < 10.:
+    #a, tau, teff, logg, av  = theta
+    teff, logg, av  = theta
+    #if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5 and 1. < tau < 1000. and  0.01 < a < 10.:
+    if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5:
         return 0.
     return -np.inf
 
@@ -41,8 +42,8 @@ def lnprob(theta, wave, model, data, kernel, balmer):
 
 
 def lnlike(theta, wave, model, data, kernel, balmer):
-    #a, tau, teff, logg, av  = np.exp(theta)
-    a, tau, teff, logg, av  = theta
+    #a, tau, teff, logg, av  = theta
+    teff, logg, av  = theta
     xi = model._get_xi(teff, logg, wave)
     mod = model._get_model(xi)
 
@@ -56,8 +57,8 @@ def lnlike(theta, wave, model, data, kernel, balmer):
     # we avoid any edge effects with smoothing at the end of the range
     smoothedmod = convolve(mod, kernel)
     W0, ZE, data_flux_norm = balmer
+    model_flux_norm = scinteg.simps(smoothedmod*wave, wave)
     we, smoothedfn = model._extract_from_indices(wave, smoothedmod, ZE)
-    model_flux_norm = scinteg.simps(smoothedfn*we, we)
     datawave, datafn, datafnerr = data
     #gp  = george.GP(a*george.kernels.Matern32Kernel(tau))
     #gp.compute(datawave, datafnerr)
@@ -91,7 +92,8 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
         balmer = np.array(sorted(balmer))
 
     nbalmer = len(balmer)
-    nparam  = 5 #this is terrible
+    #nparam  = 5 #this is terrible
+    nparam  = 3 #this is terrible
 
     # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
     gsig     = smooth*(0.5/(np.log(2.)**0.5))
@@ -116,7 +118,8 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
     # extract the section of the data that covers the requested wavelength range
     # note that it's left to user to make sure they requested Balmer lines that are actually covered by the data
     W0, ZE = model._get_indices_in_range(wave, WA, WB)
-    data_flux_norm = scinteg.simps(flux[ZE]*wave[ZE],wave[ZE])
+    data_flux_norm = scinteg.simps(flux*wave,wave)
+    #data_flux_norm = scinteg.simps(flux[ZE]*wave[ZE],wave[ZE])
     data = (wave[ZE], flux[ZE], fluxerr[ZE])
 
     # save the indices so we can extract the same section in the likelihood function without recomputing wastefully
@@ -128,26 +131,33 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
     # these are just hard-coded initial guesses
     # eventually we should make these options but the fit does wander away from them pretty quickly
     # bounds is for the scipy least squares minimizer 
-    p0[0] = 1.
-    p0[1] = 1.
-    p0[2] = 40000.
-    p0[3] = 7.5
-    p0[4] = 0.1
-    bounds.append((0.5,1.5))
-    bounds.append((0.,1.))
+    # p0[0] = 1.
+    # p0[1] = 1.
+    # p0[2] = 40000.
+    # p0[3] = 7.5
+    # p0[4] = 0.1
+    # bounds.append((0.5,1.5))
+    # bounds.append((0.,1.))
+    # bounds.append((17000,80000))
+    # bounds.append((7.,9.499999))
+    # bounds.append((0.,0.5))
+    
+    p0[0] = 40000.
+    p0[1] = 7.5
+    p0[2] = 0.1
     bounds.append((17000,80000))
     bounds.append((7.,9.499999))
     bounds.append((0.,0.5))
-    
 
     # do a quick fit with minimize to get a decent starting guess
     # HACK HACK HACK - disable scipy for now, until we can figure out how to call it with the new args
-    #result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerwaveindex), bounds=bounds)
-    #print result
+    result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerwaveindex), bounds=bounds)
+    print result
 
     # setup the sampler
     ndim, nwalkers = nparam, 100
-    pos = [p0 + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
+    #pos = [p0 + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [result.x + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerwaveindex)) 
 
     # do a short burn-in
@@ -188,7 +198,10 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, npara
     if samples is not None:
         expsamples = np.ones(samples.shape)
         expsamples[:, 1] = np.exp(samples[:, 1])
-        crap_a, crap_tau, teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+        #crap_a, crap_tau, teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+        #                                                    zip(*np.percentile(samples, [16, 50, 84],
+        #                                                    axis=0)))
+        teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                                                             zip(*np.percentile(samples, [16, 50, 84],
                                                             axis=0)))
 
@@ -213,9 +226,13 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, npara
         smoothedhi = convolve(modelhi, kernel)
         smoothedlo = convolve(modello, kernel)
 
-        model_flux_norm = scinteg.simps((smoothed*wave)[ZE], wave[ZE])
-        model_flux_norm_hi = scinteg.simps((smoothedhi*wave)[ZE], wave[ZE])
-        model_flux_norm_lo = scinteg.simps((smoothedlo*wave)[ZE], wave[ZE])
+        #model_flux_norm = scinteg.simps((smoothed*wave)[ZE], wave[ZE])
+        #model_flux_norm_hi = scinteg.simps((smoothedhi*wave)[ZE], wave[ZE])
+        #model_flux_norm_lo = scinteg.simps((smoothedlo*wave)[ZE], wave[ZE])
+
+        model_flux_norm = scinteg.simps((smoothed*wave), wave)
+        model_flux_norm_hi = scinteg.simps((smoothedhi*wave), wave)
+        model_flux_norm_lo = scinteg.simps((smoothedlo*wave), wave)
 
         smoothed *=(data_flux_norm/model_flux_norm)
         smoothedhi *=(data_flux_norm/model_flux_norm_hi)
@@ -246,7 +263,8 @@ def plot_model(objname, spec, data, model, samples, kernel, balmer, nparam):
         pdf.savefig(fig)
 
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
-        labels = ['Nuisance Amplitude', 'Nuisance Scale', r"Teff" , r"log(g)", r"A_V"]
+        #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"Teff" , r"log(g)", r"A_V"]
+        labels = [r"Teff" , r"log(g)", r"A_V"]
         fig = corner.corner(samples, bins=41, labels=labels, show_titles=True,quantiles=(0.16,0.84),\
              use_math_text=True)
         pdf.savefig(fig)
