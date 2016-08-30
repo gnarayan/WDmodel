@@ -50,7 +50,8 @@ class WDmodel:
         try:
             grid = _grids[grid_name]
         except KeyError,e:
-            message = 'Grid %s not found in grid_file %s. Accepted values are (%s)'%(grid_name, self._grid_file, ','.join(_grids.keys()))
+            message = 'Grid %s not found in grid_file %s. Accepted values are (%s)'%(grid_name, self._grid_file,\
+                    ','.join(_grids.keys()))
             raise ValueError(message)
 
         self._grid_name = grid_name
@@ -61,7 +62,11 @@ class WDmodel:
         self._fluxnorm = 1.
         
         # pre-init the interpolation and do it in log-space
-        self._model = spinterp.RegularGridInterpolator((np.log10(self._wave), self._ggrid, self._tgrid), np.log10(_flux))        
+        # note that we do the interpolation in log-log
+        # this is because the profiles are linear, redward of the Balmer break in log-log
+        # and the regular grid interpolator is just doing linear interpolation under the hood
+        self._model = spinterp.RegularGridInterpolator((np.log10(self._wave), self._ggrid, self._tgrid),\
+                np.log10(_flux))        
         _grids.close()
 
 
@@ -112,7 +117,6 @@ class WDmodel:
         If you need the model repeatedly for slightly different parameters, use those functions directly
         """
         if wave is None:
-            #wave = np.linspace(3000., 7000., num=4001, endpoint=True)
             wave = self._wave
 
         wave = np.atleast_1d(wave)
