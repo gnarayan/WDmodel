@@ -75,8 +75,8 @@ def nll(*args):
 
 def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=4., photfile=None):
 
-    wave = spec.wave
-    flux = spec.flux
+    wave    = spec.wave
+    flux    = spec.flux
     fluxerr = spec.flux_err
 
     if photfile is not None:
@@ -86,62 +86,46 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
         phot = None
         # set the likelihood functions here 
 
-    if balmer is None:
-        balmer = np.arange(1, 7)
-    else:
-        balmer = np.array(sorted(balmer))
-
-    nbalmer = len(balmer)
-    #nparam  = 5 #this is terrible
-    nparam  = 3 #this is terrible
 
     # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
     gsig     = smooth*(0.5/(np.log(2.)**0.5))
     kernel   = Gaussian1DKernel(gsig)
 
-
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
     data = {}
-     
     
-    # figure out what range of data we're fitting
-    # we go from slightly blue of the bluest line, to slightly red of the reddest line requested
-    # we do not fit the whole range of the data, because the flux cannot be trusted as the QE rolls off
-    redlinelim  = balmer.min()
-    bluelinelim = balmer.max()
-    _, Wred,  WIDr, DWr = model._lines[redlinelim]
-    _, Wblue, WIDb, DWb = model._lines[bluelinelim]
-    WA = Wblue - WIDb - DWb
-    WB = Wred  + WIDr + DWr
+    #  bundle the line dnd continuum data so we don't have to extract it every step in the MCMC
+    if balmer is None:
+        balmer = np.arange(1, 7)
+    else:
+        balmer = np.array(sorted(balmer))
+    nbalmer = len(balmer)
+    balmerwaveindex = {}
+    line_wave     = np.array([], dtype='float64', ndmin=1)
+    line_flux     = np.array([], dtype='float64', ndmin=1)
+    line_fluxerr  = np.array([], dtype='float64', ndmin=1)
+    line_number   = np.array([], dtype='int', ndmin=1)
+    line_ind      = np.array([], dtype='int', ndmin=1)
+    for x in balmer:
+        W0, ZE = model._get_line_indices(wave, x)
+        # save the central wavelengths and spectrum specific indices for each line
+        # we don't need this for the fit, but we do need this for plotting 
+        balmerwaveindex[x] = W0, ZE
+        x_wave, x_flux, x_fluxerr = model._extract_from_indices(wave, flux, ZE, df=fluxerr)
+        line_wave    = np.hstack((line_wave, x_wave))
+        line_flux    = np.hstack((line_flux, x_flux))
+        line_fluxerr = np.hstack((line_fluxerr, x_fluxerr))
+        line_number  = np.hstack((line_number, np.repeat(x, len(x_wave)))
+        line_ind     = np.hstack((line_ind, np.repeat(x, len(x_wave)))
+    balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
+    # continuum data is just the spectrum with the Balmer lines removed
+    continuumdata  = (np.delete(wave, line_ind), np.delete(flux, line_ind), np.delete(fluxerr, line_ind))
 
-    # extract the section of the data that covers the requested wavelength range
-    # note that it's left to user to make sure they requested Balmer lines that are actually covered by the data
-    W0, ZE = model._get_indices_in_range(wave, WA, WB)
-    data_flux_norm = scinteg.simps(flux*wave,wave)
-    #data_flux_norm = scinteg.simps(flux[ZE]*wave[ZE],wave[ZE])
-    data = (wave[ZE], flux[ZE], fluxerr[ZE])
 
-    # save the indices so we can extract the same section in the likelihood function without recomputing wastefully
-    balmerwaveindex = (W0, ZE, data_flux_norm)
-
+    nparam  = 3 
     p0 = np.ones(nparam).tolist()
     bounds = []
-
-    # these are just hard-coded initial guesses
-    # eventually we should make these options but the fit does wander away from them pretty quickly
-    # bounds is for the scipy least squares minimizer 
-    # p0[0] = 1.
-    # p0[1] = 1.
-    # p0[2] = 40000.
-    # p0[3] = 7.5
-    # p0[4] = 0.1
-    # bounds.append((0.5,1.5))
-    # bounds.append((0.,1.))
-    # bounds.append((17000,80000))
-    # bounds.append((7.,9.499999))
-    # bounds.append((0.,0.5))
-    
     p0[0] = 40000.
     p0[1] = 7.5
     p0[2] = 0.1
@@ -365,25 +349,6 @@ def main():
         fit_model(specfile, spec, balmer, av=args.av, rv=args.rv, smooth=args.smooth, photfile=photfile)    
 
 #**************************************************************************************************************
-
-def test(grid_name='default'):
-    model = WDmodel(grid_name=grid_name)
-    fig   = plt.figure(figsize=(10,5))
-    ax1   = fig.add_subplot(1,1,1)
-    t = np.arange(20000., 85000, 5000.)
-    l = np.arange(7, 9., 0.5)
-    for logg in l:
-        for teff in t:
-            wave, flux  = model(teff, logg, log=False)
-            ax1.plot(wave, flux, 'k-')
-    ax1.set_xscale('log')
-    ax1.set_yscale('log')
-    plt.ion()
-    plt.tight_layout()
-
-
-#**************************************************************************************************************
-
 
 
 if __name__=='__main__':
