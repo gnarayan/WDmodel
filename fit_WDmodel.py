@@ -41,7 +41,7 @@ def lnprob(theta, wave, model, data, kernel, balmer):
     return lp + lnlike(theta, wave, model, data, kernel, balmer)
 
 
-def lnlike(theta, wave, model, data, kernel, balmer):
+def lnlike(theta, wave, model, data, kernel, balmerlinedata):
     #a, tau, teff, logg, av  = theta
     teff, logg, av  = theta
     xi = model._get_xi(teff, logg, wave)
@@ -56,15 +56,16 @@ def lnlike(theta, wave, model, data, kernel, balmer):
     # and then extract the subset range that overlaps with the data
     # we avoid any edge effects with smoothing at the end of the range
     smoothedmod = convolve(mod, kernel)
-    W0, ZE, data_flux_norm = balmer
-    model_flux_norm = scinteg.simps(smoothedmod*wave, wave)
-    we, smoothedfn = model._extract_from_indices(wave, smoothedmod, ZE)
-    datawave, datafn, datafnerr = data
-    #gp  = george.GP(a*george.kernels.Matern32Kernel(tau))
-    #gp.compute(datawave, datafnerr)
-    smoothedfn*=(data_flux_norm/model_flux_norm)
+    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu) = balmerlinedata
+
+    cwave = np.delete(wave, save_ind)
+    cflux = np.delete(smoothedmod, save_ind)
+    mod_cflux = np.interp(line_wave, cwave, cflux)
+    _, smoothedfn = model._extract_from_indices(wave, smoothedmod, line_ind)
+
+    smoothedfn*=(line_cflux/mod_cflux)
     #return gp.lnlikelihood(datafn - smoothedfn)
-    return -0.5*np.sum(((datafn-smoothedfn)/datafnerr)**2.)
+    return -0.5*np.sum(((line_flux-smoothedfn)/line_fluxerr)**2.)
 
 
 def nll(*args):
@@ -107,21 +108,50 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
     line_fluxerr  = np.array([], dtype='float64', ndmin=1)
     line_number   = np.array([], dtype='int', ndmin=1)
     line_ind      = np.array([], dtype='int', ndmin=1)
-    for x in balmer:
+    save_ind      = np.array([], dtype='int', ndmin=1)
+    for x in range(1,7):
         W0, ZE = model._get_line_indices(wave, x)
         # save the central wavelengths and spectrum specific indices for each line
         # we don't need this for the fit, but we do need this for plotting 
-        balmerwaveindex[x] = W0, ZE
         x_wave, x_flux, x_fluxerr = model._extract_from_indices(wave, flux, ZE, df=fluxerr)
-        line_wave    = np.hstack((line_wave, x_wave))
-        line_flux    = np.hstack((line_flux, x_flux))
-        line_fluxerr = np.hstack((line_fluxerr, x_fluxerr))
-        line_number  = np.hstack((line_number, np.repeat(x, len(x_wave)))
-        line_ind     = np.hstack((line_ind, np.repeat(x, len(x_wave)))
-    balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
-    # continuum data is just the spectrum with the Balmer lines removed
-    continuumdata  = (np.delete(wave, line_ind), np.delete(flux, line_ind), np.delete(fluxerr, line_ind))
+        if x in balmer:
+            balmerwaveindex[x] = W0, ZE
+            line_wave    = np.hstack((line_wave, x_wave))
+            line_flux    = np.hstack((line_flux, x_flux))
+            line_fluxerr = np.hstack((line_fluxerr, x_fluxerr))
+            line_number  = np.hstack((line_number, np.repeat(x, len(x_wave))))
+            line_ind     = np.hstack((line_ind, ZE[0]))
+        save_ind     = np.hstack((save_ind, ZE[0]))
 
+    # continuum data is just the spectrum with the Balmer lines removed
+    continuumdata  = (np.delete(wave, save_ind), np.delete(flux, save_ind), np.delete(fluxerr, save_ind))
+
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    ax.errorbar(wave, flux, fluxerr,linestyle='-', marker='None', capsize=0, color='grey')
+    for x in balmer:
+        m = (line_number == x)
+        ax.errorbar(line_wave[m], line_flux[m], line_fluxerr[m], linestyle='-', marker='None', capsize=0, color='k')
+    cwave, cflux, cdflux = continuumdata
+    # Eventually maybe supply an option to choose which model to use
+    #gp = george.GP(kernel=george.kernels.Matern32Kernel(10))
+    gp = george.GP(kernel=george.kernels.ExpSquaredKernel(10))
+    gp.compute(cwave, cdflux)
+    pars, result = gp.optimize(cwave, cflux, cdflux, bounds=((10,100000),))
+    print pars
+    print result
+    mu, cov = gp.predict(cflux, wave)
+    line_cflux , line_cov = gp.predict(cflux, line_wave)
+    ax.errorbar(cwave, cflux, cdflux, capsize=0, linestyle='-.', marker='None',color='grey')
+    ax.plot(wave, mu, color='red', linestyle='-', marker='None')
+    noise = cov.diagonal()**0.5
+    ax.fill_between(wave,  mu+noise, mu-noise, color='red',alpha=0.5)
+    plt.show(fig)
+    plt.close(fig)
+
+
+    balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu)
 
     nparam  = 3 
     p0 = np.ones(nparam).tolist()
@@ -135,14 +165,14 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
 
     # do a quick fit with minimize to get a decent starting guess
     # HACK HACK HACK - disable scipy for now, until we can figure out how to call it with the new args
-    result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerwaveindex), bounds=bounds)
+    result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerlinedata), bounds=bounds)
     print result
 
     # setup the sampler
     ndim, nwalkers = nparam, 100
     #pos = [p0 + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
     pos = [result.x + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerwaveindex)) 
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerlinedata)) 
 
     # do a short burn-in
     print "Burn-in"
@@ -158,11 +188,11 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
 
     # make a corner plot
     samples = sampler.chain[:,:, :].reshape((-1, ndim))
-    plot_model(objname, spec, data, model, samples, kernel, balmerwaveindex, nparam)
+    plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam)
 
 #**************************************************************************************************************
 
-def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, nparam):
+def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata, nparam):
     
     font  = FM(size='small')
     font2 = FM(size='x-small')
@@ -172,7 +202,6 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, npara
     wave = spec.wave
     flux = spec.flux
     fluxerr = spec.flux_err
-    WO, ZE, data_flux_norm  = balmer
 
     fig = plt.figure(figsize=(10,8))
     ax_spec  = fig.add_axes([0.075,0.4,0.85,0.55])
@@ -193,6 +222,7 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, npara
         print logg_mcmc
         print av_mcmc
 
+        (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu) = balmerlinedata
 
         _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave)
         _, modelhi   = model.get_model(teff_mcmc[0]+teff_mcmc[2], logg_mcmc[0]+logg_mcmc[2], wave=wave)
@@ -210,27 +240,28 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, npara
         smoothedhi = convolve(modelhi, kernel)
         smoothedlo = convolve(modello, kernel)
 
-        #model_flux_norm = scinteg.simps((smoothed*wave)[ZE], wave[ZE])
-        #model_flux_norm_hi = scinteg.simps((smoothedhi*wave)[ZE], wave[ZE])
-        #model_flux_norm_lo = scinteg.simps((smoothedlo*wave)[ZE], wave[ZE])
-
-        model_flux_norm = scinteg.simps((smoothed*wave), wave)
-        model_flux_norm_hi = scinteg.simps((smoothedhi*wave), wave)
-        model_flux_norm_lo = scinteg.simps((smoothedlo*wave), wave)
-
-        smoothed *=(data_flux_norm/model_flux_norm)
-        smoothedhi *=(data_flux_norm/model_flux_norm_hi)
-        smoothedlo *=(data_flux_norm/model_flux_norm_lo)
+        cwave = np.delete(wave, save_ind)
+        smoothedc = np.interp(wave, cwave, np.delete(smoothed, save_ind))
+        smoothedchi = np.interp(wave, cwave, np.delete(smoothedhi, save_ind))
+        smoothedclo = np.interp(wave, cwave, np.delete(smoothedlo, save_ind))
+        smoothed*=mu/smoothedc
+        smoothedhi*=mu/smoothedchi
+        smoothedlo*=mu/smoothedclo
 
 
         ax_spec.fill(np.concatenate([wave, wave[::-1]]), np.concatenate([smoothedhi, smoothedlo[::-1]]),\
                 alpha=0.5, fc='grey', ec='None')
         ax_spec.plot(wave, smoothed, color='red', linestyle='-',marker='None')
         ax_resid.errorbar(wave, flux-smoothed, fluxerr, linestyle='-', marker=None, capsize=0, color='grey', alpha=0.5)
-        ax_resid.errorbar(wave[ZE], (flux-smoothed)[ZE], fluxerr[ZE], linestyle='-',\
+        for l in np.unique(line_number):
+            m = (line_number == l)
+            ax_resid.errorbar(line_wave[m], (line_flux[m]-smoothed[line_ind][m]), line_fluxerr[m], linestyle='-',\
                     marker=None, capsize=0, color='black', alpha=0.7)
 
-    ax_spec.errorbar(wave[ZE], flux[ZE], fluxerr[ZE], color='black', capsize=0, linestyle='-', marker='None',alpha=0.7)
+    for l in np.unique(line_number):
+        m = (line_number == l)
+        ax_spec.errorbar(line_wave[m], line_flux[m], line_fluxerr[m],\
+                    color='black', capsize=0, linestyle='-', marker='None',alpha=0.7)
 
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
     ax_spec.set_ylabel('Normalized Flux', fontproperties=font3)
@@ -239,11 +270,11 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, npara
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec, data, model, samples, kernel, balmer, nparam):
+def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam):
 
     outfilename = objname.replace('.flm','.pdf')
     with PdfPages(outfilename) as pdf:
-        fig =  plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmer, nparam)
+        fig =  plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata, nparam)
         pdf.savefig(fig)
 
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
