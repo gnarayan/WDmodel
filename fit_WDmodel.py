@@ -169,9 +169,9 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
     print result
 
     # setup the sampler
-    ndim, nwalkers = nparam, 100
+    ndim, nwalkers = nparam, 200
     #pos = [p0 + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
-    pos = [result.x + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [result.x + 1e-3*np.random.randn(ndim) for i in range(nwalkers)]
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerlinedata)) 
 
     # do a short burn-in
@@ -181,8 +181,8 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
 
     # production
     print "Production"
-    pos = pos[np.argmax(prob)] + 1e-8 * np.random.randn(nwalkers, ndim)
-    pos, prob, state = sampler.run_mcmc(pos,1000)   
+    pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, ndim)
+    pos, prob, state = sampler.run_mcmc(pos,2000)   
 
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
