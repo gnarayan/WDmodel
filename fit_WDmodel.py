@@ -74,7 +74,7 @@ def nll(*args):
 
 #**************************************************************************************************************
 
-def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=4., photfile=None):
+def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None):
 
     wave    = spec.wave
     flux    = spec.flux
@@ -149,7 +149,6 @@ def fit_model(objname, spec, balmer=None, av=0., rv=3.1, rvmodel='od94', smooth=
     ax.fill_between(wave,  mu+noise, mu-noise, color='red',alpha=0.5)
     plt.show(fig)
     plt.close(fig)
-
 
     balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu)
 
@@ -290,14 +289,22 @@ def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, npar
 #**************************************************************************************************************
 
 def get_options():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--specfiles', required=True, nargs='+')
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--specfiles', required=True, nargs='+',\
+            help="Specify spectra to fit. Can be used multiple times.")
+    parser.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
+            help="Specifiy Balmer lines to fit [1:7]")
+    parser.add_argument('--bluelimit', required=False, type=float,\
+            help="Specify blue limit of spectrum - trim wavelengths lower")
+    parser.add_argument('--redlimit', required=False, type=float,\
+            help="Specify red limit of spectrum - trim wavelengths higher")
+    parser.add_argument('-s', '--smooth', required=False, type=float, default=4.,\
+            help="Specify instrumental resolution for smoothing (FWHM, angstroms)")
+    parser.add_argument('-r', '--rv', required=False, type=float, default=3.1,\
+            help="Specify reddening law R_V")
+    parser.add_argument('--reddeningmodel', required=False, default='od94',\
+            help="Specify functional form of reddening law" )
     parser.add_argument('--photfiles', required=False, nargs='+')
-    parser.add_argument('-a', '--av', required=True, type=float, default=0.)
-    parser.add_argument('-r', '--rv', required=False, type=float, default=3.1)
-    parser.add_argument('--reddeningmodel', required=False, default='od94')
-    parser.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1))
-    parser.add_argument('-s', '--smooth', required=False, type=float, default=4.)
     args = parser.parse_args()
     balmer = args.balmerlines
     specfiles = args.specfiles
@@ -317,10 +324,6 @@ def get_options():
             # skip this problem for now until we come up a way of dealing with it
             message = 'If you are specifying photometry for fitting, number of files needs to match number of spectra'
             raise ValueError(message) 
-
-    if args.av < 0 or args.av > 5.:
-        message = 'That Av value is ridiculous'
-        raise ValueError(message)
 
     if args.rv < 2.1 or args.rv > 5.1:
         message = 'That Rv Value is ridiculous'
@@ -360,7 +363,6 @@ def read_phot(filename):
     return phot
 
 
-
 #**************************************************************************************************************
 def main():
 #    test()
@@ -376,8 +378,20 @@ def main():
             photfile = None
         specfile = specfiles[i]
         spec = read_spec(specfile)
-    
-        fit_model(specfile, spec, balmer, av=args.av, rv=args.rv, smooth=args.smooth, photfile=photfile)    
+
+        if args.bluelimit > 0:
+            bluelimit = float(args.bluelimit)
+        else:
+            bluelimit = spec.wave.min()
+
+        if args.redlimit > 0:
+            redlimit = float(args.redlimit)
+        else:
+            redlimit = spec.wave.max()
+        
+        mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
+        spec = spec[mask]
+        fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile)    
 
 #**************************************************************************************************************
 
