@@ -27,9 +27,7 @@ import corner
 
 
 def lnprior(theta):
-    #a, tau, teff, logg, av  = theta
     teff, logg, av  = theta
-    #if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5 and 1. < tau < 1000. and  0.01 < a < 10.:
     if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5:
         return 0.
     return -np.inf
@@ -42,7 +40,6 @@ def lnprob(theta, wave, model, data, kernel, balmer):
 
 
 def lnlike(theta, wave, model, data, kernel, balmerlinedata):
-    #a, tau, teff, logg, av  = theta
     teff, logg, av  = theta
     xi = model._get_xi(teff, logg, wave)
     mod = model._get_model(xi)
@@ -74,7 +71,8 @@ def nll(*args):
 
 #**************************************************************************************************************
 
-def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None):
+def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
+            nwalkers=200, nburnin=500, nprod=2000, nthreads=1):
 
     wave    = spec.wave
     flux    = spec.flux
@@ -167,21 +165,30 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerlinedata), bounds=bounds)
     print result
 
+    if nwalkers==0:
+        print "nwalkers set to 0. Not running MCMC"
+        return
+
     # setup the sampler
-    ndim, nwalkers = nparam, 200
+    ndim = nparam
     #pos = [p0 + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
     pos = [result.x + 1e-3*np.random.randn(ndim) for i in range(nwalkers)]
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerlinedata)) 
+    if nthreads > 1:
+        print "Multiproc"
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob,\
+                threads=nthreads, args=(wave, model, data, kernel, balmerlinedata)) 
+    else:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerlinedata)) 
 
     # do a short burn-in
     print "Burn-in"
-    pos, prob, state = sampler.run_mcmc(pos, 500)
+    pos, prob, state = sampler.run_mcmc(pos, nburnin)
     sampler.reset()
 
     # production
     print "Production"
     pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, ndim)
-    pos, prob, state = sampler.run_mcmc(pos,2000)   
+    pos, prob, state = sampler.run_mcmc(pos, nprod)   
 
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
@@ -305,6 +312,14 @@ def get_options():
     parser.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
     parser.add_argument('--photfiles', required=False, nargs='+')
+    parser.add_argument('--nthreads',  required=False, type=int, default=1,\
+            help="Specify number of threads to use. (>1 implies multiprocessing)")
+    parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
+            help="Specify number of walkers to use (0 disables MCMC)")
+    parser.add_argument('--nburnin',  required=False, type=int, default=500,\
+            help="Specify number of steps for burn-in")
+    parser.add_argument('--nprod',  required=False, type=int, default=2000,\
+            help="Specify number of steps for production")
     args = parser.parse_args()
     balmer = args.balmerlines
     specfiles = args.specfiles
@@ -329,6 +344,7 @@ def get_options():
         message = 'That Rv Value is ridiculous'
         raise ValueError(message)
 
+
     if args.smooth < 0:
         message = 'That Gaussian Smoothing FWHM value is ridiculous'
         raise ValueError(message)
@@ -338,6 +354,21 @@ def get_options():
         message = 'That reddening law is not known (%s)'%' '.join(reddeninglaws) 
         raise ValueError(message)
 
+    if args.nwalkers < 0:
+        message = 'Number of walkers must be greater than zero for MCMC'
+        raise ValueError(message)
+
+    if args.nthreads <= 0:
+        message = 'Number of threads must be greater than zero'
+        raise ValueError(message)
+    
+    if args.nburnin <= 0:
+        message = 'Number of walkers must be greater than zero'
+        raise ValueError(message)
+
+    if args.nprod <= 0:
+        message = 'Number of walkers must be greater than zero'
+        raise ValueError(message)
     return args
 
 
@@ -365,11 +396,14 @@ def read_phot(filename):
 
 #**************************************************************************************************************
 def main():
-#    test()
     args   = get_options() 
     balmer = np.atleast_1d(args.balmerlines).astype('int')
     specfiles = args.specfiles
     photfiles = args.photfiles
+    nwalkers  = args.nwalkers
+    nburnin   = args.nburnin
+    nprod     = args.nprod
+    nthreads  = args.nthreads
     
     for i in xrange(len(specfiles)):
         if photfiles is not None:
@@ -391,15 +425,17 @@ def main():
         
         mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
         spec = spec[mask]
-        fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile)    
+        fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads)
 
 #**************************************************************************************************************
 
 
 if __name__=='__main__':
-    cProfile.run('main()', 'profile.dat')
-    import pstats
-    p = pstats.Stats('profile.dat')
-    p.sort_stats('cumulative','time').print_stats(20)
+    main()
+    #cProfile.run('main()', 'profile.dat')
+    #import pstats
+    #p = pstats.Stats('profile.dat')
+    #p.sort_stats('cumulative','time').print_stats(20)
 
 
