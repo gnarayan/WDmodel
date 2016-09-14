@@ -73,7 +73,7 @@ def nll(*args):
 #**************************************************************************************************************
 
 def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
-            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd(), discard=5):
+            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd()):
 
     wave    = spec.wave
     flux    = spec.flux
@@ -222,14 +222,10 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
             dset_chain[nwalkers*i:nwalkers*(i+1),:] = position
             outf.flush()
             bar.show(i+1)
-        outf.close()
-    #pos, prob, state = sampler.run_mcmc(pos, nprod)   
-
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
-    # make a corner plot
-    samples = sampler.flatchain
-    samples = samples[round(discard*nwalkers*nprod/100.):]
+    samples = np.array(dset_chain)
+    outf.close()
     return data, model, samples, kernel, balmerlinedata
 
 #**************************************************************************************************************
@@ -312,7 +308,7 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedat
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, outdir=os.getcwd()):
+def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, outdir=os.getcwd(), discard=5):
 
     outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
@@ -320,8 +316,8 @@ def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, outd
         pdf.savefig(fig)
 
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
-        #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"Teff" , r"log(g)", r"A_V"]
         labels = [r"Teff" , r"log(g)", r"A_V"]
+        samples = samples[int(round(discard*samples.shape[0]/100)):]
         fig = corner.corner(samples, bins=41, labels=labels, show_titles=True,quantiles=(0.16,0.84),\
              use_math_text=True)
         pdf.savefig(fig)
@@ -495,9 +491,9 @@ def main():
         mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
         spec = spec[mask]
         res = fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, discard=discard)
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname)
         data, model, samples, kernel, balmerlinedata = res
-        plot_model(specfile, spec, data, model, samples, kernel, balmerlinedata, outdir=dirname)
+        plot_model(specfile, spec, data, model, samples, kernel, balmerlinedata, outdir=dirname, discard=discard)
 #**************************************************************************************************************
 
 
