@@ -72,7 +72,7 @@ def nll(*args):
 #**************************************************************************************************************
 
 def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
-            nwalkers=200, nburnin=500, nprod=2000, nthreads=1):
+            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd()):
 
     wave    = spec.wave
     flux    = spec.flux
@@ -182,7 +182,7 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
 
     # do a short burn-in
     print "Burn-in"
-    pos, prob, state = sampler.run_mcmc(pos, nburnin)
+    pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
     sampler.reset()
 
     # production
@@ -194,7 +194,7 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
 
     # make a corner plot
     samples = sampler.chain[:,:, :].reshape((-1, ndim))
-    plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam)
+    plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam, outdir=outdir)
 
 #**************************************************************************************************************
 
@@ -276,9 +276,9 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedat
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam):
+def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam, outdir=os.getcwd()):
 
-    outfilename = objname.replace('.flm','.pdf')
+    outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
         fig =  plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata, nparam)
         pdf.savefig(fig)
@@ -291,6 +291,19 @@ def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, npar
         pdf.savefig(fig)
         #endwith
     
+#**************************************************************************************************************
+
+def make_outdirs(dirname):
+    print("Writing to outdir {}".format(dirname))
+    if os.path.isdir(dirname):
+        return
+
+    try:
+        os.makedirs(dirname)
+    except OSError, e:
+        message = '%s\nCould not create outdir %s for writing.'
+        raise OSError(message)
+    
 
 
 #**************************************************************************************************************
@@ -301,6 +314,8 @@ def get_options():
             help="Specify spectra to fit. Can be used multiple times.")
     parser.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
             help="Specifiy Balmer lines to fit [1:7]")
+    parser.add_argument('-o', '--outdir', required=False,\
+            help="Specify a custom output directory. Default is CWD+objname/ subdir")
     parser.add_argument('--bluelimit', required=False, type=float,\
             help="Specify blue limit of spectrum - trim wavelengths lower")
     parser.add_argument('--redlimit', required=False, type=float,\
@@ -404,13 +419,23 @@ def main():
     nburnin   = args.nburnin
     nprod     = args.nprod
     nthreads  = args.nthreads
-    
+    outdir    = args.outdir
+    if outdir is not None:
+        make_outdirs(outdir)
+
+
     for i in xrange(len(specfiles)):
         if photfiles is not None:
             photfile = photfiles[i]
         else:
             photfile = None
         specfile = specfiles[i]
+        if outdir is None:
+            dirname = os.path.join(os.getcwd(), os.path.basename(specfile.replace('.flm','')))
+            make_outdirs(dirname)
+        else:
+            dirname = outdir
+
         spec = read_spec(specfile)
 
         if args.bluelimit > 0:
@@ -426,7 +451,7 @@ def main():
         mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
         spec = spec[mask]
         fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads)
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname)
 
 #**************************************************************************************************************
 
