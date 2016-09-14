@@ -194,14 +194,13 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
         return
 
     # setup the sampler
-    ndim = nparam
-    pos = [result.x + 1e-3*np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [result.x + 1e-3*np.random.randn(nparam) for i in range(nwalkers)]
     if nthreads > 1:
         print "Multiproc"
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob,\
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob,\
                 threads=nthreads, args=(wave, model, data, kernel, balmerlinedata)) 
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(wave, model, data, kernel, balmerlinedata)) 
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(wave, model, data, kernel, balmerlinedata)) 
 
     # do a short burn-in
     print "Burn-in"
@@ -216,7 +215,7 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     dset_chain = chain.create_dataset("position",(nwalkers*nprod,3),maxshape=(None,3))
 
     # production
-    pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, ndim)
+    pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, nparam)
     with progress.Bar(label="Production", expected_size=nprod) as bar:
         for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
             position = result[0]
@@ -229,12 +228,12 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     # make a corner plot
-    samples = sampler.chain[:,:, :].reshape((-1, ndim))
-    plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam, outdir=outdir)
+    samples = sampler.flatchain
+    return data, model, samples, kernel, balmerlinedata
 
 #**************************************************************************************************************
 
-def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata, nparam):
+def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata):
     
     font  = FM(size='small')
     font2 = FM(size='x-small')
@@ -312,11 +311,11 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedat
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, nparam, outdir=os.getcwd()):
+def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, outdir=os.getcwd()):
 
     outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
-        fig =  plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata, nparam)
+        fig =  plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata)
         pdf.savefig(fig)
 
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
@@ -367,9 +366,9 @@ def get_options():
             help="Specify number of threads to use. (>1 implies multiprocessing)")
     parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
             help="Specify number of walkers to use (0 disables MCMC)")
-    parser.add_argument('--nburnin',  required=False, type=int, default=500,\
+    parser.add_argument('--nburnin',  required=False, type=int, default=200,\
             help="Specify number of steps for burn-in")
-    parser.add_argument('--nprod',  required=False, type=int, default=2000,\
+    parser.add_argument('--nprod',  required=False, type=int, default=1000,\
             help="Specify number of steps for production")
     args = parser.parse_args()
     balmer = args.balmerlines
@@ -486,9 +485,10 @@ def main():
         
         mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
         spec = spec[mask]
-        fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
+        res = fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
                 nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname)
-
+        data, model, samples, kernel, balmerlinedata = res
+        plot_model(specfile, spec, data, model, samples, kernel, balmerlinedata, outdir=dirname)
 #**************************************************************************************************************
 
 
