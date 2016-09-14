@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 import sys
 import os
-import cProfile
 import argparse
+from clint.textui import progress
 import numpy as np
 import scipy.optimize as op
 import scipy.integrate as scinteg
+import h5py
 import george
 import emcee
 import WDmodel
@@ -85,6 +86,13 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
         phot = None
         # set the likelihood functions here 
 
+    outfile = os.path.join(outdir, os.path.basename(objname.replace('.flm','.mcmc.hdf5')))
+    outf = h5py.File(outfile, 'w')
+    dset_spec = outf.create_group("spec")
+    dset_spec.create_dataset("wave",data=wave)
+    dset_spec.create_dataset("flux",data=flux)
+    dset_spec.create_dataset("fluxerr",data=fluxerr)
+
 
     # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
     gsig     = smooth*(0.5/(np.log(2.)**0.5))
@@ -149,7 +157,24 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     plt.close(fig)
 
     balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu)
+    dset_lines = outf.create_group("lines")
+    dset_lines.create_dataset("line_wave",data=line_wave)
+    dset_lines.create_dataset("line_flux",data=line_flux)
+    dset_lines.create_dataset("line_fluxerr",data=line_fluxerr)
+    dset_lines.create_dataset("line_number",data=line_number)
+    dset_lines.create_dataset("line_cflux",data=line_cflux)
+    dset_lines.create_dataset("line_cov",data=line_cov)
+    dset_lines.create_dataset("line_ind",data=line_ind)
+    dset_lines.create_dataset("save_ind",data=save_ind)
 
+    dset_continuum = outf.create_group("continuum")
+    dset_continuum.create_dataset("con_wave", data=cwave)
+    dset_continuum.create_dataset("con_flux", data=cflux)
+    dset_continuum.create_dataset("con_fluxerr", data=cdflux)
+    dset_continuum.create_dataset("con_model", data=mu)
+    dset_continuum.create_dataset("con_cov", data=cov)
+    outf.close()
+    
     nparam  = 3 
     p0 = np.ones(nparam).tolist()
     bounds = []
@@ -161,7 +186,6 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     bounds.append((0.,0.5))
 
     # do a quick fit with minimize to get a decent starting guess
-    # HACK HACK HACK - disable scipy for now, until we can figure out how to call it with the new args
     result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerlinedata), bounds=bounds)
     print result
 
@@ -171,7 +195,6 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
 
     # setup the sampler
     ndim = nparam
-    #pos = [p0 + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
     pos = [result.x + 1e-3*np.random.randn(ndim) for i in range(nwalkers)]
     if nthreads > 1:
         print "Multiproc"
@@ -185,10 +208,23 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
     sampler.reset()
 
+    # setup incremental chain saving
+    # TODO need to test this alongside multiprocessing
+    nstep = 100
+    outf = h5py.File(outfile, 'a')
+    chain = outf.create_group("chain")
+    dset_chain = chain.create_dataset("position",(nwalkers*nprod,3),maxshape=(None,3))
+
     # production
-    print "Production"
     pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, ndim)
-    pos, prob, state = sampler.run_mcmc(pos, nprod)   
+    with progress.Bar(label="Production", expected_size=nprod) as bar:
+        for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
+            position = result[0]
+            dset_chain[nwalkers*i:nwalkers*(i+1),:] = position
+            outf.flush()
+            bar.show(i+1)
+        outf.close()
+    #pos, prob, state = sampler.run_mcmc(pos, nprod)   
 
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
