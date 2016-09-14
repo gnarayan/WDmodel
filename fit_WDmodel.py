@@ -73,7 +73,7 @@ def nll(*args):
 #**************************************************************************************************************
 
 def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
-            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd()):
+            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd(), discard=5):
 
     wave    = spec.wave
     flux    = spec.flux
@@ -229,6 +229,7 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
 
     # make a corner plot
     samples = sampler.flatchain
+    samples = samples[round(discard*nwalkers*nprod/100.):]
     return data, model, samples, kernel, balmerlinedata
 
 #**************************************************************************************************************
@@ -370,6 +371,8 @@ def get_options():
             help="Specify number of steps for burn-in")
     parser.add_argument('--nprod',  required=False, type=int, default=1000,\
             help="Specify number of steps for production")
+    parser.add_argument('--discard',  required=False, type=float, default=5,\
+            help="Specify percentage of steps to be discarded")
     args = parser.parse_args()
     balmer = args.balmerlines
     specfiles = args.specfiles
@@ -419,6 +422,11 @@ def get_options():
     if args.nprod <= 0:
         message = 'Number of walkers must be greater than zero'
         raise ValueError(message)
+
+    if not (0 <= args.discard < 100):
+        message = 'Discard must be a percentage (0-100)'
+        raise ValueError(message)
+
     return args
 
 
@@ -455,6 +463,7 @@ def main():
     nprod     = args.nprod
     nthreads  = args.nthreads
     outdir    = args.outdir
+    discard   = args.discard
     if outdir is not None:
         make_outdirs(outdir)
 
@@ -486,7 +495,7 @@ def main():
         mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
         spec = spec[mask]
         res = fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname)
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, discard=discard)
         data, model, samples, kernel, balmerlinedata = res
         plot_model(specfile, spec, data, model, samples, kernel, balmerlinedata, outdir=dirname)
 #**************************************************************************************************************
