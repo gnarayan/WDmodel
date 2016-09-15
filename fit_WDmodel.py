@@ -33,14 +33,14 @@ def lnprior(theta):
         return 0.
     return -np.inf
 
-def lnprob(theta, wave, model, data, kernel, balmer):
+def lnprob(theta, wave, model, kernel, balmer):
     lp = lnprior(theta)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + lnlike(theta, wave, model, data, kernel, balmer)
+    return lp + lnlike(theta, wave, model, kernel, balmer)
 
 
-def lnlike(theta, wave, model, data, kernel, balmerlinedata):
+def lnlike(theta, wave, model, kernel, balmerlinedata):
     teff, logg, av  = theta
     xi = model._get_xi(teff, logg, wave)
     mod = model._get_model(xi)
@@ -54,7 +54,7 @@ def lnlike(theta, wave, model, data, kernel, balmerlinedata):
     # and then extract the subset range that overlaps with the data
     # we avoid any edge effects with smoothing at the end of the range
     smoothedmod = convolve(mod, kernel)
-    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu) = balmerlinedata
+    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
 
     cwave = np.delete(wave, save_ind)
     cflux = np.delete(smoothedmod, save_ind)
@@ -69,44 +69,23 @@ def lnlike(theta, wave, model, data, kernel, balmerlinedata):
 def nll(*args):
     return -lnlike(*args)
 
-
 #**************************************************************************************************************
 
-def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
-            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd()):
+def quick_fit_model(spec, balmer, model, kernel):
+    """
+    Does a quick fit of the spectrum to get an initial guess of the spectral parameters
+    This isn't robust, but it's good enough for an initial guess
+    The guess defines the regions of the spectrum that are actually used for each line in the full fit
+    These regions are only weak functions of Teff, logg
+    It beats hard-coded pre-defined regions which are only valid for some Teff, logg
+    """
+
+    nparam = 3
 
     wave    = spec.wave
     flux    = spec.flux
     fluxerr = spec.flux_err
 
-    if photfile is not None:
-        phot = read_phot(photfile)
-        # set the likelihood functions here 
-    else:
-        phot = None
-        # set the likelihood functions here 
-
-    outfile = os.path.join(outdir, os.path.basename(objname.replace('.flm','.mcmc.hdf5')))
-    outf = h5py.File(outfile, 'w')
-    dset_spec = outf.create_group("spec")
-    dset_spec.create_dataset("wave",data=wave)
-    dset_spec.create_dataset("flux",data=flux)
-    dset_spec.create_dataset("fluxerr",data=fluxerr)
-
-
-    # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
-    gsig     = smooth*(0.5/(np.log(2.)**0.5))
-    kernel   = Gaussian1DKernel(gsig)
-
-    # init the model, and determine the coarse normalization to match the spectrum
-    model = WDmodel.WDmodel()
-    data = {}
-    
-    #  bundle the line dnd continuum data so we don't have to extract it every step in the MCMC
-    if balmer is None:
-        balmer = np.arange(1, 7)
-    else:
-        balmer = np.array(sorted(balmer))
     nbalmer = len(balmer)
     balmerwaveindex = {}
     line_wave     = np.array([], dtype='float64', ndmin=1)
@@ -131,51 +110,17 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
 
     # continuum data is just the spectrum with the Balmer lines removed
     continuumdata  = (np.delete(wave, save_ind), np.delete(flux, save_ind), np.delete(fluxerr, save_ind))
-
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1,1,1)
-    ax.errorbar(wave, flux, fluxerr,linestyle='-', marker='None', capsize=0, color='grey')
-    for x in balmer:
-        m = (line_number == x)
-        ax.errorbar(line_wave[m], line_flux[m], line_fluxerr[m], linestyle='-', marker='None', capsize=0, color='k')
     cwave, cflux, cdflux = continuumdata
-    # Eventually maybe supply an option to choose which model to use
-    #gp = george.GP(kernel=george.kernels.Matern32Kernel(10))
+
+    # do a quick Gaussian Process Fit to model the continuum of the specftrum
     gp = george.GP(kernel=george.kernels.ExpSquaredKernel(10))
     gp.compute(cwave, cdflux)
     pars, result = gp.optimize(cwave, cflux, cdflux, bounds=((10,100000),))
-    print pars
-    print result
     mu, cov = gp.predict(cflux, wave)
     line_cflux , line_cov = gp.predict(cflux, line_wave)
-    ax.errorbar(cwave, cflux, cdflux, capsize=0, linestyle='-.', marker='None',color='grey')
-    ax.plot(wave, mu, color='red', linestyle='-', marker='None')
-    noise = cov.diagonal()**0.5
-    ax.fill_between(wave,  mu+noise, mu-noise, color='red',alpha=0.5)
-    plt.show(fig)
-    plt.close(fig)
 
-    balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu)
-    dset_lines = outf.create_group("lines")
-    dset_lines.create_dataset("line_wave",data=line_wave)
-    dset_lines.create_dataset("line_flux",data=line_flux)
-    dset_lines.create_dataset("line_fluxerr",data=line_fluxerr)
-    dset_lines.create_dataset("line_number",data=line_number)
-    dset_lines.create_dataset("line_cflux",data=line_cflux)
-    dset_lines.create_dataset("line_cov",data=line_cov)
-    dset_lines.create_dataset("line_ind",data=line_ind)
-    dset_lines.create_dataset("save_ind",data=save_ind)
+    balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov)
 
-    dset_continuum = outf.create_group("continuum")
-    dset_continuum.create_dataset("con_wave", data=cwave)
-    dset_continuum.create_dataset("con_flux", data=cflux)
-    dset_continuum.create_dataset("con_fluxerr", data=cdflux)
-    dset_continuum.create_dataset("con_model", data=mu)
-    dset_continuum.create_dataset("con_cov", data=cov)
-    outf.close()
-    
-    nparam  = 3 
     p0 = np.ones(nparam).tolist()
     bounds = []
     p0[0] = 40000.
@@ -186,8 +131,84 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     bounds.append((0.,0.5))
 
     # do a quick fit with minimize to get a decent starting guess
-    result = op.minimize(nll, p0, args=(wave, model, data, kernel, balmerlinedata), bounds=bounds)
+    result = op.minimize(nll, p0, args=(wave, model, kernel, balmerlinedata), bounds=bounds)
     print result
+    return balmerlinedata, continuumdata, result
+
+#**************************************************************************************************************
+
+def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
+            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd(), redo=False):
+
+    outfile = os.path.join(outdir, os.path.basename(objname.replace('.flm','.mcmc.hdf5')))
+    if os.path.exists(outfile) and (not redo):
+        print("Output file already exists. Specify --redo to clobber.")
+        sys.exit(0)
+
+    nparam = 3
+
+
+    #TODO - do something with the photometry to fit Av
+    if photfile is not None:
+        phot = read_phot(photfile)
+        # set the likelihood functions here 
+    else:
+        phot = None
+        # set the likelihood functions here 
+
+    wave    = spec.wave
+    flux    = spec.flux
+    fluxerr = spec.flux_err
+    outf = h5py.File(outfile, 'w')
+    dset_spec = outf.create_group("spec")
+    dset_spec.create_dataset("wave",data=wave)
+    dset_spec.create_dataset("flux",data=flux)
+    dset_spec.create_dataset("fluxerr",data=fluxerr)
+
+    # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
+    gsig     = smooth*(0.5/(np.log(2.)**0.5))
+    kernel   = Gaussian1DKernel(gsig)
+
+    # init the model, and determine the coarse normalization to match the spectrum
+    model = WDmodel.WDmodel()
+    data = {}
+    
+    # bundle the line dnd continuum data so we don't have to extract it every step in the MCMC
+    if balmer is None:
+        balmer = np.arange(1, 7)
+    else:
+        balmer = np.array(sorted(balmer))
+    
+    # do a quick, not very robust fit to create the quantities we need to store
+    # get a reasonable starting position for the chains 
+    # and set the wavelength thresholds for each line
+    balmerlinedata, continuumdata, result = quick_fit_model(spec, balmer, model, kernel)
+
+    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
+    (cwave, cflux, cdflux) = continuumdata
+
+    dset_lines = outf.create_group("lines")
+    dset_lines.create_dataset("line_wave",data=line_wave)
+    dset_lines.create_dataset("line_flux",data=line_flux)
+    dset_lines.create_dataset("line_fluxerr",data=line_fluxerr)
+    dset_lines.create_dataset("line_number",data=line_number)
+    dset_lines.create_dataset("line_cflux",data=line_cflux)
+    dset_lines.create_dataset("line_cov",data=line_cov)
+    dset_lines.create_dataset("line_ind",data=line_ind)
+    dset_lines.create_dataset("save_ind",data=save_ind)
+
+    # note that we bundle mu and cov (the continuum model and error) with balmerlinedata
+    # but save it with continuumdata
+    # the former makes sense for fitting
+    # the latter is a more logical structure 
+    dset_continuum = outf.create_group("continuum")
+    dset_continuum.create_dataset("con_wave", data=cwave)
+    dset_continuum.create_dataset("con_flux", data=cflux)
+    dset_continuum.create_dataset("con_fluxerr", data=cdflux)
+    dset_continuum.create_dataset("con_model", data=mu)
+    dset_continuum.create_dataset("con_cov", data=cov)
+    outf.close()
+    
 
     if nwalkers==0:
         print "nwalkers set to 0. Not running MCMC"
@@ -198,14 +219,16 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     if nthreads > 1:
         print "Multiproc"
         sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob,\
-                threads=nthreads, args=(wave, model, data, kernel, balmerlinedata)) 
+                threads=nthreads, args=(wave, model, kernel, balmerlinedata)) 
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(wave, model, data, kernel, balmerlinedata)) 
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(wave, model, kernel, balmerlinedata)) 
 
     # do a short burn-in
-    print "Burn-in"
-    pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
-    sampler.reset()
+    if nburnin > 0:
+        print "Burn-in"
+        pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
+        sampler.reset()
+        pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, nparam)
 
     # setup incremental chain saving
     # TODO need to test this alongside multiprocessing
@@ -215,7 +238,6 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     dset_chain = chain.create_dataset("position",(nwalkers*nprod,3),maxshape=(None,3))
 
     # production
-    pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, nparam)
     with progress.Bar(label="Production", expected_size=nprod) as bar:
         for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
             position = result[0]
@@ -226,11 +248,11 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
 
     samples = np.array(dset_chain)
     outf.close()
-    return data, model, samples, kernel, balmerlinedata
+    return model, samples, kernel, balmerlinedata
 
 #**************************************************************************************************************
 
-def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata):
+def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
     
     font  = FM(size='small')
     font2 = FM(size='x-small')
@@ -244,6 +266,7 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedat
     fig = plt.figure(figsize=(10,8))
     ax_spec  = fig.add_axes([0.075,0.4,0.85,0.55])
     ax_resid = fig.add_axes([0.075, 0.1,0.85, 0.25])
+    ax_acorr = fig.add_axes([0.5,0.675,0.4,0.25])
 
     ax_spec.errorbar(wave, flux, fluxerr, color='grey', alpha=0.5, capsize=0, linestyle='-', marker='None')
     if samples is not None:
@@ -260,7 +283,7 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedat
         print logg_mcmc
         print av_mcmc
 
-        (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu) = balmerlinedata
+        (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
 
         _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave)
         _, modelhi   = model.get_model(teff_mcmc[0]+teff_mcmc[2], logg_mcmc[0]+logg_mcmc[2], wave=wave)
@@ -291,10 +314,15 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedat
                 alpha=0.5, fc='grey', ec='None')
         ax_spec.plot(wave, smoothed, color='red', linestyle='-',marker='None')
         ax_resid.errorbar(wave, flux-smoothed, fluxerr, linestyle='-', marker=None, capsize=0, color='grey', alpha=0.5)
+
         for l in np.unique(line_number):
             m = (line_number == l)
             ax_resid.errorbar(line_wave[m], (line_flux[m]-smoothed[line_ind][m]), line_fluxerr[m], linestyle='-',\
                     marker=None, capsize=0, color='black', alpha=0.7)
+        
+            ax_acorr.acorr(line_flux[m] - smoothed[line_ind][m], label=str(l), usevlines=False, linestyle='-',marker='None')
+
+        ax_acorr.legend(frameon=False)
 
     for l in np.unique(line_number):
         m = (line_number == l)
@@ -308,11 +336,11 @@ def plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedat
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec, data, model, samples, kernel, balmerlinedata, outdir=os.getcwd(), discard=5):
+def plot_model(objname, spec,  model, samples, kernel, balmerlinedata, outdir=os.getcwd(), discard=5):
 
     outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
-        fig =  plot_spectrum_fit(objname, spec, data, model, samples, kernel, balmerlinedata)
+        fig =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata)
         pdf.savefig(fig)
 
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
@@ -369,6 +397,8 @@ def get_options():
             help="Specify number of steps for production")
     parser.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
+    parser.add_argument('--redo',  required=False, action="store_true", default=False,\
+            help="Clobber existing fits")
     args = parser.parse_args()
     balmer = args.balmerlines
     specfiles = args.specfiles
@@ -460,6 +490,7 @@ def main():
     nthreads  = args.nthreads
     outdir    = args.outdir
     discard   = args.discard
+    redo      = args.redo
     if outdir is not None:
         make_outdirs(outdir)
 
@@ -491,9 +522,9 @@ def main():
         mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
         spec = spec[mask]
         res = fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname)
-        data, model, samples, kernel, balmerlinedata = res
-        plot_model(specfile, spec, data, model, samples, kernel, balmerlinedata, outdir=dirname, discard=discard)
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, redo=redo)
+        model, samples, kernel, balmerlinedata = res
+        plot_model(specfile, spec,  model, samples, kernel, balmerlinedata, outdir=dirname, discard=discard)
 #**************************************************************************************************************
 
 
