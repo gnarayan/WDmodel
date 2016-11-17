@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import sys
 import os
+import warnings
+warnings.simplefilter('once')
 import argparse
 from clint.textui import progress
 import numpy as np
@@ -380,7 +382,7 @@ def get_options():
             help="Specify blue limit of spectrum - trim wavelengths lower")
     parser.add_argument('--redlimit', required=False, type=float,\
             help="Specify red limit of spectrum - trim wavelengths higher")
-    parser.add_argument('-s', '--smooth', required=False, type=float, default=4.,\
+    parser.add_argument('-s', '--smooth', required=False, type=float, default=None,\
             help="Specify instrumental resolution for smoothing (FWHM, angstroms)")
     parser.add_argument('-r', '--rv', required=False, type=float, default=3.1,\
             help="Specify reddening law R_V")
@@ -423,10 +425,10 @@ def get_options():
         message = 'That Rv Value is ridiculous'
         raise ValueError(message)
 
-
-    if args.smooth < 0:
-        message = 'That Gaussian Smoothing FWHM value is ridiculous'
-        raise ValueError(message)
+    if args.smooth is not None:
+        if args.smooth < 0:
+            message = 'That Gaussian Smoothing FWHM value is ridiculous'
+            raise ValueError(message)
 
     reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
     if not args.reddeningmodel in reddeninglaws:
@@ -477,6 +479,14 @@ def read_phot(filename):
     print rec2txt(phot)
     return phot
 
+#**************************************************************************************************************
+
+def read_spectable():
+    """
+    Read spectrum resolution from a file to set instrumental smoothing
+    """
+    spectable = np.recfromtxt('spectable_resolution.dat', names=True)
+    return spectable
 
 #**************************************************************************************************************
 def main():
@@ -509,6 +519,27 @@ def main():
 
         spec = read_spec(specfile)
 
+        if args.smooth is None:
+            spectable = read_spectable()
+            shortfile = os.path.basename(specfile).replace('-total','')
+            if shortfile.startswith('test'):
+                message = 'Spectrum filename indicates this is a test - using default resolution 4.0'
+                warnings.warn(message, RuntimeWarning)
+                smooth = 4.0
+            else:
+                mask = (spectable.specname == shortfile)
+                if len(spectable[mask]) != 1:
+                    message = 'Could not find an entry for this spectrum in the spectable file - using default resolution 4.0'
+                    warnings.warn(message, RuntimeWarning)
+                    smooth = 4.0
+                else:
+                    smooth = spectable[mask].fwhm
+        else:
+            message = 'Smoothing factor specified on command line - overridng spectable file'
+            warnings.warn(message, RuntimeWarning)
+            smooth = args.smooth
+        print('Using smoothing factor %.2f'%smooth)
+
         if args.bluelimit > 0:
             bluelimit = float(args.bluelimit)
         else:
@@ -521,7 +552,7 @@ def main():
         
         mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
         spec = spec[mask]
-        res = fit_model(specfile, spec, balmer, rv=args.rv, smooth=args.smooth, photfile=photfile,\
+        res = fit_model(specfile, spec, balmer, rv=args.rv, smooth=smooth, photfile=photfile,\
                 nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, redo=redo)
         model, samples, kernel, balmerlinedata = res
         plot_model(specfile, spec,  model, samples, kernel, balmerlinedata, outdir=dirname, discard=discard)
