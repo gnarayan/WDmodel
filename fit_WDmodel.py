@@ -285,11 +285,13 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
         print logg_mcmc
         print av_mcmc
 
+
+
         (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
 
-        _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave)
-        _, modelhi   = model.get_model(teff_mcmc[0]+teff_mcmc[2], logg_mcmc[0]+logg_mcmc[2], wave=wave)
-        _, modello   = model.get_model(teff_mcmc[0]-teff_mcmc[1], logg_mcmc[0]-logg_mcmc[1], wave=wave)
+        _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave, strict=False)
+        _, modelhi   = model.get_model(teff_mcmc[0]+teff_mcmc[2], logg_mcmc[0]+logg_mcmc[2], wave=wave, strict=False)
+        _, modello   = model.get_model(teff_mcmc[0]-teff_mcmc[1], logg_mcmc[0]-logg_mcmc[1], wave=wave, strict=False)
 
         # redden the model
         bluening   = reddening(wave*u.Angstrom, av_mcmc[0], r_v=3.1, model='od94')
