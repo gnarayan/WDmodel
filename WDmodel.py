@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import sys
 import os
+import warnings
+warnings.simplefilter('once')
 import numpy as np
 import h5py
 import scipy.interpolate as spinterp
@@ -109,7 +111,7 @@ class WDmodel:
             raise ValueError(message)
 
         
-    def get_model(self, teff, logg, wave=None, log=False):
+    def get_model(self, teff, logg, wave=None, log=False, strict=True):
         """
         Returns the model for some teff, logg at wavelengths wave
         If not specified, wavelengths are from 3000-9000A
@@ -128,11 +130,19 @@ class WDmodel:
 
         if not ((teff >= self._tgrid.min()) and (teff <= self._tgrid.max())):
             message = 'Temperature out of model range'
-            raise ValueError(message)
+            if strict:
+                raise ValueError(message)
+            else:
+                warnings.warn(message,RuntimeWarning)
+                teff = min([self._tgrid.min(), self._tgrid.max()], key=lambda x:abs(x-teff))
 
         if not ((logg >= self._ggrid.min()) and (logg <= self._ggrid.max())):
             message = 'Surface gravity out of model range'
-            raise ValueError(message)
+            if strict:
+                raise ValueError(message)
+            else:
+                warnings.warn(message,RuntimeWarning)
+                logg = min([self._ggrid.min(), self._ggrid.max()], key=lambda x:abs(x-logg))
 
         outwave = wave[((wave >= self._wave.min()) & (wave <= self._wave.max()))]
 
