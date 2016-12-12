@@ -32,7 +32,7 @@ def orig_cut_lines(spec, model):
     line_number   = np.array([], dtype='int', ndmin=1)
     line_ind      = np.array([], dtype='int', ndmin=1)
     save_ind      = np.array([], dtype='int', ndmin=1)
-    for x in range(1,7):
+    for x in balmer:
         W0, ZE = model._get_line_indices(wave, x)
         # save the central wavelengths and spectrum specific indices for each line
         # we don't need this for the fit, but we do need this for plotting 
@@ -94,19 +94,22 @@ def bspline(cv, n=100, degree=3, periodic=False):
 
 
 
-def gp_continuum(continuumdata, bsw, bsf, wave):
-    f = scinterp.interp1d(bsw, bsf, kind='linear', fill_value='extrapolate')
-    def mean_func(x):
-        x = np.array(x).ravel()
-        return f(x)
-
+def gp_continuum(continuumdata, bsw, bsf, wave, scalemin=500):
     cwave, cflux, cdflux = continuumdata
-    kernel= np.median(cdflux)**2.*george.kernels.ExpSquaredKernel(100.)
+    kernel= np.median(cdflux)**2.*george.kernels.ExpSquaredKernel(scalemin)
+    if bsw is not None:
+        f = scinterp.interp1d(bsw, bsf, kind='linear', fill_value='extrapolate')
+        def mean_func(x):
+            x = np.array(x).ravel()
+            return f(x)
+    else:
+        mean_func = 0.
+
     gp = george.GP(kernel=kernel, mean=mean_func)
     gp.compute(cwave, cdflux)
     pars, result = gp.optimize(cwave, cflux, cdflux,\
                     bounds=((None, np.log(3*np.median(cdflux)**2.)),\
-                            (np.log(100.),np.log(100000)) ))
+                            (np.log(scalemin),np.log(100000)) ))
     mu, cov = gp.predict(cflux, wave)
     return wave, mu, cov
 
@@ -124,12 +127,16 @@ def bspline_continuum(continuumdata, wave):
 
 def main():
     spec_path = '/data/wdcalib/spectroscopy/'
-    spec_files = list(glob.glob(os.path.join(spec_path, '*.flm')))
+    spec_files = list(glob.glob(os.path.join(spec_path, 'wd0554*.flm')))
     model = WDmodel.WDmodel()
     figures = []
     scaling = scistat.norm.ppf(3/4.)
-    window1 = 15
-    window2 = 101
+
+    # two windows to smooth the data
+    #the first is used to get a smoother reconstruction of the spectrum with white noise reduced
+    #the second is used to filter out sharp features that aren't lines
+    window1 = 7
+    window2 = 151
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -153,18 +160,33 @@ def main():
         spec = spec[ind]
 
         # init some figures
-        fig = plt.figure(figsize=(10,5))
-        ax  = fig.add_subplot(2,1,1)
-        ax2 = fig.add_subplot(2,1,2, sharex=ax)
+        fig = plt.figure(figsize=(10,8))
+        ax1  = fig.add_subplot(3,1,1)
+        ax2 = fig.add_subplot(3,1,2, sharex=ax1)
+        ax3 = fig.add_subplot(3,1,3, sharex=ax1)
 
-        ax.plot(spec.wave, spec.flux, marker='None', linestyle='--', color='black', alpha=0.3)
+
+
+
         # preserve the original lines 
         linedata, continuumdata, saveind = orig_cut_lines(spec, model)
 
+        #OLD
+        gpw, gpf, gpcov = gp_continuum(continuumdata, None, None, spec.wave, scalemin=10.)
+        ax1.errorbar(spec.wave, spec.flux, yerr=spec.flux_err, marker='None',\
+                        linestyle='-', color='grey', alpha=0.3, capsize=0)
+        ax1.plot(spec.wave, spec.flux, marker='None', linestyle='-', color='black', alpha=0.5)
+        ax1.plot(continuumdata[0], continuumdata[1], marker='.', linestyle='None', color='green', ms=1)
+        ax1.plot(gpw, gpf, marker='None', linestyle='--', color='red')
+        ax1.set_title("OLD")
+
+
+        # NEW
         # do some initial filtering on the spectrum
         cflux = pandas.DataFrame(spec.flux)
-        med_filt = cflux.rolling(window=window2,center=True).median().fillna(method='bfill').fillna(method='ffill')
-        diff = np.abs(cflux - med_filt)
+        med_filt1 = cflux.rolling(window=window1,center=True).median().fillna(method='bfill').fillna(method='ffill')
+        med_filt2 = cflux.rolling(window=window2,center=True).median().fillna(method='bfill').fillna(method='ffill')
+        diff = np.abs(cflux - med_filt2)
         sigma = diff.rolling(window=window2, center=True).median().fillna(method='bfill').fillna(method='ffill')
         sigma/=scaling
         outlier_idx = (diff > 5.*sigma)
@@ -172,47 +194,90 @@ def main():
         sigma = sigma.values.ravel()
 
         # clip the bad outliers from the spectrum
-        spec.flux[mask] = med_filt.values.ravel()[mask]
+        spec.flux[mask] = med_filt2.values.ravel()[mask]
 
         # restore the original lines, so that they aren't clipped
         spec.flux[saveind] = linedata[1]
         linedata, continuumdata, saveind = orig_cut_lines(spec, model)
 
-        cflux = pandas.DataFrame(continuumdata[1])
-        med_filt = cflux.rolling(window=window2,center=True).median().fillna(method='bfill').fillna(method='ffill')
-        diff = np.abs(cflux - med_filt)
-        sigma = diff.rolling(window=window2, center=True).median().fillna(method='bfill').fillna(method='ffill')
-        sigma/=scaling
-        outlier_idx = (diff > 5.*sigma)
-        mask = outlier_idx.values.ravel()
-        sigma = sigma.values.ravel()
-
-        # plot up the sigma clipping results
-        ax2.fill_between(continuumdata[0], continuumdata[1]-sigma, continuumdata[1] + sigma, facecolor='grey', alpha=0.5)
-        ax2.plot(continuumdata[0], continuumdata[1], marker='.', ms=1, linestyle='None', color='black', alpha=0.5)
-        ax2.plot(continuumdata[0], continuumdata[1], marker='.', ms=1, linestyle='None', color='black', alpha=0.5)
-        ax2.plot(continuumdata[0], med_filt, marker='.', ms=1, linestyle='None', color='blue', alpha=0.5)
-        ax2.plot(continuumdata[0][mask], continuumdata[1][mask], marker='.', ms=2, linestyle='None',\
-                color='red', alpha=0.5)
-        
-        # toss the outliers
-        continuumdata[1][mask] = med_filt.values.ravel()[mask]
-        
-        # compare GP and b-spline
+        # get a coarse estimate of the continuum
         bsw, bsf, _     = bspline_continuum(continuumdata, spec.wave)
         gpw, gpf, gpcov = gp_continuum(continuumdata, bsw, bsf, spec.wave)
 
+        pdiff = np.abs(gpf - med_filt1.values.ravel())/gpf
+        # select where difference is within 1% of continuum
+        # TODO make this a parameter 
+        mask = (pdiff*100 <= 1.)
+
+        lineparams = [ model._get_line_indices(spec.wave, x) for x in balmer]
+        linecentroids,_ = zip(*lineparams)
+        linecentroids = np.array(linecentroids)
+        for W0 in linecentroids:
+            delta_lambda = (spec.wave[mask] - W0)
+            blueind  = (delta_lambda < 0)
+            redind   = (delta_lambda > 0)
+            if len(delta_lambda[blueind]) == 0 or len(delta_lambda[redind]) == 0:
+                # spectrum not blue/red enough for this line
+                continue 
+            bluelim  = delta_lambda[blueind].argmax()
+            redlim   = delta_lambda[redind].argmin()
+            bluewave = spec.wave[mask][blueind][bluelim]
+            redwave  = spec.wave[mask][redind][redlim]
+            
+            lineind = ((spec.wave >= bluewave) & (spec.wave <= redwave))
+            signalind = (pdiff[lineind]*100. > 1.)
+            if len(pdiff[lineind][signalind]) <= 5:
+                print "Not enough signal ",W0
+                continue
+
+
+
+
+            bluelength = (W0 - bluewave)
+            redlength  = (redwave - W0)
+            if bluelength > redlength:
+                redlength = bluelength
+                redlim = np.abs(spec.wave - (W0 + redlength)).argmin()
+                redwave = spec.wave[redlim]
+            elif bluelength < redlength:
+                bluelength = redlength
+                bluelim = np.abs(spec.wave - (W0 - bluelength)).argmin()
+                bluewave = spec.wave[bluelim]
+            else:
+                pass
+
+            print(W0, bluewave, redwave)
+
+            ax1.axvline(bluewave, color='b', linestyle='-.') 
+            ax2.axvline(bluewave, color='b', linestyle='-.') 
+            ax3.axvline(bluewave, color='b', linestyle='-.') 
+            ax1.axvline(redwave, color='r', linestyle='-.') 
+            ax2.axvline(redwave, color='r', linestyle='-.') 
+            ax3.axvline(redwave, color='r', linestyle='-.') 
+
+            
+
+
 
         # plot up results
-        ax.errorbar(spec.wave, spec.flux, yerr=spec.flux_err, marker='None',\
+        ax2.errorbar(spec.wave, spec.flux, yerr=spec.flux_err, marker='None',\
                         linestyle='-', color='grey', alpha=0.3, capsize=0)
-        ax.plot(spec.wave, spec.flux, marker='None', linestyle='-', color='black', alpha=0.5)
-        ax.plot(continuumdata[0], continuumdata[1], marker='.', linestyle='None', color='green')
-        ax.plot(gpw, gpf, marker='None', linestyle='--', color='red')
-        ax.plot(bsw, bsf, marker='None', linestyle='-.', color='blue')
+        ax2.plot(spec.wave, spec.flux, marker='None', linestyle='-', color='black', alpha=0.5)
+        ax2.plot(continuumdata[0], continuumdata[1], marker='.', linestyle='None', color='green',ms=1)
+        ax2.plot(gpw, gpf, marker='None', linestyle='--', color='red')
+        ax2.plot(bsw, bsf, marker='None', linestyle='-.', color='blue')
+        ax2.plot(spec.wave, med_filt1.values.ravel(), marker='None', linestyle='-', color='purple',lw=0.5,alpha=0.7)
+        ax2.set_title("NEW")
+
+        ax3.plot(spec.wave, pdiff, marker='None', linestyle='-', color='black')
+        ax3.plot(spec.wave[mask], pdiff[mask], marker='.', linestyle='None', color='red',ms=1)
     
-        ax.set_ylabel('Flam')
-        ax.set_xlabel('Wavelength')
+        ax1.set_ylabel('Flam')
+        ax1.set_xlabel('Wavelength')
+        ax2.set_ylabel('Flam')
+        ax2.set_xlabel('Wavelength')
+        ax3.set_ylabel('PDiff')
+        ax3.set_xlabel('Wavelength')
         fig.suptitle(os.path.basename(f))
         plt.tight_layout()
         figures.append(fig)
