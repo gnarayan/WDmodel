@@ -82,6 +82,7 @@ def bspline_continuum(continuumdata, wave):
     mu = np.interp(wave, cbspline.wave, cbspline.flux)
     return wave, mu, None
 
+
 #**************************************************************************************************************
 
 def gp_continuum(continuumdata, bsw, bsf, wave, scalemin=500):
@@ -181,6 +182,8 @@ def orig_cut_lines(spec, model):
     return linedata, continuumdata, save_ind
 
 
+#**************************************************************************************************************
+
 def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     """
     reads the input spectrum
@@ -213,6 +216,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     model = WDmodel.WDmodel()
 
     balmer = np.atleast_1d(balmerlines).astype('int')
+    balmer.sort()
 
     if smooth is None:
         spectable = read_spectable()
@@ -238,37 +242,38 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     scaling = scistat.norm.ppf(3/4.)
     linedata, continuumdata, saveind = orig_cut_lines(spec, model)
 
+    # TODO make this a parameter 
     window1 = 7
     window2 = 151
-    med_filt1 = scisig.medfilt(spec.flux, kernel_size=window1)
-    med_filt2 = scisig.medfilt(spec.flux, kernel_size=window2)
+    med_filt2 = scisig.wiener(spec.flux, mysize=window2)
 
-    #cflux = pandas.DataFrame(spec.flux)
-    #med_filt1 = cflux.rolling(window=window1,center=True).median().fillna(method='bfill').fillna(method='ffill')
-    #med_filt2 = cflux.rolling(window=window2,center=True).median().fillna(method='bfill').fillna(method='ffill')
-    #diff = np.abs(cflux - med_filt2)
     diff = np.abs(spec.flux - med_filt2)
-    #sigma = diff.rolling(window=window2, center=True).median().fillna(method='bfill').fillna(method='ffill')
     sigma = scisig.medfilt(diff, kernel_size=window2)
 
     sigma/=scaling
-    #outlier_idx = (diff > 5.*sigma)
     mask = (diff > 5.*sigma)
-    #mask = outlier_idx.values.ravel()
-    #sigma = sigma.values.ravel()
     
     # clip the bad outliers from the spectrum
-    #spec.flux[mask] = med_filt2.values.ravel()[mask]
     spec.flux[mask] = med_filt2[mask]
     
     # restore the original lines, so that they aren't clipped
     spec.flux[saveind] = linedata[1]
-    linedata, continuumdata, saveind = orig_cut_lines(spec, model)
 
-    # get a coarse estimate of the continuum
+    # re-extract the continuum with the bad outliers hopefully masked out fully 
+    continuumdata  = (np.delete(spec.wave, saveind), np.delete(spec.flux, saveind), np.delete(spec.flux_err, saveind))
+
+    # create a smooth version of the spectrum to refine line detection
+    med_filt1 = scisig.wiener(spec.flux, mysize=window1)
+
+    # get a coarse estimate of the full continuum
+    # fit a bspline to the continuum data
+    # this is going to be oscillatory because of all the white noise
+    # but it's good enough to serve as the mean function over the lines
+    # then use a Gaussian Process to constrain the continuum
     bsw, bsf, _     = bspline_continuum(continuumdata, spec.wave)
     gpw, gpf, gpcov = gp_continuum(continuumdata, bsw, bsf, spec.wave)
     
+    # compute the difference between the GP and the smooth spectrum
     pdiff = np.abs(gpf - med_filt1)/gpf
     # select where difference is within 1% of continuum
     # TODO make this a parameter 
@@ -277,6 +282,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     lineparams = [ model._get_line_indices(spec.wave, x) for x in balmer]
     linecentroids,_ = zip(*lineparams)
     linecentroids = np.array(linecentroids)
+    linelimits = []
     for W0 in linecentroids:
         delta_lambda = (spec.wave[mask] - W0)
         blueind  = (delta_lambda < 0)
@@ -294,6 +300,13 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
         if len(pdiff[lineind][signalind]) <= 5:
             print "Not enough signal ",W0
             continue
+
+        # TODO - Stop trying to symmetrize the lines
+        # we need fit_ind, all_line_ind, and it's complement, continuum_ind
+        # make sure fit_ind and all_line_ind is uniq
+        # have to keep a track of requested lines
+        # requested lines that we can actually fit
+        # all lines
     
         bluelength = (W0 - bluewave)
         redlength  = (redwave - W0)
@@ -307,8 +320,24 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
             bluewave = spec.wave[bluelim]
         else:
             pass
-    
-        print(W0, bluewave, redwave)
+        linelimits.append([W0, bluewave, redwave])
+
+    linelimits_old = np.rec.fromrecords(linelimits,names='center,blue,red')
+    print rec2txt(linelimits_old)
+    # swap red and blue limits if we have overlaps
+    for i in  range(1, len(linelimits)-1):
+        if linelimits[i-1][1] < linelimits[i][2]:
+            print("Swapping redlimit ", linelimits[i], linelimits[i-1])
+            linelimits[i][2] = linelimits[i-1][1]
+        if linelimits[i][1] < linelimits[i+1][2]:
+            print("Swapping bluelimit", linelimits[i], linelimits[i+1])
+            linelimits[i+1][2] = linelimits[i][1]
+            
+    linelimits = np.rec.fromrecords(linelimits,names='center,blue,red')
+    print rec2txt(linelimits)
+
+
+
 #**************************************************************************************************************
 
 def quick_fit_model(spec, balmer, model, kernel):
