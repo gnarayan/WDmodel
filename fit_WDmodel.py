@@ -602,7 +602,7 @@ def plot_continuum_fit(objname, spec, continuumdata, balmerlinedata):
 
     fig = plt.figure(figsize=(10,8))
     ax1 = fig.add_subplot(2,1,1)
-    ax2 = fig.add_subplot(2,2,1, sharex=ax1)
+    ax2 = fig.add_subplot(2,1,2, sharex=ax1)
     ax1.errorbar(spec.wave, spec.flux, yerr=spec.flux_err, marker='None',\
                         linestyle='-', color='grey', alpha=0.3, capsize=0)
     ax1.plot(spec.wave, spec.flux, marker='None', linestyle='-', color='black', alpha=0.8)
