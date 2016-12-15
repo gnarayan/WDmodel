@@ -279,11 +279,13 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     # TODO make this a parameter 
     mask = (pdiff*100 <= 1.)
     
-    lineparams = [ model._get_line_indices(spec.wave, x) for x in balmer]
-    linecentroids,_ = zip(*lineparams)
+    lineparams = [(x, model._get_line_indices(spec.wave, x)) for x in balmer]
+    lineno, lineparams = zip(*lineparams)
+    linecentroids, _  = zip(*lineparams)
+    lineno = np.array(lineno)
     linecentroids = np.array(linecentroids)
-    linelimits = []
-    for W0 in linecentroids:
+    linelimits = {}
+    for x, W0 in zip(lineno, linecentroids):
         delta_lambda = (spec.wave[mask] - W0)
         blueind  = (delta_lambda < 0)
         redind   = (delta_lambda > 0)
@@ -301,46 +303,45 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
             print "Not enough signal ",W0
             continue
 
-        # TODO - Stop trying to symmetrize the lines
-        # we need fit_ind, all_line_ind, and it's complement, continuum_ind
-        # make sure fit_ind and all_line_ind is uniq
-        # have to keep a track of requested lines
-        # requested lines that we can actually fit
-        # all lines
-    
-        bluelength = (W0 - bluewave)
-        redlength  = (redwave - W0)
-        if bluelength > redlength:
-            redlength = bluelength
-            redlim = np.abs(spec.wave - (W0 + redlength)).argmin()
-            redwave = spec.wave[redlim]
-        elif bluelength < redlength:
-            bluelength = redlength
-            bluelim = np.abs(spec.wave - (W0 - bluelength)).argmin()
-            bluewave = spec.wave[bluelim]
+        linelimits[x] = (W0, bluewave, redwave)
+    balmerwaveindex = {}
+    line_wave     = np.array([], dtype='float64', ndmin=1)
+    line_flux     = np.array([], dtype='float64', ndmin=1)
+    line_fluxerr  = np.array([], dtype='float64', ndmin=1)
+    line_number   = np.array([], dtype='int', ndmin=1)
+    line_ind      = np.array([], dtype='int', ndmin=1)
+    save_ind      = np.array([], dtype='int', ndmin=1)
+    for x in range(1,7):
+        if x in linelimits:
+            (W0, bluewave, redwave) = linelimits[x]
+            WO, ZE = model._get_indices_in_range(spec.wave,  bluewave, redwave, W0=W0)
+            uZE = np.setdiff1d(ZE[0], save_ind)
+            save_ind     = np.hstack((save_ind, uZE))
+            x_wave, x_flux, x_fluxerr = model._extract_from_indices(spec.wave, spec.flux, (uZE), df=spec.flux_err)
         else:
-            pass
-        linelimits.append([W0, bluewave, redwave])
+            W0, ZE = model._get_line_indices(spec.wave, x)
+            uZE = np.setdiff1d(ZE[0], save_ind)
+            save_ind     = np.hstack((save_ind, uZE))
+            continue
 
-    linelimits_old = np.rec.fromrecords(linelimits,names='center,blue,red')
-    print rec2txt(linelimits_old)
-    # swap red and blue limits if we have overlaps
-    for i in  range(1, len(linelimits)-1):
-        if linelimits[i-1][1] < linelimits[i][2]:
-            print("Swapping redlimit ", linelimits[i], linelimits[i-1])
-            linelimits[i][2] = linelimits[i-1][1]
-        if linelimits[i][1] < linelimits[i+1][2]:
-            print("Swapping bluelimit", linelimits[i], linelimits[i+1])
-            linelimits[i+1][2] = linelimits[i][1]
-            
-    linelimits = np.rec.fromrecords(linelimits,names='center,blue,red')
-    print rec2txt(linelimits)
+        balmerwaveindex[x] = W0, uZE
+        line_wave    = np.hstack((line_wave, x_wave))
+        line_flux    = np.hstack((line_flux, x_flux))
+        line_fluxerr = np.hstack((line_fluxerr, x_fluxerr))
+        line_number  = np.hstack((line_number, np.repeat(x, len(x_wave))))
+        line_ind     = np.hstack((line_ind, uZE))
+    # continuum data is just the spectrum with the Balmer lines removed
+    continuumdata  = (np.delete(spec.wave, save_ind), np.delete(spec.flux, save_ind), np.delete(spec.flux_err, save_ind))
+    linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
+    balmer = sorted(linelimits.keys())
+    return spec, linedata, continuumdata, save_ind, balmer, smooth
+
 
 
 
 #**************************************************************************************************************
 
-def quick_fit_model(spec, balmer, model, kernel):
+def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kernel):
     """
     Does a quick fit of the spectrum to get an initial guess of the spectral parameters
     This isn't robust, but it's good enough for an initial guess
@@ -355,6 +356,8 @@ def quick_fit_model(spec, balmer, model, kernel):
     flux    = spec.flux
     fluxerr = spec.flux_err
 
+    cwave, cflux, cdflux = continuumdata
+    (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
     # do a quick Gaussian Process Fit to model the continuum of the specftrum
     gp = george.GP(kernel=george.kernels.ExpSquaredKernel(10))
     gp.compute(cwave, cdflux)
@@ -381,7 +384,7 @@ def quick_fit_model(spec, balmer, model, kernel):
 
 #**************************************************************************************************************
 
-def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
+def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
             nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd(), redo=False):
 
     outfile = os.path.join(outdir, os.path.basename(objname.replace('.flm','.mcmc.hdf5')))
@@ -426,7 +429,7 @@ def fit_model(objname, spec, balmer=None, rv=3.1, rvmodel='od94', smooth=4., pho
     # do a quick, not very robust fit to create the quantities we need to store
     # get a reasonable starting position for the chains 
     # and set the wavelength thresholds for each line
-    balmerlinedata, continuumdata, result = quick_fit_model(spec, balmer, model, kernel)
+    balmerlinedata, continuumdata, result = quick_fit_model(spec, linedata, continuumdata, save_ind, balmer, model, kernel)
 
     (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
     (cwave, cflux, cdflux) = continuumdata
@@ -584,10 +587,48 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec,  model, samples, kernel, balmerlinedata, outdir=os.getcwd(), discard=5):
+def plot_continuum_fit(objname, spec, continuumdata, balmerlinedata):
+
+    font  = FM(size='small')
+    font2 = FM(size='x-small')
+    font3 = FM(size='large')
+    font4 = FM(size='medium')
+
+    wave = spec.wave
+    flux = spec.flux
+    fluxerr = spec.flux_err
+    cwave, cflux, cdflux = continuumdata
+    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
+
+    fig = plt.figure(figsize=(10,8))
+    ax1 = fig.add_subplot(2,1,1)
+    ax2 = fig.add_subplot(2,2,1, sharex=ax1)
+    ax1.errorbar(spec.wave, spec.flux, yerr=spec.flux_err, marker='None',\
+                        linestyle='-', color='grey', alpha=0.3, capsize=0)
+    ax1.plot(spec.wave, spec.flux, marker='None', linestyle='-', color='black', alpha=0.8)
+    ax1.plot(cwave, cflux, marker='.', linestyle='None', color='blue', ms=1)
+    ax1.plot(spec.wave, mu, marker='None', linestyle='--', color='red')
+
+    ax2.errorbar(spec.wave, spec.flux/mu, yerr=spec.flux_err/mu, marker='None',\
+            linestyle='-', color='grey', alpha=0.3, capsize=0)
+    ax2.plot(spec.wave, spec.flux/mu, marker='None', linestyle='-', color='black', alpha=0.8)
+
+    ax2.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
+    ax1.set_ylabel('Flux', fontproperties=font3)
+    ax2.set_ylabel('Norm Flux', fontproperties=font3)
+    fig.suptitle(objname)
+    plt.tight_layout()
+    return fig
+
+
+#**************************************************************************************************************
+
+def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerlinedata, outdir=os.getcwd(), discard=5):
 
     outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
+        fig = plot_continuum_fit(objname, spec, continuumdata, balmerlinedata)
+        pdf.savefig(fig)
         fig =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata)
         pdf.savefig(fig)
 
@@ -764,13 +805,14 @@ def main():
         else:
             dirname = outdir
 
-        spec = pre_process_spectrum(specfile, args.smooth, args.bluelimit, args.redlimit, args.balmerlines)
-        return
+        spec, linedata, continuumdata, save_ind, balmer, smooth = pre_process_spectrum(specfile,\
+                                args.smooth, args.bluelimit, args.redlimit, args.balmerlines)
 
-        res = fit_model(specfile, spec, balmer, rv=args.rv, smooth=smooth, photfile=photfile,\
+        res = fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
+                rv=args.rv, smooth=smooth, photfile=photfile,\
                 nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, redo=redo)
         model, samples, kernel, balmerlinedata = res
-        plot_model(specfile, spec,  model, samples, kernel, balmerlinedata, outdir=dirname, discard=discard)
+        plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, outdir=dirname, discard=discard)
     return
 
 
