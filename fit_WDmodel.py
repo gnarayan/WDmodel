@@ -25,6 +25,7 @@ from matplotlib.font_manager import FontProperties as FM
 from matplotlib import rc
 from matplotlib.mlab import rec2txt
 import corner
+scaling = scistat.norm.ppf(3/4.)
 #rc('text', usetex=True)
 #rc('font', family='serif')
 #rc('ps', usedistiller='xpdf')
@@ -137,10 +138,7 @@ def lnlike(theta, wave, model, kernel, balmerlinedata):
     smoothedmod = convolve(mod, kernel)
     (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
 
-    cwave = np.delete(wave, save_ind)
-    cflux = np.delete(smoothedmod, save_ind)
-    #mod_cflux = np.interp(line_wave, cwave, cflux)
-    _, mod_cflux, _ = bspline_continuum((cwave, cflux, None), line_wave)
+    mod_cflux = get_model_continuum(line_wave, wave, smoothedmod, save_ind, line_ind)
     _, smoothedfn = model._extract_from_indices(wave, smoothedmod, line_ind)
 
     smoothedfn*=(line_cflux/mod_cflux)
@@ -150,6 +148,19 @@ def lnlike(theta, wave, model, kernel, balmerlinedata):
 
 def nll(*args):
     return -lnlike(*args)
+
+
+#**************************************************************************************************************
+
+def get_model_continuum(loc, wave, flux, save_ind, line_ind):
+
+    cwave = np.delete(wave, save_ind)
+    cflux = np.delete(flux, save_ind)
+    coeff = np.polyfit(cwave, cflux, deg=21)
+    mod_cflux = np.polyval(coeff, loc)
+    #mod_cflux = np.interp(loc, cwave, cflux)
+    #_, mod_cflux, _ = bspline_continuum((cwave, cflux, None), loc)
+    return mod_cflux
 
 
 #**************************************************************************************************************
@@ -282,7 +293,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     pdiff = np.abs(gpf - med_filt1)/gpf
     # select where difference is within 1% of continuum
     # TODO make this a parameter 
-    mask = (pdiff*100 <= 0.5)
+    mask = (pdiff*100 <= 1.)
     
     lineparams = [(x, model._get_line_indices(spec.wave, x)) for x in balmer]
     lineno, lineparams = zip(*lineparams)
@@ -418,7 +429,7 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
     dset_spec.create_dataset("fluxerr",data=fluxerr)
 
     # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
-    gsig     = smooth*(0.5/(np.log(2.)**0.5))
+    gsig     = smooth/np.sqrt(8.*np.log(2.))
     kernel   = Gaussian1DKernel(gsig)
 
     # init the model, and determine the coarse normalization to match the spectrum
@@ -525,6 +536,12 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bw
     ax_lines = fig2.add_subplot(1,2,1)
     ax_corr  = fig2.add_subplot(1,2,2)
 
+    fig3 = plt.figure(figsize=(10,8))
+    ax_spec_cont  = fig3.add_subplot(3,1,1)
+    ax_mod_cont   = fig3.add_subplot(3,1,2, sharex=ax_spec_cont)
+    ax_ratio_cont = fig3.add_subplot(3,1,3, sharex=ax_spec_cont)
+
+
     ax_spec.errorbar(wave, flux, fluxerr, color='grey', alpha=0.5, capsize=0, linestyle='-', marker='None')
     if samples is not None:
         expsamples = np.ones(samples.shape)
@@ -560,13 +577,24 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bw
         smoothedlo = convolve(modello, kernel)
 
         cwave = np.delete(wave, save_ind)
-        _, smoothedc,   _  = bspline_continuum((cwave, np.delete(smoothed, save_ind), None), wave)
-        _, smoothedchi, _  = bspline_continuum((cwave, np.delete(smoothedhi, save_ind), None), wave)
-        _, smoothedclo, _  = bspline_continuum((cwave, np.delete(smoothedlo, save_ind), None), wave)
+        smoothedc   = get_model_continuum(wave, wave, smoothed,   save_ind, line_ind)
+        smoothedchi = get_model_continuum(wave, wave, smoothedhi, save_ind, line_ind)
+        smoothedclo = get_model_continuum(wave, wave, smoothedlo, save_ind, line_ind)
+
+        cont_ratio = mu/smoothedc
+        ax_spec_cont.plot(wave, mu/np.median(mu))
+        ax_mod_cont.plot(wave, smoothedc/np.median(smoothedc))
+        ax_mod_cont.plot(wave, smoothed/np.median(smoothedc), ls='-', color='red', alpha=0.7)
+        ax_ratio_cont.plot(wave, cont_ratio/np.median(cont_ratio))
+        ax_ratio_cont.set_xlabel('Wavelength~(\AA)')
+        ax_spec_cont.set_ylabel('spectrum')
+        ax_mod_cont.set_ylabel('model')
+        ax_ratio_cont.set_ylabel('continuum')
+        ax_spec_cont.set_title('Continuum Diagnostics')
+        
         smoothed*=mu/smoothedc
         smoothedhi*=mu/smoothedchi
         smoothedlo*=mu/smoothedclo
-        
         model_lines    = smoothed[line_ind]
         model_lines_hi = smoothedhi[line_ind]
         model_lines_lo = smoothedlo[line_ind]
@@ -622,7 +650,7 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bw
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
     ax_spec.set_ylabel('Normalized Flux', fontproperties=font3)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font3)
-    return fig, fig2
+    return fig, fig2, fig3
 
 
 #**************************************************************************************************************
@@ -669,8 +697,9 @@ def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerline
     with PdfPages(outfilename) as pdf:
         fig = plot_continuum_fit(objname, spec, continuumdata, balmerlinedata)
         pdf.savefig(fig)
-        fig, fig2 =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi)
+        fig, fig2, fig3  =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi)
         pdf.savefig(fig)
+        pdf.savefig(fig3)
         pdf.savefig(fig2)
 
 
