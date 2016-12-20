@@ -230,9 +230,6 @@ def main():
                 print "Not enough signal ",W0
                 continue
 
-
-
-
             bluelength = (W0 - bluewave)
             redlength  = (redwave - W0)
             if bluelength > redlength:
