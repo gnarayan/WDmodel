@@ -139,7 +139,8 @@ def lnlike(theta, wave, model, kernel, balmerlinedata):
 
     cwave = np.delete(wave, save_ind)
     cflux = np.delete(smoothedmod, save_ind)
-    mod_cflux = np.interp(line_wave, cwave, cflux)
+    #mod_cflux = np.interp(line_wave, cwave, cflux)
+    _, mod_cflux, _ = bspline_continuum((cwave, cflux, None), line_wave)
     _, smoothedfn = model._extract_from_indices(wave, smoothedmod, line_ind)
 
     smoothedfn*=(line_cflux/mod_cflux)
@@ -236,7 +237,6 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     else:
         message = 'Smoothing factor specified on command line - overridng spectable file'
         warnings.warn(message, RuntimeWarning)
-        smooth = args.smooth
     print('Using smoothing factor %.2f'%smooth)
     
     scaling = scistat.norm.ppf(3/4.)
@@ -245,6 +245,9 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     # TODO make this a parameter 
     window1 = 7
     window2 = 151
+    blueend = spec.flux[0:window2]
+    redend  = spec.flux[-window2:]
+
     med_filt2 = scisig.wiener(spec.flux, mysize=window2)
 
     diff = np.abs(spec.flux - med_filt2)
@@ -258,6 +261,8 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     
     # restore the original lines, so that they aren't clipped
     spec.flux[saveind] = linedata[1]
+    spec.flux[0:window2] = blueend
+    spec.flux[-window2:] = redend
 
     # re-extract the continuum with the bad outliers hopefully masked out fully 
     continuumdata  = (np.delete(spec.wave, saveind), np.delete(spec.flux, saveind), np.delete(spec.flux_err, saveind))
@@ -277,7 +282,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     pdiff = np.abs(gpf - med_filt1)/gpf
     # select where difference is within 1% of continuum
     # TODO make this a parameter 
-    mask = (pdiff*100 <= 1.)
+    mask = (pdiff*100 <= 0.5)
     
     lineparams = [(x, model._get_line_indices(spec.wave, x)) for x in balmer]
     lineno, lineparams = zip(*lineparams)
@@ -334,7 +339,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     continuumdata  = (np.delete(spec.wave, save_ind), np.delete(spec.flux, save_ind), np.delete(spec.flux_err, save_ind))
     linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
     balmer = sorted(linelimits.keys())
-    return spec, linedata, continuumdata, save_ind, balmer, smooth
+    return spec, linedata, continuumdata, save_ind, balmer, smooth, balmerwaveindex
 
 
 
@@ -462,7 +467,7 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
         return
 
     # setup the sampler
-    pos = [result.x + 1e-3*np.random.randn(nparam) for i in range(nwalkers)]
+    pos = [result.x + 1e-1*np.random.randn(nparam) for i in range(nwalkers)]
     if nthreads > 1:
         print "Multiproc"
         sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob,\
@@ -500,7 +505,7 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
 
 #**************************************************************************************************************
 
-def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
+def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi):
     
     font  = FM(size='small')
     font2 = FM(size='x-small')
@@ -516,6 +521,10 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
     ax_resid = fig.add_axes([0.075, 0.1,0.85, 0.25])
     ax_acorr = fig.add_axes([0.5,0.675,0.4,0.25])
 
+    fig2 = plt.figure(figsize=(10,5))
+    ax_lines = fig2.add_subplot(1,2,1)
+    ax_corr  = fig2.add_subplot(1,2,2)
+
     ax_spec.errorbar(wave, flux, fluxerr, color='grey', alpha=0.5, capsize=0, linestyle='-', marker='None')
     if samples is not None:
         expsamples = np.ones(samples.shape)
@@ -530,7 +539,6 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
         print teff_mcmc
         print logg_mcmc
         print av_mcmc
-
 
 
         (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
@@ -552,13 +560,16 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
         smoothedlo = convolve(modello, kernel)
 
         cwave = np.delete(wave, save_ind)
-        smoothedc = np.interp(wave, cwave, np.delete(smoothed, save_ind))
-        smoothedchi = np.interp(wave, cwave, np.delete(smoothedhi, save_ind))
-        smoothedclo = np.interp(wave, cwave, np.delete(smoothedlo, save_ind))
+        _, smoothedc,   _  = bspline_continuum((cwave, np.delete(smoothed, save_ind), None), wave)
+        _, smoothedchi, _  = bspline_continuum((cwave, np.delete(smoothedhi, save_ind), None), wave)
+        _, smoothedclo, _  = bspline_continuum((cwave, np.delete(smoothedlo, save_ind), None), wave)
         smoothed*=mu/smoothedc
         smoothedhi*=mu/smoothedchi
         smoothedlo*=mu/smoothedclo
-
+        
+        model_lines    = smoothed[line_ind]
+        model_lines_hi = smoothedhi[line_ind]
+        model_lines_lo = smoothedlo[line_ind]
 
         ax_spec.fill(np.concatenate([wave, wave[::-1]]), np.concatenate([smoothedhi, smoothedlo[::-1]]),\
                 alpha=0.5, fc='grey', ec='None')
@@ -567,10 +578,39 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
 
         for l in np.unique(line_number):
             m = (line_number == l)
+            try:
+                W0, uZE = bwi[l]
+            except KeyError, e:
+                print l, e
+                continue 
             ax_resid.errorbar(line_wave[m], (line_flux[m]-smoothed[line_ind][m]), line_fluxerr[m], linestyle='-',\
                     marker=None, capsize=0, color='black', alpha=0.7)
         
             ax_acorr.acorr(line_flux[m] - smoothed[line_ind][m], label=str(l), usevlines=False, linestyle='-',marker='None')
+            ax_lines.fill_between(line_wave[m]-W0,\
+                    ((model_lines_lo)/line_cflux)[m]+0.2*line_number[m],\
+                    ((model_lines_hi)/line_cflux)[m]+0.2*line_number[m],\
+                    facecolor='purple', alpha=0.5, interpolate=True)
+            ax_lines.fill_between(line_wave[m]-W0,\
+                    ((line_flux-line_fluxerr)/line_cflux)[m]+0.2*line_number[m],\
+                    ((line_flux+line_fluxerr)/line_cflux)[m]+0.2*line_number[m],\
+                    facecolor='grey', alpha=0.5, interpolate=True)
+            ax_lines.plot(line_wave[m]-W0, line_flux[m]/line_cflux[m] + 0.2*line_number[m],color='k',ls='-',lw=2)
+            ax_lines.plot(line_wave[m]-W0, model_lines[m]/line_cflux[m] + 0.2*line_number[m], color='r',ls='-',alpha=0.7)
+
+        lags, c, _, _ = ax_corr.xcorr(line_flux/line_cflux, model_lines/line_cflux,\
+                    maxlags=21, normed=True, color='k', linestyle='-')
+        spacing = np.median(np.diff(wave))
+        lagind = c.argmax()
+        offset = -lags[lagind]*spacing
+        ax_corr.axvline(lags[lagind],color='red',lw=2)
+        ax_corr.set_title("Cross-Corr Offset: %.3f"%offset)
+        ax_corr.set_xlabel('Lag~(\AA)')
+        ax_corr.set_ylabel('Normed Corr Coeff')
+        ax_lines.set_title('Lines vs Models')
+        ax_lines.set_xlabel('Delta Wavelength~(\AA)')
+        ax_lines.set_ylabel('Normalized Line Flux')
+
 
         ax_acorr.legend(frameon=False)
 
@@ -582,7 +622,7 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata):
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
     ax_spec.set_ylabel('Normalized Flux', fontproperties=font3)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font3)
-    return fig
+    return fig, fig2
 
 
 #**************************************************************************************************************
@@ -616,21 +656,23 @@ def plot_continuum_fit(objname, spec, continuumdata, balmerlinedata):
     ax2.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
     ax1.set_ylabel('Flux', fontproperties=font3)
     ax2.set_ylabel('Norm Flux', fontproperties=font3)
-    fig.suptitle(objname)
+    ax1.set_title(objname)
     plt.tight_layout()
     return fig
 
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerlinedata, outdir=os.getcwd(), discard=5):
+def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=os.getcwd(), discard=5):
 
     outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
         fig = plot_continuum_fit(objname, spec, continuumdata, balmerlinedata)
         pdf.savefig(fig)
-        fig =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata)
+        fig, fig2 =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi)
         pdf.savefig(fig)
+        pdf.savefig(fig2)
+
 
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
         labels = [r"Teff" , r"log(g)", r"A_V"]
@@ -805,14 +847,14 @@ def main():
         else:
             dirname = outdir
 
-        spec, linedata, continuumdata, save_ind, balmer, smooth = pre_process_spectrum(specfile,\
+        spec, linedata, continuumdata, save_ind, balmer, smooth, bwi = pre_process_spectrum(specfile,\
                                 args.smooth, args.bluelimit, args.redlimit, args.balmerlines)
 
         res = fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
                 rv=args.rv, smooth=smooth, photfile=photfile,\
                 nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, redo=redo)
         model, samples, kernel, balmerlinedata = res
-        plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, outdir=dirname, discard=discard)
+        plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=dirname, discard=discard)
     return
 
 
