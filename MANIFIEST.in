@@ -1,0 +1,5 @@
+include WDmodel/TlustGrids.hdf5
+include data/spectable_resolution.dat
+include data/test.flm
+include README.md
+include LICENSE

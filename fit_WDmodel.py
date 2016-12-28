@@ -860,9 +860,6 @@ def main():
     discard   = args.discard
     redo      = args.redo
 
-    if outdir is not None:
-        make_outdirs(outdir)
-
     for i in xrange(len(specfiles)):
         if photfiles is not None:
             photfile = photfiles[i]
@@ -872,17 +869,22 @@ def main():
 
         if outdir is None:
             dirname = os.path.join(os.getcwd(), os.path.basename(specfile.replace('.flm','')))
-            make_outdirs(dirname)
         else:
             dirname = outdir
+        make_outdirs(dirname)
 
+
+        # pre-process spectrum
         spec, linedata, continuumdata, save_ind, balmer, smooth, bwi = pre_process_spectrum(specfile,\
                                 args.smooth, args.bluelimit, args.redlimit, args.balmerlines)
 
+        # fit the spectrum
         res = fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
                 rv=args.rv, smooth=smooth, photfile=photfile,\
                 nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, redo=redo)
         model, samples, kernel, balmerlinedata = res
+
+        # plot output
         plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=dirname, discard=discard)
     return
 

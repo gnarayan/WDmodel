@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-import sys
-import os
+import pkg_resources
 import warnings
 warnings.simplefilter('once')
 import numpy as np
@@ -31,7 +29,7 @@ class WDmodel:
         """
         Initalize the Tlusty Model <grid_name> from the grid file <grid_file>
         """
-        self._grid_file = 'TlustyGrids.hdf5'
+        self._grid_file = pkg_resources.resource_filename(__name__, 'TlustyGrids.hdf5')
         if grid_file is not None:
             if os.path.exists(grid_file):
                 self._grid_file = grid_file
