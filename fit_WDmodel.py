@@ -843,7 +843,7 @@ def read_spectable():
     """
     Read spectrum resolution from a file to set instrumental smoothing
     """
-    spectable = np.recfromtxt('spectable_resolution.dat', names=True)
+    spectable = np.recfromtxt('data/spectable_resolution.dat', names=True)
     return spectable
 
 #**************************************************************************************************************
@@ -868,7 +868,7 @@ def main():
         specfile = specfiles[i]
 
         if outdir is None:
-            dirname = os.path.join(os.getcwd(), os.path.basename(specfile.replace('.flm','')))
+            dirname = os.path.join(os.getcwd(), "out", os.path.basename(specfile.replace('.flm','')))
         else:
             dirname = outdir
         make_outdirs(dirname)
