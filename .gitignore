@@ -91,7 +91,7 @@ ENV/
 
 # Data
 data/
-out/
+out*/
 *.flm
 *.phot
 profile.dat
