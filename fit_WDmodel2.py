@@ -109,21 +109,21 @@ def gp_continuum(continuumdata, bsw, bsf, wave, scalemin=500):
 #**************************************************************************************************************
 
 def lnprior(theta):
-    teff, logg, av  = theta
-    if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5:
+    teff, logg, av, gsig  = theta
+    if 17000. < teff < 80000. and 7.0 < logg < 9.5 and 0. <= av <= 0.5 and 0 <= gsig <= 25.:
         return 0.
     return -np.inf
 
 
-def lnprob(theta, wave, model, kernel, balmer):
+def lnprob(theta, wave, model, balmer):
     lp = lnprior(theta)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + lnlike(theta, wave, model, kernel, balmer)
+    return lp + lnlike(theta, wave, model, balmer)
 
 
-def lnlike(theta, wave, model, kernel, balmerlinedata):
-    teff, logg, av  = theta
+def lnlike(theta, wave, model, balmerlinedata):
+    teff, logg, av, gsig  = theta
     xi = model._get_xi(teff, logg, wave)
     mod = model._get_model(xi)
 
@@ -131,10 +131,12 @@ def lnlike(theta, wave, model, kernel, balmerlinedata):
     bluening = reddening(wave*u.Angstrom, av, r_v=3.1, model='od94')
     mod*=bluening
 
+
     # smooth the model, and extract the section that overlays the model
     # since we smooth the full model, computed on the full wavelength range of the spectrum
     # and then extract the subset range that overlaps with the data
     # we avoid any edge effects with smoothing at the end of the range
+    kernel   = Gaussian1DKernel(gsig)
     smoothedmod = convolve(mod, kernel)
     (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
 
@@ -357,7 +359,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
 
 #**************************************************************************************************************
 
-def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kernel):
+def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model):
     """
     Does a quick fit of the spectrum to get an initial guess of the spectral parameters
     This isn't robust, but it's good enough for an initial guess
@@ -366,7 +368,7 @@ def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kern
     It beats hard-coded pre-defined regions which are only valid for some Teff, logg
     """
 
-    nparam = 3
+    nparam = 4
 
     wave    = spec.wave
     flux    = spec.flux
@@ -388,12 +390,15 @@ def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kern
     p0[0] = 40000.
     p0[1] = 7.5
     p0[2] = 0.1
+    p0[3] = 8./np.sqrt(8.*np.log(2.))
+
     bounds.append((17000,80000))
     bounds.append((7.,9.499999))
     bounds.append((0.,0.5))
+    bounds.append((2., None))
 
     # do a quick fit with minimize to get a decent starting guess
-    result = op.minimize(nll, p0, args=(wave, model, kernel, balmerlinedata), bounds=bounds)
+    result = op.minimize(nll, p0, args=(wave, model, balmerlinedata), bounds=bounds)
     print result
     return balmerlinedata, continuumdata, result
 
@@ -408,7 +413,7 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
         print("Output file already exists. Specify --redo to clobber.")
         sys.exit(0)
 
-    nparam = 3
+    nparam = 4
 
 
     #TODO - do something with the photometry to fit Av
@@ -429,8 +434,8 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
     dset_spec.create_dataset("fluxerr",data=fluxerr)
 
     # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
-    gsig     = smooth/np.sqrt(8.*np.log(2.))
-    kernel   = Gaussian1DKernel(gsig)
+    #gsig     = smooth/np.sqrt(8.*np.log(2.))
+    #kernel   = Gaussian1DKernel(gsig)
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
@@ -445,7 +450,7 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
     # do a quick, not very robust fit to create the quantities we need to store
     # get a reasonable starting position for the chains 
     # and set the wavelength thresholds for each line
-    balmerlinedata, continuumdata, result = quick_fit_model(spec, linedata, continuumdata, save_ind, balmer, model, kernel)
+    balmerlinedata, continuumdata, result = quick_fit_model(spec, linedata, continuumdata, save_ind, balmer, model)
 
     (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
     (cwave, cflux, cdflux) = continuumdata
@@ -482,9 +487,9 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
     if nthreads > 1:
         print "Multiproc"
         sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob,\
-                threads=nthreads, args=(wave, model, kernel, balmerlinedata)) 
+                threads=nthreads, args=(wave, model, balmerlinedata)) 
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(wave, model, kernel, balmerlinedata)) 
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(wave, model, balmerlinedata)) 
 
     # do a short burn-in
     if nburnin > 0:
@@ -498,7 +503,7 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
     nstep = 100
     outf = h5py.File(outfile, 'a')
     chain = outf.create_group("chain")
-    dset_chain = chain.create_dataset("position",(nwalkers*nprod,3),maxshape=(None,3))
+    dset_chain = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
 
     # production
     with progress.Bar(label="Production", expected_size=nprod) as bar:
@@ -511,12 +516,12 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
 
     samples = np.array(dset_chain)
     outf.close()
-    return model, samples, kernel, balmerlinedata
+    return model, samples, balmerlinedata
 
 
 #**************************************************************************************************************
 
-def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi):
+def plot_spectrum_fit(objname, spec,  model, samples, balmerlinedata, bwi):
     
     font  = FM(size='small')
     font2 = FM(size='x-small')
@@ -549,15 +554,16 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bw
         #crap_a, crap_tau, teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
         #                                                    zip(*np.percentile(samples, [16, 50, 84],
         #                                                    axis=0)))
-        teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+        teff_mcmc, logg_mcmc, av_mcmc, gsig_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                                                             zip(*np.percentile(samples, [16, 50, 84],
                                                             axis=0)))
 
         print teff_mcmc
         print logg_mcmc
         print av_mcmc
+        print gsig_mcmc
 
-
+        kernel   = Gaussian1DKernel(gsig_mcmc[0])
         (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
 
         _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave, strict=False)
@@ -691,20 +697,20 @@ def plot_continuum_fit(objname, spec, continuumdata, balmerlinedata):
 
 #**************************************************************************************************************
 
-def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=os.getcwd(), discard=5):
+def plot_model(objname, spec,  model, samples, continuumdata, balmerlinedata, bwi, outdir=os.getcwd(), discard=5):
 
     outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
         fig = plot_continuum_fit(objname, spec, continuumdata, balmerlinedata)
         pdf.savefig(fig)
-        fig, fig2, fig3  =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi)
+        fig, fig2, fig3  =  plot_spectrum_fit(objname, spec,  model, samples, balmerlinedata, bwi)
         pdf.savefig(fig)
         pdf.savefig(fig3)
         pdf.savefig(fig2)
 
 
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
-        labels = [r"Teff" , r"log(g)", r"A_V"]
+        labels = [r"Teff" , r"log(g)", r"A_V", r"gsig"]
         samples = samples[int(round(discard*samples.shape[0]/100)):]
         fig = corner.corner(samples, bins=41, labels=labels, show_titles=True,quantiles=(0.16,0.84),\
              use_math_text=True)
@@ -882,10 +888,10 @@ def main():
         res = fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
                 rv=args.rv, smooth=smooth, photfile=photfile,\
                 nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, redo=redo)
-        model, samples, kernel, balmerlinedata = res
+        model, samples, balmerlinedata = res
 
         # plot output
-        plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=dirname, discard=discard)
+        plot_model(specfile, spec,  model, samples, continuumdata, balmerlinedata, bwi, outdir=dirname, discard=discard)
     return
 
 

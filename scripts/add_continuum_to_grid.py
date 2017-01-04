@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+sys.path.append('/data/wdcalib/local/python/WDmodel/WDmodel')
 import os
 import numpy as np
 import h5py
@@ -8,10 +9,22 @@ import WDmodel
 import scipy.interpolate as scinterp
 import scipy.signal as sig
 import matplotlib.pyplot as plt
-import peakutils
+import math as M
+
+def filter_lines(wave, diff, diff2, lflux):
+    window2 = 501
+    diff_smoothed = sig.medfilt(diff, kernel_size=window2)
+    diff_delta = np.abs(diff - diff_smoothed)
+    diff2a = np.abs(diff2)
+    mask = np.where((diff_delta < 5*np.median(diff_delta)) & (diff2a <= 5*np.median(diff2a)))[0]
+    return mask
+
+def nextpow2(i):
+    buf = M.ceil(M.log(i) / M.log(2))
+    return int(M.pow(2, buf))
 
 def main():
-    in_grid  = 'TlustyGrids.hdf5'
+    in_grid  = '/data/wdcalib/local/python/WDmodel/WDmodel/TlustyGrids.hdf5'
     #out_grid = 'TlustyGrid_cont.hdf5'
     grid_name= 'default'
     indata   = h5py.File(in_grid, 'r')
@@ -28,42 +41,30 @@ def main():
     lwave = np.log10(wave)
 
 
-    # get the line indices of the model
-    # clip them out from the continuum 
-    line_inds = {}
-    all_line_inds = np.array([],dtype='int',ndmin=1)
-    for l in range(1, 7):
-        W0, ZE = mod._get_line_indices(wave, l)
-        line_inds[l] = (W0, ZE)
-        all_line_inds = np.hstack((all_line_inds, ZE[0]))
-    all_line_inds = np.unique(all_line_inds)
-    cind = all_line_inds
-    print len(all_line_inds), len(cind), len(wave)
-
-    cut_wave = np.log10(np.delete(wave, cind))
-    cflux = np.zeros(flux.shape,dtype='float64')
-
-    fig = plt.figure(figsize=(10,10), tight_layout=True)
-    ax  = fig.add_subplot(2,1,1)
-    ax2  = fig.add_subplot(2,1,2)
+    fig = plt.figure(figsize=(15,10), tight_layout=True)
+    ax  = fig.add_subplot(3,1,1)
+    ax2  = fig.add_subplot(3,1,2, sharex=ax)
+    ax3  = fig.add_subplot(3,1,3, sharex=ax)
 
     for t in xrange(len(tgrid)):
+        off = 0
         for g in xrange(len(ggrid)):
             this_flux = flux[:,g,t]
-            baseline = peakutils.baseline(np.log10(this_flux), deg=1, max_it=200, tol=1e-4)
-            base2 = sig.savgol_filter(np.log10(this_flux), 2001, 3)
+            lflux = np.log10(this_flux)
 
-            cut_flux  = np.log10(np.delete(this_flux,cind))
-            f = scinterp.interp1d(cut_wave, cut_flux, assume_sorted=True)
-            full_flux = f(lwave)
-            cflux[:,g,t] = 10.**full_flux
-            ax.plot(wave, this_flux,color='black', ls='-', marker='None')
-            #ax.plot(10.**cut_wave, 1+(10.**cut_flux),color='red', ls='-', marker='None',lw=3, alpha=0.7)
-            ax.plot(wave, (10.**full_flux), color='grey', ls='-', marker='None')
-            ax.plot(wave, 10**base2, color='red',ls='-', marker='None')
-            diff = np.gradient(np.log10(this_flux), lwave)    
-            ax2.plot(wave, diff, color='black')
+            a_cpx = np.zeros((lflux.shape), dtype=np.complex64)
+            a_cpx = sig.hilbert(this_flux)
+            a_abs = abs(a_cpx)
+            print a_abs.shape
+            print wave.shape
 
+            ax.plot(wave, this_flux*(10**off),color='black', ls='-', marker='None')
+            ax.plot(wave, (a_abs)*(10**off), color='blue', ls='--',marker='None')
+            off += 1
+            break
+        break
+
+    ax.set_xlim(3700,4800)
     ax.set_xlabel('Wavelength')
     ax.set_ylabel('Flux')
     ax.set_xscale('log')

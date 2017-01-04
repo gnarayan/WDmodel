@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-import sys
-import os
+import pkg_resources
 import warnings
 warnings.simplefilter('once')
 import numpy as np
@@ -9,6 +7,15 @@ import scipy.interpolate as spinterp
 
 
 class WDmodel:
+    """
+    Base class defines the routines to generate and work with DA White Dwarf
+    model spectrai. Requires the grid file - TlustyGrids.hdf5, or a custom
+    user-specified grid. Look at the package level help for description on the
+    grid file. There are various convenience methods that begin with an
+    underscore (_) that will  not be imported by default These are intended for
+    internal use, and do not have the sanity checking of the public methods.
+    """
+
     def __init__(self, grid_file=None, grid_name=None):
         """
         constructs a white dwarf model atmosphere object
@@ -19,7 +26,6 @@ class WDmodel:
         lno     = [   1    ,   2     ,    3     ,    4    ,   5      ,  6      ]
         lines   = ['alpha' , 'beta'  , 'gamma'  , 'delta' , 'zeta'   , 'eta'   ]
         H       = [6562.857, 4861.346, 4340.478 ,4101.745 , 3970.081 , 3889.056]
-        #D       = [ 100.0  ,  130.0  ,  125.0   ,  75.0   ,  50.0    ,  27.0   ]
         D       = [ 130.0  ,  170.0  ,  125.0   ,  75.0   ,  50.0    ,  27.0   ]
         eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,   5.0    ,   3.0   ]
         self._lines = dict(zip(lno, zip(lines, H, D, eps)))
@@ -31,7 +37,7 @@ class WDmodel:
         """
         Initalize the Tlusty Model <grid_name> from the grid file <grid_file>
         """
-        self._grid_file = 'TlustyGrids.hdf5'
+        self._grid_file = pkg_resources.resource_filename(__name__, 'TlustyGrids.hdf5')
         if grid_file is not None:
             if os.path.exists(grid_file):
                 self._grid_file = grid_file
@@ -45,7 +51,7 @@ class WDmodel:
         # so they broke up the grids
         # So really, the original IDL SAV files were annoyingly broken up by wavelength because old dudes
         # We have concatenated these "large" arrays because we don't care about disk space
-        # This grid is called "default", but the orignals also exist (because duplicates are great)
+        # This grid is called "default", but the orignals also exist 
         # and you can pass grid_name to use them if you choose to
         self._default_grid = 'default'
         if grid_name is None:

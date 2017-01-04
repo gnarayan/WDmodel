@@ -90,6 +90,8 @@ ENV/
 .ropeproject
 
 # Data
+data/
+out*/
 *.flm
 *.phot
 profile.dat
