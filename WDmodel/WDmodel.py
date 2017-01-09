@@ -1,8 +1,7 @@
-import pkg_resources
 import warnings
 warnings.simplefilter('once')
 import numpy as np
-import h5py
+from . import io
 import scipy.interpolate as spinterp
 
 
@@ -37,46 +36,17 @@ class WDmodel:
         """
         Initalize the Tlusty Model <grid_name> from the grid file <grid_file>
         """
-        self._grid_file = pkg_resources.resource_filename(__name__, 'TlustyGrids.hdf5')
-        if grid_file is not None:
-            if os.path.exists(grid_file):
-                self._grid_file = grid_file
-        _grids     = h5py.File(self._grid_file, 'r')
-        
-        # the original IDL SAV file Tlusty grids were annoyingly broken up by wavelength
-        # this was because the authors had different wavelength spacings
-        # since they didn't feel that the contiuum needed much spacing anyway
-        # and "wanted to save disk space"
-        # and then their old IDL interpolation routine couldn't handle the variable spacing
-        # so they broke up the grids
-        # So really, the original IDL SAV files were annoyingly broken up by wavelength because old dudes
-        # We have concatenated these "large" arrays because we don't care about disk space
-        # This grid is called "default", but the orignals also exist 
-        # and you can pass grid_name to use them if you choose to
-        self._default_grid = 'default'
-        if grid_name is None:
-            grid_name = self._default_grid
-        try:
-            grid = _grids[grid_name]
-        except KeyError,e:
-            message = 'Grid %s not found in grid_file %s. Accepted values are (%s)'%(grid_name, self._grid_file,\
-                    ','.join(_grids.keys()))
-            raise ValueError(message)
+        self._fluxnorm = 1. #LEGACY CRUFT
 
-        self._grid_name = grid_name
-        self._wave  = grid['wave'].value.astype('float64')
-        self._ggrid = grid['ggrid'].value
-        self._tgrid = grid['tgrid'].value
-        _flux  = grid['flux'].value.astype('float64')
-        self._fluxnorm = 1.
+        ingrid = io.read_model_grid(grid_file, grid_name)
+        self._grid_file, self._grid_name, self._wave, self._ggrid, self._tgrid, self._flux = ingrid
         
         # pre-init the interpolation and do it in log-space
         # note that we do the interpolation in log-log
         # this is because the profiles are linear, redward of the Balmer break in log-log
         # and the regular grid interpolator is just doing linear interpolation under the hood
         self._model = spinterp.RegularGridInterpolator((np.log10(self._wave), self._ggrid, self._tgrid),\
-                np.log10(_flux))        
-        _grids.close()
+                np.log10(self._flux))        
 
 
     def _get_xi(self, teff, logg, wave):

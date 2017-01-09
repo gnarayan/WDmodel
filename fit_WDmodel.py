@@ -15,6 +15,7 @@ import h5py
 import george
 import emcee
 import WDmodel
+import WDmodel.io
 from astropy import units as u
 from astropy.convolution import convolve, Gaussian1DKernel
 from specutils.extinction import extinction, reddening
@@ -202,7 +203,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     builds the continuum model
     extracts the lines
     """
-    spec = read_spec(specfile)
+    spec = WDmodel.io.read_spec(specfile)
 
     # remove any NaNs
     ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))
@@ -231,7 +232,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     balmer.sort()
 
     if smooth is None:
-        spectable = read_spectable()
+        spectable = WDmodel.io.read_spectable('data/spectable_resolution.dat')
         shortfile = os.path.basename(specfile).replace('-total','')
         if shortfile.startswith('test'):
             message = 'Spectrum filename indicates this is a test - using default resolution 4.0'
@@ -814,37 +815,6 @@ def get_options():
         raise ValueError(message)
 
     return args
-
-#**************************************************************************************************************
-
-def read_spec(filename):
-    """
-    Really quick little read spectrum from file routine
-    """
-    spec = np.recfromtxt(filename, names=True, dtype='float64,float64,float64')
-    return spec
-
-
-#**************************************************************************************************************
-
-def read_phot(filename):
-    """
-    Read photometry from file - expects to have columns mag_aper magerr_aper and pb 
-    Extra columns other than these three are fine
-    """
-    phot = np.recfromtxt(filename, names=True)
-    print rec2txt(phot)
-    return phot
-
-
-#**************************************************************************************************************
-
-def read_spectable():
-    """
-    Read spectrum resolution from a file to set instrumental smoothing
-    """
-    spectable = np.recfromtxt('data/spectable_resolution.dat', names=True)
-    return spectable
 
 #**************************************************************************************************************
 

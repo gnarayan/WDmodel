@@ -204,7 +204,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     builds the continuum model
     extracts the lines
     """
-    spec = read_spec(specfile)
+    spec = WDmodel.io.read_spec(specfile)
 
     # remove any NaNs
     ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))
@@ -233,7 +233,7 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     balmer.sort()
 
     if smooth is None:
-        spectable = read_spectable()
+        spectable = WDmodel.io.read_spectable()
         shortfile = os.path.basename(specfile).replace('-total','')
         if shortfile.startswith('test'):
             message = 'Spectrum filename indicates this is a test - using default resolution 4.0'
@@ -415,14 +415,6 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
 
     nparam = 4
 
-
-    #TODO - do something with the photometry to fit Av
-    if photfile is not None:
-        phot = read_phot(photfile)
-        # set the likelihood functions here 
-    else:
-        phot = None
-        # set the likelihood functions here 
 
     wave    = spec.wave
     flux    = spec.flux
@@ -821,36 +813,6 @@ def get_options():
 
     return args
 
-#**************************************************************************************************************
-
-def read_spec(filename):
-    """
-    Really quick little read spectrum from file routine
-    """
-    spec = np.recfromtxt(filename, names=True, dtype='float64,float64,float64')
-    return spec
-
-
-#**************************************************************************************************************
-
-def read_phot(filename):
-    """
-    Read photometry from file - expects to have columns mag_aper magerr_aper and pb 
-    Extra columns other than these three are fine
-    """
-    phot = np.recfromtxt(filename, names=True)
-    print rec2txt(phot)
-    return phot
-
-
-#**************************************************************************************************************
-
-def read_spectable():
-    """
-    Read spectrum resolution from a file to set instrumental smoothing
-    """
-    spectable = np.recfromtxt('data/spectable_resolution.dat', names=True)
-    return spectable
 
 #**************************************************************************************************************
 
@@ -877,7 +839,7 @@ def main():
             dirname = os.path.join(os.getcwd(), "out", os.path.basename(specfile.replace('.flm','')))
         else:
             dirname = outdir
-        make_outdirs(dirname)
+        WDmodel.io.make_outdirs(dirname)
 
 
         # pre-process spectrum
