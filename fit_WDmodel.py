@@ -9,13 +9,12 @@ import numpy as np
 import scipy.optimize as op
 import scipy.interpolate as scinterp
 import scipy.integrate as scinteg
-import scipy.signal as scisig
-import scipy.stats as scistat
 import h5py
 import george
 import emcee
 import WDmodel
 import WDmodel.io
+import WDmodel.fit
 from astropy import units as u
 from astropy.convolution import convolve, Gaussian1DKernel
 from specutils.extinction import extinction, reddening
@@ -26,88 +25,12 @@ from matplotlib.font_manager import FontProperties as FM
 from matplotlib import rc
 from matplotlib.mlab import rec2txt
 import corner
-scaling = scistat.norm.ppf(3/4.)
 #rc('text', usetex=True)
 #rc('font', family='serif')
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 #**************************************************************************************************************
 
-def bspline(cv, n=100, degree=3, periodic=False):
-    """ Calculate n samples on a bspline
-
-        cv :      Array ov control vertices
-        n  :      Number of samples to return
-        degree:   Curve degree
-        periodic: True - Curve is closed
-                  False - Curve is open
-    """
-    # If periodic, extend the point array by count+degree+1
-    cv = np.asarray(cv)
-    count = len(cv)
-
-    if periodic:
-        factor, fraction = divmod(count+degree+1, count)
-        cv = np.concatenate((cv,) * factor + (cv[:fraction],))
-        count = len(cv)
-        degree = np.clip(degree,1,degree)
-
-    # If opened, prevent degree from exceeding count-1
-    else:
-        degree = np.clip(degree,1,count-1)
-
-    # Calculate knot vector
-    kv = None
-    if periodic:
-        kv = np.arange(0-degree,count+degree+degree-1,dtype='int')
-    else:
-        kv = np.array([0]*degree + range(count-degree+1) + [count-degree]*degree,dtype='int')
-
-    # Calculate query range
-    u = np.linspace(periodic,(count-degree),n)
-
-    # Calculate result
-    arange = np.arange(len(u))
-    points = np.zeros((len(u),cv.shape[1]))
-    for i in xrange(cv.shape[1]):
-                points[arange,i] = scinterp.splev(u, (kv,cv[:,i],degree))
-    return points
-
-
-#**************************************************************************************************************
-
-def bspline_continuum(continuumdata, wave):
-    cwave, cflux, cdflux = continuumdata
-    cv = zip(cwave, cflux)
-    points = bspline(cv, n=len(wave))
-    cbspline = np.rec.fromrecords(points, names='wave,flux')
-    mu = np.interp(wave, cbspline.wave, cbspline.flux)
-    return wave, mu, None
-
-
-#**************************************************************************************************************
-
-def gp_continuum(continuumdata, bsw, bsf, wave, scalemin=500):
-    cwave, cflux, cdflux = continuumdata
-    kernel= np.median(cdflux)**2.*george.kernels.ExpSquaredKernel(scalemin)
-    if bsw is not None:
-        f = scinterp.interp1d(bsw, bsf, kind='linear', fill_value='extrapolate')
-        def mean_func(x):
-            x = np.array(x).ravel()
-            return f(x)
-    else:
-        mean_func = 0.
-
-    gp = george.GP(kernel=kernel, mean=mean_func)
-    gp.compute(cwave, cdflux)
-    pars, result = gp.optimize(cwave, cflux, cdflux,\
-                    bounds=((None, np.log(3*np.median(cdflux)**2.)),\
-                            (np.log(scalemin),np.log(100000)) ))
-    mu, cov = gp.predict(cflux, wave)
-    return wave, mu, cov
-
-
-#**************************************************************************************************************
 
 def lnprior(theta):
     teff, logg, av  = theta
@@ -166,197 +89,7 @@ def get_model_continuum(loc, wave, flux, save_ind, line_ind):
 
 #**************************************************************************************************************
 
-def orig_cut_lines(spec, model):
-    wave    = spec.wave
-    flux    = spec.flux
-    fluxerr = spec.flux_err
-    balmerwaveindex = {}
-    line_wave     = np.array([], dtype='float64', ndmin=1)
-    line_flux     = np.array([], dtype='float64', ndmin=1)
-    line_fluxerr  = np.array([], dtype='float64', ndmin=1)
-    line_number   = np.array([], dtype='int', ndmin=1)
-    line_ind      = np.array([], dtype='int', ndmin=1)
-    save_ind      = np.array([], dtype='int', ndmin=1)
-    for x in range(1,7):
-        W0, ZE = model._get_line_indices(wave, x)
-        # save the central wavelengths and spectrum specific indices for each line
-        # we don't need this for the fit, but we do need this for plotting 
-        x_wave, x_flux, x_fluxerr = model._extract_from_indices(wave, flux, ZE, df=fluxerr)
-        balmerwaveindex[x] = W0, ZE
-        line_wave    = np.hstack((line_wave, x_wave))
-        line_flux    = np.hstack((line_flux, x_flux))
-        line_fluxerr = np.hstack((line_fluxerr, x_fluxerr))
-        line_number  = np.hstack((line_number, np.repeat(x, len(x_wave))))
-        line_ind     = np.hstack((line_ind, ZE[0]))
-        save_ind     = np.hstack((save_ind, ZE[0]))
-    # continuum data is just the spectrum with the Balmer lines removed
-    continuumdata  = (np.delete(wave, save_ind), np.delete(flux, save_ind), np.delete(fluxerr, save_ind))
-    linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
-    return linedata, continuumdata, save_ind
 
-
-#**************************************************************************************************************
-
-def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
-    """
-    reads the input spectrum
-    builds the continuum model
-    extracts the lines
-    """
-    spec = WDmodel.io.read_spec(specfile)
-
-    # remove any NaNs
-    ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))
-    spec = spec[ind]
-
-    # clip the spectrum to whatever range is requested
-    if bluelimit > 0:
-        bluelimit = float(bluelimit)
-    else:
-        bluelimit = spec.wave.min()
-    
-    if redlimit > 0:
-        redlimit = float(redlimit)
-    else:
-        redlimit = spec.wave.max()
-    
-    # trim the spectrum to the requested length
-    mask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
-    spec = spec[mask]
-
-    # Test that the array is monotonic 
-    WDmodel.WDmodel._wave_test(spec.wave)
-    model = WDmodel.WDmodel()
-
-    balmer = np.atleast_1d(balmerlines).astype('int')
-    balmer.sort()
-
-    if smooth is None:
-        spectable = WDmodel.io.read_spectable('data/spectable_resolution.dat')
-        shortfile = os.path.basename(specfile).replace('-total','')
-        if shortfile.startswith('test'):
-            message = 'Spectrum filename indicates this is a test - using default resolution 4.0'
-            warnings.warn(message, RuntimeWarning)
-            smooth = 8.0
-        else:
-            mask = (spectable.specname == shortfile)
-            if len(spectable[mask]) != 1:
-                message = 'Could not find an entry for this spectrum in the spectable file - using default resolution 4.0'
-                warnings.warn(message, RuntimeWarning)
-                smooth = 8.0
-            else:
-                smooth = spectable[mask].fwhm
-    else:
-        message = 'Smoothing factor specified on command line - overridng spectable file'
-        warnings.warn(message, RuntimeWarning)
-    print('Using smoothing factor %.2f'%smooth)
-    
-    scaling = scistat.norm.ppf(3/4.)
-    linedata, continuumdata, saveind = orig_cut_lines(spec, model)
-
-    # TODO make this a parameter 
-    window1 = 7
-    window2 = 151
-    blueend = spec.flux[0:window2]
-    redend  = spec.flux[-window2:]
-
-    med_filt2 = scisig.wiener(spec.flux, mysize=window2)
-
-    diff = np.abs(spec.flux - med_filt2)
-    sigma = scisig.medfilt(diff, kernel_size=window2)
-
-    sigma/=scaling
-    mask = (diff > 5.*sigma)
-    
-    # clip the bad outliers from the spectrum
-    spec.flux[mask] = med_filt2[mask]
-    
-    # restore the original lines, so that they aren't clipped
-    spec.flux[saveind] = linedata[1]
-    spec.flux[0:window2] = blueend
-    spec.flux[-window2:] = redend
-
-    # re-extract the continuum with the bad outliers hopefully masked out fully 
-    continuumdata  = (np.delete(spec.wave, saveind), np.delete(spec.flux, saveind), np.delete(spec.flux_err, saveind))
-
-    # create a smooth version of the spectrum to refine line detection
-    med_filt1 = scisig.wiener(spec.flux, mysize=window1)
-
-    # get a coarse estimate of the full continuum
-    # fit a bspline to the continuum data
-    # this is going to be oscillatory because of all the white noise
-    # but it's good enough to serve as the mean function over the lines
-    # then use a Gaussian Process to constrain the continuum
-    bsw, bsf, _     = bspline_continuum(continuumdata, spec.wave)
-    gpw, gpf, gpcov = gp_continuum(continuumdata, bsw, bsf, spec.wave)
-    
-    # compute the difference between the GP and the smooth spectrum
-    pdiff = np.abs(gpf - med_filt1)/gpf
-    # select where difference is within 1% of continuum
-    # TODO make this a parameter 
-    mask = (pdiff*100 <= 1.)
-    
-    lineparams = [(x, model._get_line_indices(spec.wave, x)) for x in balmer]
-    lineno, lineparams = zip(*lineparams)
-    linecentroids, _  = zip(*lineparams)
-    lineno = np.array(lineno)
-    linecentroids = np.array(linecentroids)
-    linelimits = {}
-    for x, W0 in zip(lineno, linecentroids):
-        delta_lambda = (spec.wave[mask] - W0)
-        blueind  = (delta_lambda < 0)
-        redind   = (delta_lambda > 0)
-        if len(delta_lambda[blueind]) == 0 or len(delta_lambda[redind]) == 0:
-            # spectrum not blue/red enough for this line
-            continue 
-        bluelim  = delta_lambda[blueind].argmax()
-        redlim   = delta_lambda[redind].argmin()
-        bluewave = spec.wave[mask][blueind][bluelim]
-        redwave  = spec.wave[mask][redind][redlim]
-        
-        lineind = ((spec.wave >= bluewave) & (spec.wave <= redwave))
-        signalind = (pdiff[lineind]*100. > 1.)
-        if len(pdiff[lineind][signalind]) <= 5:
-            print "Not enough signal ",W0
-            continue
-
-        linelimits[x] = (W0, bluewave, redwave)
-    balmerwaveindex = {}
-    line_wave     = np.array([], dtype='float64', ndmin=1)
-    line_flux     = np.array([], dtype='float64', ndmin=1)
-    line_fluxerr  = np.array([], dtype='float64', ndmin=1)
-    line_number   = np.array([], dtype='int', ndmin=1)
-    line_ind      = np.array([], dtype='int', ndmin=1)
-    save_ind      = np.array([], dtype='int', ndmin=1)
-    for x in range(1,7):
-        if x in linelimits:
-            (W0, bluewave, redwave) = linelimits[x]
-            WO, ZE = model._get_indices_in_range(spec.wave,  bluewave, redwave, W0=W0)
-            uZE = np.setdiff1d(ZE[0], save_ind)
-            save_ind     = np.hstack((save_ind, uZE))
-            x_wave, x_flux, x_fluxerr = model._extract_from_indices(spec.wave, spec.flux, (uZE), df=spec.flux_err)
-        else:
-            W0, ZE = model._get_line_indices(spec.wave, x)
-            uZE = np.setdiff1d(ZE[0], save_ind)
-            save_ind     = np.hstack((save_ind, uZE))
-            continue
-
-        balmerwaveindex[x] = W0, uZE
-        line_wave    = np.hstack((line_wave, x_wave))
-        line_flux    = np.hstack((line_flux, x_flux))
-        line_fluxerr = np.hstack((line_fluxerr, x_fluxerr))
-        line_number  = np.hstack((line_number, np.repeat(x, len(x_wave))))
-        line_ind     = np.hstack((line_ind, uZE))
-    # continuum data is just the spectrum with the Balmer lines removed
-    continuumdata  = (np.delete(spec.wave, save_ind), np.delete(spec.flux, save_ind), np.delete(spec.flux_err, save_ind))
-    linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
-    balmer = sorted(linelimits.keys())
-    return spec, linedata, continuumdata, save_ind, balmer, smooth, balmerwaveindex
-
-
-
-
-#**************************************************************************************************************
 
 def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kernel):
     """
@@ -845,7 +578,7 @@ def main():
 
 
         # pre-process spectrum
-        spec, linedata, continuumdata, save_ind, balmer, smooth, bwi = pre_process_spectrum(specfile,\
+        spec, linedata, continuumdata, save_ind, balmer, smooth, bwi = WDmodel.fit.pre_process_spectrum(specfile,\
                                 args.smooth, args.bluelimit, args.redlimit, args.balmerlines)
 
         # fit the spectrum
