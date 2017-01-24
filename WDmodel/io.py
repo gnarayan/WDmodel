@@ -80,3 +80,29 @@ def make_outdirs(dirname):
     except OSError, e:
         message = '%s\nCould not create outdir %s for writing.'
         raise OSError(message)
+
+
+def set_objname_outdir_for_specfiles(specfiles, outdir=None):
+    """
+    Accepts a list of specfiles (and optionally a preset output directory), and determines the objname
+    Raises a warning if the spectra have different object names
+    If output directory isn't provided, creates an output directory based on object name
+    Else uses provided output directory
+    Returns objname and output dirname, if directories were sucessfully created/exist.
+    """
+    obj = []
+    for i, specfile in enumerate(specfiles):
+        objname = os.path.basename(specfile).split('-')[0]
+        obj.append(objname)
+    obj = set(obj)
+    if len(obj) > 1:
+        message = "Objects are inconsistently named. Are you sure these are spectra of the same object?"
+        warnings.warn(message, RuntimeWarning)
+    objname = obj.pop()
+
+    if outdir is None:
+        dirname = os.path.join(os.getcwd(), "out", objname)
+    else:
+        dirname = outdir
+    make_outdirs(dirname)
+    return objname, dirname
