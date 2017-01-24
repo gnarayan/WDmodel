@@ -264,11 +264,9 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bw
     fig = plt.figure(figsize=(10,8))
     ax_spec  = fig.add_axes([0.075,0.4,0.85,0.55])
     ax_resid = fig.add_axes([0.075, 0.1,0.85, 0.25])
-    ax_acorr = fig.add_axes([0.5,0.675,0.4,0.25])
 
     fig2 = plt.figure(figsize=(10,5))
     ax_lines = fig2.add_subplot(1,2,1)
-    ax_corr  = fig2.add_subplot(1,2,2)
 
     fig3 = plt.figure(figsize=(10,8))
     ax_spec_cont  = fig3.add_subplot(3,1,1)
@@ -348,7 +346,6 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bw
             ax_resid.errorbar(line_wave[m], (line_flux[m]-smoothed[line_ind][m]), line_fluxerr[m], linestyle='-',\
                     marker=None, capsize=0, color='black', alpha=0.7)
         
-            ax_acorr.acorr(line_flux[m] - smoothed[line_ind][m], label=str(l), usevlines=False, linestyle='-',marker='None')
             ax_lines.fill_between(line_wave[m]-W0,\
                     ((model_lines_lo)/line_cflux)[m]+0.2*line_number[m],\
                     ((model_lines_hi)/line_cflux)[m]+0.2*line_number[m],\
@@ -360,21 +357,13 @@ def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bw
             ax_lines.plot(line_wave[m]-W0, line_flux[m]/line_cflux[m] + 0.2*line_number[m],color='k',ls='-',lw=2)
             ax_lines.plot(line_wave[m]-W0, model_lines[m]/line_cflux[m] + 0.2*line_number[m], color='r',ls='-',alpha=0.7)
 
-        lags, c, _, _ = ax_corr.xcorr(line_flux/line_cflux, model_lines/line_cflux,\
-                    maxlags=21, normed=True, color='k', linestyle='-')
         spacing = np.median(np.diff(wave))
         lagind = c.argmax()
         offset = -lags[lagind]*spacing
-        ax_corr.axvline(lags[lagind],color='red',lw=2)
-        ax_corr.set_title("Cross-Corr Offset: %.3f"%offset)
-        ax_corr.set_xlabel('Lag~(\AA)')
-        ax_corr.set_ylabel('Normed Corr Coeff')
         ax_lines.set_title('Lines vs Models')
         ax_lines.set_xlabel('Delta Wavelength~(\AA)')
         ax_lines.set_ylabel('Normalized Line Flux')
 
-
-        ax_acorr.legend(frameon=False)
 
     for l in np.unique(line_number):
         m = (line_number == l)
@@ -448,20 +437,6 @@ def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerline
 
 #**************************************************************************************************************
 
-def make_outdirs(dirname):
-    print("Writing to outdir {}".format(dirname))
-    if os.path.isdir(dirname):
-        return
-
-    try:
-        os.makedirs(dirname)
-    except OSError, e:
-        message = '%s\nCould not create outdir %s for writing.'
-        raise OSError(message)
-    
-
-#**************************************************************************************************************
-
 def get_options():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--specfiles', required=True, nargs='+',\
@@ -481,6 +456,8 @@ def get_options():
     parser.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
     parser.add_argument('--photfiles', required=False, nargs='+')
+    parser.add_argument('--blotch', required=False, action='store_true',\
+            default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
     parser.add_argument('--nthreads',  required=False, type=int, default=1,\
             help="Specify number of threads to use. (>1 implies multiprocessing)")
     parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
@@ -553,6 +530,7 @@ def get_options():
 
 def main():
     args   = get_options() 
+
     specfiles = args.specfiles
     photfiles = args.photfiles
     nwalkers  = args.nwalkers
@@ -562,6 +540,11 @@ def main():
     outdir    = args.outdir
     discard   = args.discard
     redo      = args.redo
+    blotch    = args.blotch
+
+    # set the object name and create output directories
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfiles(specfiles, outdir=outdir)
+
 
     for i in xrange(len(specfiles)):
         if photfiles is not None:
@@ -570,25 +553,35 @@ def main():
             photfile = None
         specfile = specfiles[i]
 
-        if outdir is None:
-            dirname = os.path.join(os.getcwd(), "out", os.path.basename(specfile.replace('.flm','')))
-        else:
-            dirname = outdir
-        make_outdirs(dirname)
-
 
         # pre-process spectrum
         spec, linedata, continuumdata, save_ind, balmer, smooth, bwi = WDmodel.fit.pre_process_spectrum(specfile,\
                                 args.smooth, args.bluelimit, args.redlimit, args.balmerlines)
 
+    
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.plot(spec.wave, spec.flux, 'k-')
+        (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
+        for line in np.unique(line_number):
+            mask = (line_number == line)
+            ax.plot(line_wave[mask], line_flux[mask], 'b-')
+        cwave, cflux, cdflux = continuumdata
+        ax.plot(cwave, cflux, 'r.')
+        plt.ion()
+        plt.show(fig)
+
+        raw_input()
+        sys.exit(-1)
+
         # fit the spectrum
         res = fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
                 rv=args.rv, smooth=smooth, photfile=photfile,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=dirname, redo=redo)
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=outdir, redo=redo)
         model, samples, kernel, balmerlinedata = res
 
         # plot output
-        plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=dirname, discard=discard)
+        plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=outdir, discard=discard)
     return
 
 
