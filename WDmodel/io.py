@@ -4,6 +4,11 @@ import pkg_resources
 import h5py
 
 def read_model_grid(grid_file=None, grid_name=None):
+    """
+    Read the Tlusty/Hubeny grid file (via Jay Holberg)
+    NLTE grid is from an older version of Tlusty (200 vs 202 current)
+    J. Holberg is working on updating the models
+    """
     if grid_file is None:
         grid_file = pkg_resources.resource_filename('WDmodel','TlustyGrids.hdf5')
 
@@ -40,31 +45,25 @@ def read_model_grid(grid_file=None, grid_name=None):
     return grid_file, grid_name, wave, ggrid, tgrid, flux
 
 
-def read_spec(filename):
+def _read_ascii(filename, **kwargs):
     """
-    Read spectrum from file routine
-    Col names assumed to be on the first line (wave, flux, flux_err)
-    Types set to float64
+    Read space separated ascii file, with column names provided on first line (# optional)
+    kwargs are passed along to genfromtxt
     """
-    spec = np.recfromtxt(filename, names=True, dtype='float64,float64,float64')
-    return spec
+    return np.recfromtxt(filename, names=True, **kwargs)
+
+# create some aliases 
+# these exist so we can flesh out full functions later
+# with different formats if necessary for different sorts of data
+read_spec      = _read_ascii
+read_phot      = _read_ascii
+read_spectable = _read_ascii
 
 
-def read_phot(filename):
-    """
-    Read photometry from file - expects to have columns mag_aper magerr_aper and pb 
-    Extra columns other than these three are fine
-    """
-    phot = np.recfromtxt(filename, names=True)
-    return phot
-
-
-def read_spectable(filename):
-    """
-    Read spectrum resolution from a file to set instrumental smoothing
-    """
-    spectable = np.recfromtxt(filename, names=True)
-    return spectable
+def get_phot_for_obj(objname, filename):
+    phot = read_phot(filename)
+    mask = (phot.obj == objname)
+    return phot[mask]
 
 
 def make_outdirs(dirname):

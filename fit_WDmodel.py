@@ -455,7 +455,8 @@ def get_options():
             help="Specify reddening law R_V")
     parser.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
-    parser.add_argument('--photfiles', required=False, nargs='+')
+    parser.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
+            help="Specify file containing photometry for objects")
     parser.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
     parser.add_argument('--nthreads',  required=False, type=int, default=1,\
@@ -473,7 +474,7 @@ def get_options():
     args = parser.parse_args()
     balmer = args.balmerlines
     specfiles = args.specfiles
-    photfiles = args.photfiles
+    photfile  = args.photfile
 
     try:
         balmer = np.atleast_1d(balmer).astype('int')
@@ -482,13 +483,6 @@ def get_options():
     except (TypeError, ValueError), e:
         message = 'Invalid balmer line value - must be in range [1,6]'
         raise ValueError(message)
-
-    if photfiles is not None:
-        if len(specfiles) != len(photfiles):
-            #TODO: This does not support multiple spectra per object, but it's a mess to include that in the likelihood
-            # skip this problem for now until we come up a way of dealing with it
-            message = 'If you are specifying photometry for fitting, number of files needs to match number of spectra'
-            raise ValueError(message) 
 
     if args.rv < 2.1 or args.rv > 5.1:
         message = 'That Rv Value is ridiculous'
@@ -532,7 +526,7 @@ def main():
     args   = get_options() 
 
     specfiles = args.specfiles
-    photfiles = args.photfiles
+    photfile  = args.photfile
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
@@ -545,14 +539,10 @@ def main():
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfiles(specfiles, outdir=outdir)
 
+    # get photometry 
+    phot = WDmodel.io.get_phot_for_obj(objname, photfile)
 
-    for i in xrange(len(specfiles)):
-        if photfiles is not None:
-            photfile = photfiles[i]
-        else:
-            photfile = None
-        specfile = specfiles[i]
-
+    for specfile in specfiles:
 
         # pre-process spectrum
         spec, linedata, continuumdata, save_ind, balmer, smooth, bwi = WDmodel.fit.pre_process_spectrum(specfile,\
