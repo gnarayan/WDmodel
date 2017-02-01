@@ -7,8 +7,6 @@ import argparse
 from clint.textui import progress
 import numpy as np
 import scipy.optimize as op
-import scipy.interpolate as scinterp
-import scipy.integrate as scinteg
 import h5py
 import george
 import emcee
@@ -17,14 +15,13 @@ import WDmodel.io
 import WDmodel.fit
 from astropy import units as u
 from astropy.convolution import convolve, Gaussian1DKernel
-from specutils.extinction import extinction, reddening
+from specutils.extinction import reddening
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.font_manager import FontProperties as FM
-from matplotlib import rc
-from matplotlib.mlab import rec2txt
 import corner
+#import matplotlib.gridspec as gridspec
+#from matplotlib import rc
 #rc('text', usetex=True)
 #rc('font', family='serif')
 #rc('ps', usedistiller='xpdf')
@@ -144,15 +141,6 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
 
     nparam = 3
 
-
-    #TODO - do something with the photometry to fit Av
-    if photfile is not None:
-        phot = read_phot(photfile)
-        # set the likelihood functions here 
-    else:
-        phot = None
-        # set the likelihood functions here 
-
     wave    = spec.wave
     flux    = spec.flux
     fluxerr = spec.flux_err
@@ -168,7 +156,6 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
-    data = {}
     
     # bundle the line dnd continuum data so we don't have to extract it every step in the MCMC
     if balmer is None:
