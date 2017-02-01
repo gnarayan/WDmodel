@@ -1,13 +1,12 @@
 import warnings
 warnings.simplefilter('once')
-import os
 import numpy as np
 import scipy.stats as scistat
 import scipy.signal as scisig
 import scipy.interpolate as scinterp
 import george
 from .WDmodel import WDmodel
-from .io import read_spec, read_spectable
+
 
 def bspline(cv, n=100, degree=3, periodic=False):
     """ Calculate n samples on a bspline
@@ -114,18 +113,40 @@ def orig_cut_lines(spec, model):
 
 #**************************************************************************************************************
 
-def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
+def blotch_spectrum(spec, linedata, saveind):
+    window = 151
+    blueend = spec.flux[0:window]
+    redend  = spec.flux[-window:]
+
+    # wiener filter the spectrum 
+    med_filt = scisig.wiener(spec.flux, mysize=window)
+    diff = np.abs(spec.flux - med_filt)
+
+    # calculate the running variance with the same window
+    sigma = scisig.medfilt(diff, kernel_size=window)
+
+    # the sigma is really a median absolute deviation
+    scaling = scistat.norm.ppf(3/4.)
+    sigma/=scaling
+
+    mask = (diff > 5.*sigma)
+    
+    # clip the bad outliers from the spectrum
+    spec.flux[mask] = med_filt[mask]
+    
+    # restore the original lines, so that they aren't clipped
+    spec.flux[saveind] = linedata[1]
+    spec.flux[0:window] = blueend
+    spec.flux[-window:] = redend
+    return spec
+
+
+
+def pre_process_spectrum(spec, smooth, bluelimit, redlimit, balmerlines, blotch=False):
     """
-    reads the input spectrum
     builds the continuum model
     extracts the lines
     """
-    spec = read_spec(specfile)
-
-    # remove any NaNs
-    ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))
-    spec = spec[ind]
-
 
     # Test that the array is monotonic 
     WDmodel._wave_test(spec.wave)
@@ -134,54 +155,15 @@ def pre_process_spectrum(specfile, smooth, bluelimit, redlimit, balmerlines):
     balmer = np.atleast_1d(balmerlines).astype('int')
     balmer.sort()
 
-    if smooth is None:
-        spectable = read_spectable('data/spectable_resolution.dat')
-        shortfile = os.path.basename(specfile).replace('-total','')
-        if shortfile.startswith('test'):
-            message = 'Spectrum filename indicates this is a test - using default resolution 4.0'
-            warnings.warn(message, RuntimeWarning)
-            smooth = 8.0
-        else:
-            mask = (spectable.specname == shortfile)
-            if len(spectable[mask]) != 1:
-                message = 'Could not find an entry for this spectrum in the spectable file - using default resolution 4.0'
-                warnings.warn(message, RuntimeWarning)
-                smooth = 8.0
-            else:
-                smooth = spectable[mask].fwhm
-    else:
-        message = 'Smoothing factor specified on command line - overridng spectable file'
-        warnings.warn(message, RuntimeWarning)
-    print('Using smoothing factor %.2f'%smooth)
-    
-    scaling = scistat.norm.ppf(3/4.)
     linedata, continuumdata, saveind = orig_cut_lines(spec, model)
+    if blotch:
+        spec = blotch_spectrum(spec, linedata, saveind)
+
+    # extract the continuum 
+    continuumdata  = (np.delete(spec.wave, saveind), np.delete(spec.flux, saveind), np.delete(spec.flux_err, saveind))
 
     # TODO make this a parameter 
     window1 = 7
-    window2 = 151
-    blueend = spec.flux[0:window2]
-    redend  = spec.flux[-window2:]
-
-    med_filt2 = scisig.wiener(spec.flux, mysize=window2)
-
-    diff = np.abs(spec.flux - med_filt2)
-    sigma = scisig.medfilt(diff, kernel_size=window2)
-
-    sigma/=scaling
-    mask = (diff > 5.*sigma)
-    
-    # clip the bad outliers from the spectrum
-    spec.flux[mask] = med_filt2[mask]
-    
-    # restore the original lines, so that they aren't clipped
-    spec.flux[saveind] = linedata[1]
-    spec.flux[0:window2] = blueend
-    spec.flux[-window2:] = redend
-
-    # re-extract the continuum with the bad outliers hopefully masked out fully 
-    continuumdata  = (np.delete(spec.wave, saveind), np.delete(spec.flux, saveind), np.delete(spec.flux_err, saveind))
-
     # create a smooth version of the spectrum to refine line detection
     med_filt1 = scisig.wiener(spec.flux, mysize=window1)
 

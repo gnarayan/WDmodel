@@ -530,11 +530,15 @@ def main():
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
+    smooth    = args.smooth
     nthreads  = args.nthreads
     outdir    = args.outdir
     discard   = args.discard
     redo      = args.redo
     blotch    = args.blotch
+    bluelim   = args.bluelimit
+    redlim    = args.redlimit
+    balmer    = args.balmerlines
 
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfiles(specfiles, outdir=outdir)
@@ -544,11 +548,17 @@ def main():
 
     for specfile in specfiles:
 
-        # pre-process spectrum
-        spec, linedata, continuumdata, save_ind, balmer, smooth, bwi = WDmodel.fit.pre_process_spectrum(specfile,\
-                                args.smooth, args.bluelimit, args.redlimit, args.balmerlines)
+        # read spectrum
+        spec = WDmodel.io.read_spec(specfile)
 
+        # get resolution
+        smooth = WDmodel.io.get_spectrum_resolution(specfile, smooth=smooth)
+
+        # pre-process spectrum
+        out = WDmodel.fit.pre_process_spectrum(spec, smooth, bluelim, redlim, balmer, blotch=blotch)
+        (spec, linedata, continuumdata, save_ind, balmer, smooth, bwi) = out
     
+
         fig = plt.figure()
         ax = fig.add_subplot(1,1,1)
         ax.plot(spec.wave, spec.flux, 'k-')

@@ -1,4 +1,5 @@
 import os
+import warnings
 import numpy as np
 import pkg_resources
 import h5py
@@ -33,7 +34,7 @@ def read_model_grid(grid_file=None, grid_name=None):
         try:
             grid = grids[grid_name]
         except KeyError,e:
-            message = 'Grid %s not found in grid_file %s. Accepted values are (%s)'%(grid_name, grid_file,\
+            message = '%s\nGrid %s not found in grid_file %s. Accepted values are (%s)'%(e, grid_name, grid_file,\
                     ','.join(grids.keys()))
             raise ValueError(message)
     
@@ -43,6 +44,7 @@ def read_model_grid(grid_file=None, grid_name=None):
         flux  = grid['flux'].value.astype('float64')
     
     return grid_file, grid_name, wave, ggrid, tgrid, flux
+
 
 
 def _read_ascii(filename, **kwargs):
@@ -55,9 +57,50 @@ def _read_ascii(filename, **kwargs):
 # create some aliases 
 # these exist so we can flesh out full functions later
 # with different formats if necessary for different sorts of data
-read_spec      = _read_ascii
 read_phot      = _read_ascii
 read_spectable = _read_ascii
+
+
+def get_spectrum_resolution(specfile, smooth=None):
+    """
+    Accepts a spectrum filename, and reads a lookup table to get the resolution of the spectrum
+    """
+    _default_resolution = 8.0
+    if smooth is None:                                                                                                  
+        spectable = read_spectable('data/spectable_resolution.dat')                                                     
+        shortfile = os.path.basename(specfile).replace('-total','')                                                     
+        if shortfile.startswith('test'):                                                                                
+            message = 'Spectrum filename indicates this is a test - using default resolution'                       
+            warnings.warn(message, RuntimeWarning)                                                                      
+            smooth = _default_resolution
+        else:                                                                                                           
+            mask = (spectable.specname == shortfile)                                                                    
+            if len(spectable[mask]) != 1:                                                                               
+                message = 'Could not find an entry for this spectrum in the spectable file - using default resolution'
+                warnings.warn(message, RuntimeWarning)                                                                  
+                smooth = _default_resolution
+            else:                                                                                                       
+                smooth = spectable[mask].fwhm                                                                           
+    else:                                                                                                               
+        message = 'Smoothing factor specified on command line - overridng spectable file'                               
+        warnings.warn(message, RuntimeWarning)                                                                          
+    print('Using smoothing factor %.2f'%smooth) 
+    return smooth
+
+
+
+def read_spec(filename, **kwargs):
+    """
+    Read a space separated spectrum file with column names
+    wave flux flux_err
+    column names are expected on the top line
+    lines begining with # are ignored
+    Removes any NaN entries (any column)
+    """
+    spec = _read_ascii(filename, **kwargs)                                                                                          
+    ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))                  
+    spec = spec[ind]
+    return spec
 
 
 def get_phot_for_obj(objname, filename):
@@ -77,7 +120,7 @@ def make_outdirs(dirname):
     try:
         os.makedirs(dirname)
     except OSError, e:
-        message = '%s\nCould not create outdir %s for writing.'
+        message = '%s\nCould not create outdir %s for writing.'%(e,dirname)
         raise OSError(message)
 
 
