@@ -45,12 +45,8 @@ def lnprob(theta, wave, model, kernel, balmer):
 
 def lnlike(theta, wave, model, kernel, balmerlinedata):
     teff, logg, av  = theta
-    xi = model._get_xi(teff, logg, wave)
-    mod = model._get_model(xi)
 
-    # redden the model
-    bluening = reddening(wave*u.Angstrom, av, r_v=3.1, model='od94')
-    mod*=bluening
+    mod = model._get_red_model(teff, logg, av, wave)
 
     # smooth the model, and extract the section that overlays the model
     # since we smooth the full model, computed on the full wavelength range of the spectrum
@@ -543,7 +539,8 @@ def main():
 
         # pre-process spectrum
         out = WDmodel.fit.pre_process_spectrum(spec, smooth, bluelim, redlim, balmer, blotch=blotch)
-        (spec, linedata, continuumdata, save_ind, balmer, smooth, bwi) = out
+        (spec, linedata, continuumdata, save_ind, balmer, smooth, bwi, gpm) = out
+        gpw, gpf, gpcov = gpm
     
 
         fig = plt.figure()
@@ -554,7 +551,10 @@ def main():
             mask = (line_number == line)
             ax.plot(line_wave[mask], line_flux[mask], 'b-')
         cwave, cflux, cdflux = continuumdata
-        ax.plot(cwave, cflux, 'r.')
+        #ax.plot(cwave, cflux, 'r.')
+        ax.plot(gpw, gpf, 'g-')
+        print gpcov
+        ax.fill_between(gpw, gpf+np.sqrt(np.diag(gpcov)), gpf-np.sqrt(np.diag(gpcov)), color='grey', alpha=0.5)
         plt.ion()
         plt.show(fig)
 
