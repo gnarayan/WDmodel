@@ -3,6 +3,8 @@ warnings.simplefilter('once')
 import numpy as np
 from . import io
 import scipy.interpolate as spinterp
+from astropy import units as u                                                                                          
+from specutils.extinction import reddening
 
 
 class WDmodel:
@@ -65,6 +67,18 @@ class WDmodel:
         return (10.**self._model(xi))
 
 
+    def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False, redmod='od94'):
+        xi = self._get_xi(teff, logg, wave)
+        mod = self._get_model(xi, log=log)
+        bluening = reddening(wave*u.Angrstrom, av, r_v=rv, model=redmod)
+        if log:
+            mod = 10.**mod
+        mod/=bluening
+        if log:
+            mod = np.log10(mod)
+        return mod
+
+
     @classmethod
     def _wave_test(cls, wave):
         """
@@ -89,7 +103,7 @@ class WDmodel:
         
     def get_model(self, teff, logg, wave=None, log=False, strict=True):
         """
-        Returns the model for some teff, logg at wavelengths wave
+        Returns the model (wavelength and flux) for some teff, logg at wavelengths wave
         If not specified, wavelengths are from 3000-9000A
 
         Checks inputs for consistency and calls _get_xi(), _get_model()
@@ -130,6 +144,30 @@ class WDmodel:
             message = 'No valid wavelengths'
             raise ValueError(message)
             
+    def get_red_model(self, teff, logg, av, rv=3.1, redmod='od94', wave=None, log=False, strict=True):
+        """
+        Returns the model (wavelength and flux) for some teff, logg av, rv with
+        reddening law "redmod" at wavelengths wave If not specified,
+        wavelengths are from 3000-9000A Applies reddening that is specified to
+        the spectrum (the model has no reddening by default)
+
+        Checks inputs for consistency and calls _get_xi(), _get_red_model() If you
+        need the model repeatedly for slightly different parameters, use those
+        functions directly
+        """
+        modwave, modflux = self.get_model(teff, logg, wave=wave, log=log, strict=strict)
+        av = float(av)
+        rv = float(rv)
+        bluening = reddening(modwave*u.Angrstrom, av, r_v=rv, model=redmod)
+        if log:
+            modflux = 10.**modflux
+        modflux/=bluening
+        if log:
+            modflux = np.log10(modflux)
+        return modwave, modflux
+
+
+
 
     def _normalize_model(self, spec, log=False):
         """
