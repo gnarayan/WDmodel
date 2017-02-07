@@ -1,6 +1,7 @@
 import warnings
 warnings.simplefilter('once')
 import numpy as np
+import numpy.polynomial.polynomial as poly
 import scipy.stats as scistat
 import scipy.signal as scisig
 import scipy.interpolate as scinterp
@@ -59,10 +60,18 @@ def bspline_continuum(continuumdata, wave):
     return wave, mu, None
 
 
+def polyfit_continuum(continuumdata, wave, degree=5):
+    cwave, cflux, cdflux = continuumdata
+    w = 1./cdflux**2.
+    coeff = poly.polyfit(cwave, cflux, deg=degree, w=w)
+    mu = poly.polyval(wave, coeff)
+    return wave, mu, None
+
 
 def gp_continuum(continuumdata, bsw, bsf, wave, scalemin=500):
     cwave, cflux, cdflux = continuumdata
-    kernel= np.median(cdflux)**2.*george.kernels.ExpSquaredKernel(scalemin)
+    print np.median(cdflux)**2.
+    kernel= np.median(cdflux)**2.*george.kernels.WhiteKernel(1.)
     if bsw is not None:
         f = scinterp.interp1d(bsw, bsf, kind='linear', fill_value='extrapolate')
         def mean_func(x):
@@ -76,6 +85,7 @@ def gp_continuum(continuumdata, bsw, bsf, wave, scalemin=500):
     pars, result = gp.optimize(cwave, cflux, cdflux,\
                     bounds=((None, np.log(3*np.median(cdflux)**2.)),\
                             (np.log(scalemin),np.log(100000)) ))
+    print pars
     mu, cov = gp.predict(cflux, wave)
     return wave, mu, cov
 
@@ -83,6 +93,21 @@ def gp_continuum(continuumdata, bsw, bsf, wave, scalemin=500):
 #**************************************************************************************************************
 
 def orig_cut_lines(spec, model):
+    """
+    Does a coarse cut to remove hydrogen absorption lines from DA white dwarf
+    spectra The line centroids, and widths are fixed and defined with the model
+    grid This is insufficient, and particularly at high log(g) and low
+    temperatures the lines are blended, and better masking is needed.  This
+    routine is intended to provide a rough starting point for that process.
+
+    Accepts a spectrum and the model
+    returns a tuple with the data on the absorption lines
+    (wave, flux, fluxerr, Balmer line number, index from original spectrum)
+
+    and coarse continuum data - the part of the spectrum that's not masked as lines
+    (wave, flux, fluxerr) 
+
+    """
     wave    = spec.wave
     flux    = spec.flux
     fluxerr = spec.flux_err
@@ -92,7 +117,6 @@ def orig_cut_lines(spec, model):
     line_fluxerr  = np.array([], dtype='float64', ndmin=1)
     line_number   = np.array([], dtype='int', ndmin=1)
     line_ind      = np.array([], dtype='int', ndmin=1)
-    save_ind      = np.array([], dtype='int', ndmin=1)
     for x in range(1,7):
         W0, ZE = model._get_line_indices(wave, x)
         # save the central wavelengths and spectrum specific indices for each line
@@ -104,16 +128,18 @@ def orig_cut_lines(spec, model):
         line_fluxerr = np.hstack((line_fluxerr, x_fluxerr))
         line_number  = np.hstack((line_number, np.repeat(x, len(x_wave))))
         line_ind     = np.hstack((line_ind, ZE[0]))
-        save_ind     = np.hstack((save_ind, ZE[0]))
     # continuum data is just the spectrum with the Balmer lines removed
-    continuumdata  = (np.delete(wave, save_ind), np.delete(flux, save_ind), np.delete(fluxerr, save_ind))
+    continuumdata  = (np.delete(wave, line_ind), np.delete(flux, line_ind), np.delete(fluxerr, line_ind))
     linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
-    return linedata, continuumdata, save_ind
+    return linedata, continuumdata
 
 
 #**************************************************************************************************************
 
-def blotch_spectrum(spec, linedata, saveind):
+def blotch_spectrum(spec, linedata):
+    message = 'You have requested the spectrum be blotched. You should probably do this by hand. Caveat emptor.'
+    warnings.warn(message, UserWarning)
+
     window = 151
     blueend = spec.flux[0:window]
     redend  = spec.flux[-window:]
@@ -135,6 +161,7 @@ def blotch_spectrum(spec, linedata, saveind):
     spec.flux[mask] = med_filt[mask]
     
     # restore the original lines, so that they aren't clipped
+    saveind = linedata[-1]
     spec.flux[saveind] = linedata[1]
     spec.flux[0:window] = blueend
     spec.flux[-window:] = redend
@@ -155,16 +182,13 @@ def pre_process_spectrum(spec, smooth, bluelimit, redlimit, balmerlines, blotch=
     balmer = np.atleast_1d(balmerlines).astype('int')
     balmer.sort()
 
-    linedata, continuumdata, saveind = orig_cut_lines(spec, model)
+    # get a coarse mask of line and continuum
+    linedata, continuumdata  = orig_cut_lines(spec, model)
     if blotch:
-        spec = blotch_spectrum(spec, linedata, saveind)
+        spec = blotch_spectrum(spec, linedata)
 
-    # extract the continuum 
-    continuumdata  = (np.delete(spec.wave, saveind), np.delete(spec.flux, saveind), np.delete(spec.flux_err, saveind))
-
-    # TODO make this a parameter 
-    window1 = 7
     # create a smooth version of the spectrum to refine line detection
+    window1 = 7
     med_filt1 = scisig.wiener(spec.flux, mysize=window1)
 
     # get a coarse estimate of the full continuum
@@ -172,7 +196,7 @@ def pre_process_spectrum(spec, smooth, bluelimit, redlimit, balmerlines, blotch=
     # this is going to be oscillatory because of all the white noise
     # but it's good enough to serve as the mean function over the lines
     # then use a Gaussian Process to constrain the continuum
-    bsw, bsf, _     = bspline_continuum(continuumdata, spec.wave)
+    bsw, bsf, _     = polyfit_continuum(continuumdata, spec.wave)
     gpw, gpf, gpcov = gp_continuum(continuumdata, bsw, bsf, spec.wave)
     
     # clip the spectrum to whatever range is requested
@@ -237,10 +261,15 @@ def pre_process_spectrum(spec, smooth, bluelimit, redlimit, balmerlines, blotch=
         if x in linelimits:
             (W0, bluewave, redwave) = linelimits[x]
             WO, ZE = model._get_indices_in_range(spec.wave,  bluewave, redwave, W0=W0)
+            # ensure that there are no repeated wavelengths that count towards more than one line
+            # this prevents double counting 
             uZE = np.setdiff1d(ZE[0], save_ind)
             save_ind     = np.hstack((save_ind, uZE))
             x_wave, x_flux, x_fluxerr = model._extract_from_indices(spec.wave, spec.flux, (uZE), df=spec.flux_err)
         else:
+            # if this line wasn't in linelimits - i.e. didn't have enough S/N
+            # still extract the pre-defined region around it, since we do not
+            # want it to be used for continuum
             W0, ZE = model._get_line_indices(spec.wave, x)
             uZE = np.setdiff1d(ZE[0], save_ind)
             save_ind     = np.hstack((save_ind, uZE))
@@ -254,6 +283,10 @@ def pre_process_spectrum(spec, smooth, bluelimit, redlimit, balmerlines, blotch=
         line_ind     = np.hstack((line_ind, uZE))
     # continuum data is just the spectrum with the Balmer lines removed
     continuumdata  = (np.delete(spec.wave, save_ind), np.delete(spec.flux, save_ind), np.delete(spec.flux_err, save_ind))
+
+    bsw, bsf, _     = polyfit_continuum(continuumdata, spec.wave)
+    gpw, gpf, gpcov = gp_continuum(continuumdata, bsw, bsf, spec.wave)
+
     linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
     balmer = sorted(linelimits.keys())
-    return spec, linedata, continuumdata, save_ind, balmer, smooth, balmerwaveindex
+    return spec, linedata, continuumdata, save_ind, balmer, smooth, balmerwaveindex, (gpw, gpf, gpcov)
