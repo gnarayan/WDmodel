@@ -96,3 +96,5 @@ out*/
 *.phot
 profile.dat
 Hubeny_models/
+scripts/
+tmp.sh
