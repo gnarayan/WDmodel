@@ -538,23 +538,22 @@ def main():
         smooth = WDmodel.io.get_spectrum_resolution(specfile, smooth=smooth)
 
         # pre-process spectrum
-        out = WDmodel.fit.pre_process_spectrum(spec, smooth, bluelim, redlim, balmer, blotch=blotch)
-        (spec, linedata, continuumdata, save_ind, balmer, smooth, bwi, gpm) = out
-        gpw, gpf, gpcov = gpm
+        out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, balmer, blotch=blotch)
+        spec, bsw, bsf, linedata, continuumdata = out
     
+        #(spec, linedata, continuumdata, save_ind, balmer,  bwi, gpm) = out
+        #gpw, gpf, gpcov = gpm
 
+        (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
         fig = plt.figure()
         ax = fig.add_subplot(1,1,1)
         ax.plot(spec.wave, spec.flux, 'k-')
-        (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
         for line in np.unique(line_number):
             mask = (line_number == line)
             ax.plot(line_wave[mask], line_flux[mask], 'b-')
         cwave, cflux, cdflux = continuumdata
         #ax.plot(cwave, cflux, 'r.')
-        ax.plot(gpw, gpf, 'g-')
-        print gpcov
-        ax.fill_between(gpw, gpf+np.sqrt(np.diag(gpcov)), gpf-np.sqrt(np.diag(gpcov)), color='grey', alpha=0.5)
+        ax.plot(bsw, bsf, 'g-')
         plt.ion()
         plt.show(fig)
 
