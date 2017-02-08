@@ -101,7 +101,7 @@ def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kern
 
     cwave, cflux, cdflux = continuumdata
     (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
-    # do a quick Gaussian Process Fit to model the continuum of the specftrum
+    # do a quick Gaussian Process Fit to model the continuum of the spectrum
     gp = george.GP(kernel=george.kernels.ExpSquaredKernel(10))
     gp.compute(cwave, cdflux)
     pars, result = gp.optimize(cwave, cflux, cdflux, bounds=((10,100000),))
@@ -408,7 +408,6 @@ def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerline
         pdf.savefig(fig3)
         pdf.savefig(fig2)
 
-
         #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
         labels = [r"Teff" , r"log(g)", r"A_V"]
         samples = samples[int(round(discard*samples.shape[0]/100)):]
@@ -422,48 +421,57 @@ def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerline
 
 def get_options():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--specfiles', required=True, nargs='+',\
-            help="Specify spectra to fit. Can be used multiple times.")
-    parser.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
-            help="Specifiy Balmer lines to fit [1:7]")
-    parser.add_argument('-o', '--outdir', required=False,\
-            help="Specify a custom output directory. Default is CWD+objname/ subdir")
+    # spectrum options
+    parser.add_argument('--specfile', required=True, \
+            help="Specify spectrum to fit")
     parser.add_argument('--bluelimit', required=False, type=float,\
             help="Specify blue limit of spectrum - trim wavelengths lower")
     parser.add_argument('--redlimit', required=False, type=float,\
             help="Specify red limit of spectrum - trim wavelengths higher")
+    parser.add_argument('--blotch', required=False, action='store_true',\
+            default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
     parser.add_argument('-s', '--smooth', required=False, type=float, default=None,\
-            help="Specify instrumental resolution for smoothing (FWHM, angstroms)")
+            help="Specify custom instrumental resolution for smoothing (FWHM, angstroms)")
+    
+    # output options
+    parser.add_argument('-o', '--outdir', required=False,\
+            help="Specify a custom output directory. Default is CWD+objname/ subdir")
+
+    # photometry options
+    parser.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
+            help="Specify file containing photometry lookup table for objects")
     parser.add_argument('-r', '--rv', required=False, type=float, default=3.1,\
             help="Specify reddening law R_V")
     parser.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
-    parser.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
-            help="Specify file containing photometry for objects")
-    parser.add_argument('--blotch', required=False, action='store_true',\
-            default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
-    parser.add_argument('--nthreads',  required=False, type=int, default=1,\
-            help="Specify number of threads to use. (>1 implies multiprocessing)")
+
+    # fitting options
     parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
             help="Specify number of walkers to use (0 disables MCMC)")
     parser.add_argument('--nburnin',  required=False, type=int, default=200,\
             help="Specify number of steps for burn-in")
     parser.add_argument('--nprod',  required=False, type=int, default=1000,\
             help="Specify number of steps for production")
+    parser.add_argument('--nthreads',  required=False, type=int, default=1,\
+            help="Specify number of threads to use. (>1 implies multiprocessing)")
     parser.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
     parser.add_argument('--redo',  required=False, action="store_true", default=False,\
             help="Clobber existing fits")
-    args = parser.parse_args()
-    balmer = args.balmerlines
-    specfiles = args.specfiles
-    photfile  = args.photfile
 
+    # visualization options
+    parser.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
+            help="Specify Balmer lines to visualize [1:7]")
+
+    args = parser.parse_args()
+
+    # some sanity checking for option values
+    balmer = args.balmerlines
     try:
         balmer = np.atleast_1d(balmer).astype('int')
         if np.any((balmer < 1) | (balmer > 6)):
             raise ValueError
-    except (TypeError, ValueError), e:
+    except (TypeError, ValueError):
         message = 'Invalid balmer line value - must be in range [1,6]'
         raise ValueError(message)
 
@@ -473,7 +481,7 @@ def get_options():
 
     if args.smooth is not None:
         if args.smooth < 0:
-            message = 'That Gaussian Smoothing FWHM value is ridiculous'
+            message = 'Gaussian Smoothing FWHM cannot be less that zero'
             raise ValueError(message)
 
     reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
@@ -508,64 +516,64 @@ def get_options():
 def main():
     args   = get_options() 
 
-    specfiles = args.specfiles
+    specfile  = args.specfile
+    bluelim   = args.bluelimit
+    redlim    = args.redlimit
+    blotch    = args.blotch
+    smooth    = args.smooth
+
+    outdir    = args.outdir
+
     photfile  = args.photfile
+    
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
-    smooth    = args.smooth
     nthreads  = args.nthreads
-    outdir    = args.outdir
     discard   = args.discard
     redo      = args.redo
-    blotch    = args.blotch
-    bluelim   = args.bluelimit
-    redlim    = args.redlimit
+
     balmer    = args.balmerlines
 
+    # read spectrum
+    spec = WDmodel.io.read_spec(specfile)
+
+    # get resolution
+    smooth = WDmodel.io.get_spectrum_resolution(specfile, smooth=smooth)
+
+    # pre-process spectrum
+    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, blotch=blotch)
+    spec, cont_model, linedata, continuumdata = out
+
     # set the object name and create output directories
-    objname, outdir = WDmodel.io.set_objname_outdir_for_specfiles(specfiles, outdir=outdir)
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
 
     # get photometry 
     phot = WDmodel.io.get_phot_for_obj(objname, photfile)
 
-    for specfile in specfiles:
-
-        # read spectrum
-        spec = WDmodel.io.read_spec(specfile)
-
-        # get resolution
-        smooth = WDmodel.io.get_spectrum_resolution(specfile, smooth=smooth)
-
-        # pre-process spectrum
-        out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, balmer, blotch=blotch)
-        spec, cont_model, linedata, continuumdata = out
     
-        #(spec, linedata, continuumdata, save_ind, balmer,  bwi, gpm) = out
-        #gpw, gpf, gpcov = gpm
+    (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    ax.plot(spec.wave, spec.flux, 'k-')
+    for line in np.unique(line_number):
+        mask = (line_number == line)
+        ax.plot(line_wave[mask], line_flux[mask], 'b-')
+    ax.plot(cont_model.wave, cont_model.flux, 'g-')
+    plt.ion()
+    plt.show(fig)
 
-        (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
-        fig = plt.figure()
-        ax = fig.add_subplot(1,1,1)
-        ax.plot(spec.wave, spec.flux, 'k-')
-        for line in np.unique(line_number):
-            mask = (line_number == line)
-            ax.plot(line_wave[mask], line_flux[mask], 'b-')
-        ax.plot(cont_model.wave, cont_model.flux, 'g-')
-        plt.ion()
-        plt.show(fig)
+    raw_input()
+    sys.exit(-1)
 
-        raw_input()
-        sys.exit(-1)
+    # fit the spectrum
+    res = fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
+            rv=args.rv, smooth=smooth, photfile=photfile,\
+            nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=outdir, redo=redo)
+    model, samples, kernel, balmerlinedata = res
 
-        # fit the spectrum
-        res = fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
-                rv=args.rv, smooth=smooth, photfile=photfile,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=outdir, redo=redo)
-        model, samples, kernel, balmerlinedata = res
-
-        # plot output
-        plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=outdir, discard=discard)
+    # plot output
+    plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=outdir, discard=discard)
     return
 
 

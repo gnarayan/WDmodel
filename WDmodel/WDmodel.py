@@ -10,7 +10,7 @@ from specutils.extinction import reddening
 class WDmodel:
     """
     Base class defines the routines to generate and work with DA White Dwarf
-    model spectrai. Requires the grid file - TlustyGrids.hdf5, or a custom
+    model spectra. Requires the grid file - TlustyGrids.hdf5, or a custom
     user-specified grid. Look at the package level help for description on the
     grid file. There are various convenience methods that begin with an
     underscore (_) that will  not be imported by default These are intended for
@@ -20,7 +20,7 @@ class WDmodel:
     def __init__(self, grid_file=None, grid_name=None):
         """
         constructs a white dwarf model atmosphere object
-        Virtually nore of the attributes should be used directly
+        Virtually none of the attributes should be used directly
         since it is trivially possible to break the model by redefining them
         Access to them is best through the functions connected to the models
         """
@@ -36,7 +36,7 @@ class WDmodel:
 
     def __init__tlusty(self, grid_file=None, grid_name=None):
         """
-        Initalize the Tlusty Model <grid_name> from the grid file <grid_file>
+        Initialize the Tlusty Model <grid_name> from the grid file <grid_file>
         """
         self._fluxnorm = 1. #LEGACY CRUFT
 
@@ -233,7 +233,7 @@ class WDmodel:
         """
         try:
             _, W0, WID, DW = self._lines[line]
-        except KeyError, e:
+        except KeyError:
             message = 'Line name %s is not valid. Must be one of (%s)' %(str(line), ','.join(self._lines.keys())) 
             raise ValueError(message)
 
@@ -251,7 +251,7 @@ class WDmodel:
                 message = 'Shape mismatch between wavelength and fluxerr arrays'
                 raise ValueError(message)
 
-        return self._extract_spectral_line(w, f, ZE, df=df)
+        return self._extract_spectral_line(w, f, line, df=df)
 
 
     def _extract_spectral_line(self, w, f, line, df=None):

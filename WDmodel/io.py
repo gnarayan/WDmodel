@@ -82,7 +82,7 @@ def get_spectrum_resolution(specfile, smooth=None):
             else:                                                                                                       
                 smooth = spectable[mask].fwhm                                                                           
     else:                                                                                                               
-        message = 'Smoothing factor specified on command line - overridng spectable file'                               
+        message = 'Smoothing factor specified on command line - overriding spectable file'                               
         warnings.warn(message, RuntimeWarning)                                                                          
     print('Using smoothing factor %.2f'%smooth) 
     return smooth
@@ -91,10 +91,10 @@ def get_spectrum_resolution(specfile, smooth=None):
 
 def read_spec(filename, **kwargs):
     """
-    Read a space separated spectrum file with column names
+    Read a space separated spectrum filei, filename, with column names
     wave flux flux_err
-    column names are expected on the top line
-    lines begining with # are ignored
+    column names are expected on the first line
+    lines beginning with # are ignored
     Removes any NaN entries (any column)
     """
     spec = _read_ascii(filename, **kwargs)                                                                                          
@@ -104,8 +104,24 @@ def read_spec(filename, **kwargs):
 
 
 def get_phot_for_obj(objname, filename):
+    """
+    Accepts an object name, objname, and a lookup table filename
+
+    The file is expected to be ascii with the first line defining column names.
+    Columns names must be names of passbands (parseable by synphot) for
+    magnitudes. Column names for errors in magnitudes in passband must be
+    'd'+passband_name. The first column is expected to be obj for objname. 
+    There must be only one line per objname 
+    Lines beginning  with # are ignored
+
+    Returns the photometry for objname, obj 
+
+    """
     phot = read_phot(filename)
     mask = (phot.obj == objname)
+    if len(phot[mask]) != 1:
+        message = 'Got no or multiple matches for object %s in file %s'%(objname, filename)
+        raise RuntimeError(message)
     return phot[mask]
 
 
@@ -124,24 +140,15 @@ def make_outdirs(dirname):
         raise OSError(message)
 
 
-def set_objname_outdir_for_specfiles(specfiles, outdir=None):
+def set_objname_outdir_for_specfile(specfile, outdir=None):
     """
-    Accepts a list of specfiles (and optionally a preset output directory), and determines the objname
+    Accepts a spectrum filename (and optionally a preset output directory), and determines the objname
     Raises a warning if the spectra have different object names
     If output directory isn't provided, creates an output directory based on object name
     Else uses provided output directory
-    Returns objname and output dirname, if directories were sucessfully created/exist.
+    Returns objname and output dirname, if directories were successfully created/exist.
     """
-    obj = []
-    for i, specfile in enumerate(specfiles):
-        objname = os.path.basename(specfile).split('-')[0]
-        obj.append(objname)
-    obj = set(obj)
-    if len(obj) > 1:
-        message = "Objects are inconsistently named. Are you sure these are spectra of the same object?"
-        warnings.warn(message, RuntimeWarning)
-    objname = obj.pop()
-
+    objname = os.path.basename(specfile).replace('.flm','').split('-')[0]
     if outdir is None:
         dirname = os.path.join(os.getcwd(), "out", objname)
     else:
