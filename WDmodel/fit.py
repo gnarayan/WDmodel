@@ -46,8 +46,8 @@ def polyfit_continuum(continuumdata, wave):
     mu = np.hstack((mublue,mured))
     coeff = poly.polyfit(cwave, mu, deg=9, w=w)
     out = poly.polyval(wave, coeff)
-    continuummodel = np.rec.fromarrays([wave, out], names='wave,flux')
-    return continuummodel
+    cont_model = np.rec.fromarrays([wave, out], names='wave,flux')
+    return cont_model
 
 
 def orig_cut_lines(spec, model):
@@ -147,7 +147,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, balmerlines, blotch=False):
 
     # get a coarse estimate of the full continuum
     # this isn't used for anything other than cosmetics
-    bsw, bsf = polyfit_continuum(continuumdata, spec.wave)
+    cont_model = polyfit_continuum(continuumdata, spec.wave)
     
     # clip the spectrum to whatever range is requested
     if bluelimit > 0:
@@ -163,8 +163,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, balmerlines, blotch=False):
     # trim the spectrum to the requested length
     usemask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
     spec = spec[usemask]
-    bsw  = bsw[usemask]
-    bsf  = bsf[usemask]
+    cont_model = cont_model[usemask]
 
 
 #    lineparams = [(x, model._get_line_indices(spec.wave, x)) for x in balmer]
@@ -231,4 +230,4 @@ def pre_process_spectrum(spec, bluelimit, redlimit, balmerlines, blotch=False):
 #
 #    linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
 #    balmer = sorted(linelimits.keys())
-    return spec, bsw, bsf, linedata, continuumdata
+    return spec, cont_model, linedata, continuumdata

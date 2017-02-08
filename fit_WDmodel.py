@@ -539,7 +539,7 @@ def main():
 
         # pre-process spectrum
         out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, balmer, blotch=blotch)
-        spec, bsw, bsf, linedata, continuumdata = out
+        spec, cont_model, linedata, continuumdata = out
     
         #(spec, linedata, continuumdata, save_ind, balmer,  bwi, gpm) = out
         #gpw, gpf, gpcov = gpm
@@ -551,9 +551,7 @@ def main():
         for line in np.unique(line_number):
             mask = (line_number == line)
             ax.plot(line_wave[mask], line_flux[mask], 'b-')
-        cwave, cflux, cdflux = continuumdata
-        #ax.plot(cwave, cflux, 'r.')
-        ax.plot(bsw, bsf, 'g-')
+        ax.plot(cont_model.wave, cont_model.flux, 'g-')
         plt.ion()
         plt.show(fig)
 
