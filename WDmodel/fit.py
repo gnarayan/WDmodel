@@ -4,7 +4,12 @@ import numpy as np
 import numpy.polynomial.polynomial as poly
 import scipy.stats as scistat
 import scipy.signal as scisig
+import scipy.optimize as sciopt
+import emcee
+import h5py
+from clint.textui import progress
 from .WDmodel import WDmodel
+from . import likelihood
 
 
 def polyfit_continuum(continuumdata, wave):
@@ -150,7 +155,6 @@ def blotch_spectrum(spec, linedata):
     return spec
 
 
-
 def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     """
     Accepts a recarray spectrum, spec, blue and red limits, and an optional
@@ -194,3 +198,153 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     cont_model = cont_model[usemask]
 
     return spec, cont_model, linedata, continuumdata
+
+
+#**************************************************************************************************************
+
+def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kernel):
+    """
+    Does a quick fit of the spectrum to get an initial guess of the spectral parameters
+    This isn't robust, but it's good enough for an initial guess
+    The guess defines the regions of the spectrum that are actually used for each line in the full fit
+    These regions are only weak functions of Teff, logg
+    It beats hard-coded pre-defined regions which are only valid for some Teff, logg
+    """
+
+    nparam = 3
+
+    wave    = spec.wave
+    flux    = spec.flux
+    fluxerr = spec.flux_err
+
+    cwave, cflux, cdflux = continuumdata
+    (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
+    # do a quick Gaussian Process Fit to model the continuum of the spectrum
+    gp = george.GP(kernel=george.kernels.ExpSquaredKernel(10))
+    gp.compute(cwave, cdflux)
+    pars, result = gp.optimize(cwave, cflux, cdflux, bounds=((10,100000),))
+    mu, cov = gp.predict(cflux, wave)
+    line_cflux , line_cov = gp.predict(cflux, line_wave)
+
+    balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov)
+
+    p0 = np.ones(nparam).tolist()
+    bounds = []
+    p0[0] = 40000.
+    p0[1] = 7.5
+    p0[2] = 0.1
+    bounds.append((17000,80000))
+    bounds.append((7.,9.499999))
+    bounds.append((0.,0.5))
+
+    # do a quick fit with minimize to get a decent starting guess
+    result = sciopt.minimize(nll, p0, args=(wave, model, kernel, balmerlinedata), bounds=bounds)
+    print result
+    return balmerlinedata, continuumdata, result
+
+
+#**************************************************************************************************************
+
+def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
+            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd(), redo=False):
+
+    outfile = os.path.join(outdir, os.path.basename(objname.replace('.flm','.mcmc.hdf5')))
+    if os.path.exists(outfile) and (not redo):
+        print("Output file already exists. Specify --redo to clobber.")
+        sys.exit(0)
+
+    nparam = 3
+
+    wave    = spec.wave
+    flux    = spec.flux
+    fluxerr = spec.flux_err
+    outf = h5py.File(outfile, 'w')
+    dset_spec = outf.create_group("spec")
+    dset_spec.create_dataset("wave",data=wave)
+    dset_spec.create_dataset("flux",data=flux)
+    dset_spec.create_dataset("fluxerr",data=fluxerr)
+
+    # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
+    gsig     = smooth/np.sqrt(8.*np.log(2.))
+    kernel   = Gaussian1DKernel(gsig)
+
+    # init the model, and determine the coarse normalization to match the spectrum
+    model = WDmodel.WDmodel()
+    
+    # bundle the line dnd continuum data so we don't have to extract it every step in the MCMC
+    if balmer is None:
+        balmer = np.arange(1, 7)
+    else:
+        balmer = np.array(sorted(balmer))
+    
+    # do a quick, not very robust fit to create the quantities we need to store
+    # get a reasonable starting position for the chains 
+    # and set the wavelength thresholds for each line
+    balmerlinedata, continuumdata, result = quick_fit_model(spec, linedata, continuumdata, save_ind, balmer, model, kernel)
+
+    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
+    (cwave, cflux, cdflux) = continuumdata
+
+    dset_lines = outf.create_group("lines")
+    dset_lines.create_dataset("line_wave",data=line_wave)
+    dset_lines.create_dataset("line_flux",data=line_flux)
+    dset_lines.create_dataset("line_fluxerr",data=line_fluxerr)
+    dset_lines.create_dataset("line_number",data=line_number)
+    dset_lines.create_dataset("line_cflux",data=line_cflux)
+    dset_lines.create_dataset("line_cov",data=line_cov)
+    dset_lines.create_dataset("line_ind",data=line_ind)
+    dset_lines.create_dataset("save_ind",data=save_ind)
+
+    # note that we bundle mu and cov (the continuum model and error) with balmerlinedata
+    # but save it with continuumdata
+    # the former makes sense for fitting
+    # the latter is a more logical structure 
+    dset_continuum = outf.create_group("continuum")
+    dset_continuum.create_dataset("con_wave", data=cwave)
+    dset_continuum.create_dataset("con_flux", data=cflux)
+    dset_continuum.create_dataset("con_fluxerr", data=cdflux)
+    dset_continuum.create_dataset("con_model", data=mu)
+    dset_continuum.create_dataset("con_cov", data=cov)
+    outf.close()
+    
+
+    if nwalkers==0:
+        print "nwalkers set to 0. Not running MCMC"
+        return
+
+    # setup the sampler
+    pos = [result.x + 1e-1*np.random.randn(nparam) for i in range(nwalkers)]
+    if nthreads > 1:
+        print "Multiproc"
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob,\
+                threads=nthreads, args=(wave, model, kernel, balmerlinedata)) 
+    else:
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(wave, model, kernel, balmerlinedata)) 
+
+    # do a short burn-in
+    if nburnin > 0:
+        print "Burn-in"
+        pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
+        sampler.reset()
+        pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, nparam)
+
+    # setup incremental chain saving
+    # TODO need to test this alongside multiprocessing
+    outf = h5py.File(outfile, 'a')
+    chain = outf.create_group("chain")
+    dset_chain = chain.create_dataset("position",(nwalkers*nprod,3),maxshape=(None,3))
+
+    # production
+    with progress.Bar(label="Production", expected_size=nprod) as bar:
+        for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
+            position = result[0]
+            dset_chain[nwalkers*i:nwalkers*(i+1),:] = position
+            outf.flush()
+            bar.show(i+1)
+    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+
+    samples = np.array(dset_chain)
+    outf.close()
+    return model, samples, kernel, balmerlinedata
+
+

@@ -144,6 +144,7 @@ class WDmodel:
             message = 'No valid wavelengths'
             raise ValueError(message)
             
+            
     def get_red_model(self, teff, logg, av, rv=3.1, redmod='od94', wave=None, log=False, strict=True):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
@@ -167,8 +168,6 @@ class WDmodel:
         return modwave, modflux
 
 
-
-
     def _normalize_model(self, spec, log=False):
         """
         Imprecise normalization for visualization only
@@ -184,6 +183,7 @@ class WDmodel:
         datamedian  = np.median(flux)
         self._fluxnorm = modelmedian/datamedian
         return self._fluxnorm
+
 
     @classmethod
     def _get_indices_in_range(cls, w, WA, WB, W0=None):
@@ -201,13 +201,6 @@ class WDmodel:
         _, W0, WID, DW = self._lines[line]
         WA  = W0 - WID - DW
         WB  = W0 + WID + DW
-        #wred  = w[((W0 + WID) <  w < WB)]        
-        #wblue = w[(WA < w < (W0 - WID))] 
-        #wbluecore = w[(W0 - WID) < w < W0]
-        #wredcore  = W[(W0 < w < (W0 + WID))]
-        #if len(wblue)==0 or len(wred) == 0 or len(wbluecore) == 0 or len(wredcore) == 0:
-        #    message = 'Spectrum does not adequately cover line %s'%line
-        #    raise ValueError(message)
         return self._get_indices_in_range(w, WA, WB, W0=W0)
 
 
@@ -268,8 +261,10 @@ class WDmodel:
     def __getstate__(self):
         return self.__dict__
 
+
     def __setstate__(self, d):
         self.__dict__.update(d)
+
 
     __call__ = get_model
         

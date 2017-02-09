@@ -4,6 +4,7 @@ import numpy as np
 import pkg_resources
 import h5py
 
+
 def read_model_grid(grid_file=None, grid_name=None):
     """
     Read the Tlusty/Hubeny grid file (via Jay Holberg)
@@ -46,13 +47,13 @@ def read_model_grid(grid_file=None, grid_name=None):
     return grid_file, grid_name, wave, ggrid, tgrid, flux
 
 
-
 def _read_ascii(filename, **kwargs):
     """
     Read space separated ascii file, with column names provided on first line (# optional)
     kwargs are passed along to genfromtxt
     """
     return np.recfromtxt(filename, names=True, **kwargs)
+
 
 # create some aliases 
 # these exist so we can flesh out full functions later
@@ -86,7 +87,6 @@ def get_spectrum_resolution(specfile, smooth=None):
         warnings.warn(message, RuntimeWarning)                                                                          
     print('Using smoothing factor %.2f'%smooth) 
     return smooth
-
 
 
 def read_spec(filename, **kwargs):
