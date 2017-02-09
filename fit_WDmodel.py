@@ -217,7 +217,7 @@ def get_options():
             help="Specify red limit of spectrum - trim wavelengths higher")
     parser.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
-    parser.add_argument('-s', '--smooth', required=False, type=float, default=None,\
+    parser.add_argument('-f', '--fwhm', required=False, type=float, default=None,\
             help="Specify custom instrumental resolution for smoothing (FWHM, angstroms)")
     
     # output options
@@ -266,8 +266,8 @@ def get_options():
         message = 'That Rv Value is ridiculous'
         raise ValueError(message)
 
-    if args.smooth is not None:
-        if args.smooth < 0:
+    if args.fwhm is not None:
+        if args.fwhm < 0:
             message = 'Gaussian Smoothing FWHM cannot be less that zero'
             raise ValueError(message)
 
@@ -307,11 +307,13 @@ def main():
     bluelim   = args.bluelimit
     redlim    = args.redlimit
     blotch    = args.blotch
-    smooth    = args.smooth
+    fwhm      = args.fwhm
 
     outdir    = args.outdir
 
     photfile  = args.photfile
+    rv        = args.rv
+    rvmodel   = args.reddeningmodel
     
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
@@ -326,7 +328,7 @@ def main():
     spec = WDmodel.io.read_spec(specfile)
 
     # get resolution
-    smooth = WDmodel.io.get_spectrum_resolution(specfile, smooth=smooth)
+    fwhm = WDmodel.io.get_spectrum_resolution(specfile, fwhm=fwhm)
 
     # pre-process spectrum
     out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, blotch=blotch)
@@ -339,10 +341,11 @@ def main():
     phot = WDmodel.io.get_phot_for_obj(objname, photfile)
 
     # fit the spectrum
-    res = WDmodel.fit.fit_model(specfile, spec, linedata, continuumdata, save_ind, balmer,\
-            rv=args.rv, smooth=smooth, photfile=photfile,\
-            nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads, outdir=outdir, redo=redo)
-    model, samples, kernel, balmerlinedata = res
+    res = WDmodel.fit.fit_model(spec, phot,\
+                objname, outdir, specfile,\
+                rv=rv, rvmodel=rvmodel, fwhm=fwhm,\
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads,\
+                redo=redo)
 
     # plot output
     plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=outdir, discard=discard)

@@ -62,31 +62,31 @@ read_phot      = _read_ascii
 read_spectable = _read_ascii
 
 
-def get_spectrum_resolution(specfile, smooth=None):
+def get_spectrum_resolution(specfile, fwhm=None):
     """
     Accepts a spectrum filename, and reads a lookup table to get the resolution of the spectrum
     """
     _default_resolution = 8.0
-    if smooth is None:                                                                                                  
+    if fwhm is None:                                                                                                  
         spectable = read_spectable('data/spectable_resolution.dat')                                                     
         shortfile = os.path.basename(specfile).replace('-total','')                                                     
         if shortfile.startswith('test'):                                                                                
             message = 'Spectrum filename indicates this is a test - using default resolution'                       
             warnings.warn(message, RuntimeWarning)                                                                      
-            smooth = _default_resolution
+            fwhm = _default_resolution
         else:                                                                                                           
             mask = (spectable.specname == shortfile)                                                                    
             if len(spectable[mask]) != 1:                                                                               
                 message = 'Could not find an entry for this spectrum in the spectable file - using default resolution'
                 warnings.warn(message, RuntimeWarning)                                                                  
-                smooth = _default_resolution
+                fwhm = _default_resolution
             else:                                                                                                       
-                smooth = spectable[mask].fwhm                                                                           
+                fwhm = spectable[mask].fwhm                                                                           
     else:                                                                                                               
         message = 'Smoothing factor specified on command line - overriding spectable file'                               
         warnings.warn(message, RuntimeWarning)                                                                          
-    print('Using smoothing factor %.2f'%smooth) 
-    return smooth
+    print('Using smoothing instrumental FWHM %.2f'%fwhm) 
+    return fwhm
 
 
 def read_spec(filename, **kwargs):

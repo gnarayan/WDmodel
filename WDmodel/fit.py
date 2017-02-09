@@ -1,10 +1,13 @@
 import warnings
 warnings.simplefilter('once')
+import os
 import numpy as np
 import numpy.polynomial.polynomial as poly
 import scipy.stats as scistat
 import scipy.signal as scisig
 import scipy.optimize as sciopt
+from astropy.convolution import Gaussian1DKernel
+import george
 import emcee
 import h5py
 from clint.textui import progress
@@ -245,19 +248,24 @@ def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kern
 
 #**************************************************************************************************************
 
-def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=3.1, rvmodel='od94', smooth=4., photfile=None,\
-            nwalkers=200, nburnin=500, nprod=2000, nthreads=1, outdir=os.getcwd(), redo=False):
+def fit_model(spec, phot,\
+            objname, outdir, specfile,\
+            rv=3.1, rvmodel='od94', fwhm=4.,\
+            nwalkers=200, nburnin=500, nprod=2000, nthreads=1,\
+            redo=False):
 
+    # we set the output file based on the spectrum name, since we can have multiple spectra per object
     outfile = os.path.join(outdir, os.path.basename(objname.replace('.flm','.mcmc.hdf5')))
     if os.path.exists(outfile) and (not redo):
-        print("Output file already exists. Specify --redo to clobber.")
-        sys.exit(0)
+        message = "Output file %s already exists. Specify --redo to clobber."%outfile
+        raise IOError(message)
 
     nparam = 3
 
     wave    = spec.wave
     flux    = spec.flux
     fluxerr = spec.flux_err
+
     outf = h5py.File(outfile, 'w')
     dset_spec = outf.create_group("spec")
     dset_spec.create_dataset("wave",data=wave)
@@ -265,48 +273,18 @@ def fit_model(objname, spec, linedata, continuumdata, save_ind, balmer=None, rv=
     dset_spec.create_dataset("fluxerr",data=fluxerr)
 
     # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
-    gsig     = smooth/np.sqrt(8.*np.log(2.))
+    gsig     = fwhm/np.sqrt(8.*np.log(2.))
     kernel   = Gaussian1DKernel(gsig)
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
     
-    # bundle the line dnd continuum data so we don't have to extract it every step in the MCMC
-    if balmer is None:
-        balmer = np.arange(1, 7)
-    else:
-        balmer = np.array(sorted(balmer))
     
     # do a quick, not very robust fit to create the quantities we need to store
     # get a reasonable starting position for the chains 
     # and set the wavelength thresholds for each line
-    balmerlinedata, continuumdata, result = quick_fit_model(spec, linedata, continuumdata, save_ind, balmer, model, kernel)
-
-    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
-    (cwave, cflux, cdflux) = continuumdata
-
-    dset_lines = outf.create_group("lines")
-    dset_lines.create_dataset("line_wave",data=line_wave)
-    dset_lines.create_dataset("line_flux",data=line_flux)
-    dset_lines.create_dataset("line_fluxerr",data=line_fluxerr)
-    dset_lines.create_dataset("line_number",data=line_number)
-    dset_lines.create_dataset("line_cflux",data=line_cflux)
-    dset_lines.create_dataset("line_cov",data=line_cov)
-    dset_lines.create_dataset("line_ind",data=line_ind)
-    dset_lines.create_dataset("save_ind",data=save_ind)
-
-    # note that we bundle mu and cov (the continuum model and error) with balmerlinedata
-    # but save it with continuumdata
-    # the former makes sense for fitting
-    # the latter is a more logical structure 
-    dset_continuum = outf.create_group("continuum")
-    dset_continuum.create_dataset("con_wave", data=cwave)
-    dset_continuum.create_dataset("con_flux", data=cflux)
-    dset_continuum.create_dataset("con_fluxerr", data=cdflux)
-    dset_continuum.create_dataset("con_model", data=mu)
-    dset_continuum.create_dataset("con_cov", data=cov)
+    result = quick_fit_model(spec, model, kernel)
     outf.close()
-    
 
     if nwalkers==0:
         print "nwalkers set to 0. Not running MCMC"
