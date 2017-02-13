@@ -6,8 +6,6 @@ import numpy as np
 import numpy.polynomial.polynomial as poly
 import scipy.stats as scistat
 import scipy.signal as scisig
-import scipy.optimize as sciopt
-from astropy.convolution import Gaussian1DKernel, convolve
 from iminuit import Minuit
 import george
 import emcee
@@ -236,24 +234,22 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     teff_bounds = (17000,80000)
     logg_bounds = (7.,9.499999)
     av_bounds   = (0.,0.5)
-    fwhm_bounds = (1., max(fwhm_guess, 20.))
+    fwhm_bounds = (0.1, max(fwhm_guess, 20.))
 
     def chi2(teff, logg, av, c, fwhm):
         mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
-
-        # smooth the model, and extract the section that overlays the model
-        # since we smooth the full model, computed on the full wavelength range of the spectrum
-        # and then extract the subset range that overlaps with the data
-        # we avoid any edge effects with smoothing at the end of the range
         mod *= c
         return np.sum(((spec.flux-mod)/spec.flux_err)**2.)
 
     m = Minuit(chi2, teff=teff_guess, logg=logg_guess, av=av_guess, c=c_guess, fwhm=fwhm_guess,\
                 error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale, error_fwhm=fwhm_scale,\
                 limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_fwhm=fwhm_bounds,\
-                print_level=1)
+                print_level=0)
 
-    m.migrad()
+    
+    outfnmin, outpar = m.migrad()
+    if outfnmin['is_valid']:
+        m.minos()
     result = m.args
 
     #p0 = np.ones(nparam).tolist()
@@ -309,12 +305,7 @@ def fit_model(spec, phot,\
     # and set the wavelength thresholds for each line
     result = quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
     print result
-    teff, logg, av, c, fwhm = result
-    # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
-    gsig     = fwhm/np.sqrt(8.*np.log(2.))
-    kernel   = Gaussian1DKernel(gsig)
-    quick_fit_result = teff, logg, av, c, kernel
-    fig = viz.plot_spectrum_fit(spec, objname, specfile, model, quick_fit_result, rv=rv, rvmodel=rvmodel)
+    fig = viz.plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=rv, rvmodel=rvmodel, save=True)
     fig.show()
     outf.close()
 
