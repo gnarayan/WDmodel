@@ -5,6 +5,7 @@ from . import io
 import scipy.interpolate as spinterp
 from astropy import units as u                                                                                          
 from specutils.extinction import reddening
+from astropy.convolution import Gaussian1DKernel, convolve
 
 
 class WDmodel:
@@ -67,10 +68,10 @@ class WDmodel:
         return (10.**self._model(xi))
 
 
-    def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False, redmod='od94'):
+    def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False, rvmodel='od94'):
         xi = self._get_xi(teff, logg, wave)
         mod = self._get_model(xi, log=log)
-        bluening = reddening(wave*u.Angrstrom, av, r_v=rv, model=redmod)
+        bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             mod = 10.**mod
         mod/=bluening
@@ -145,7 +146,7 @@ class WDmodel:
             raise ValueError(message)
             
             
-    def get_red_model(self, teff, logg, av, rv=3.1, redmod='od94', wave=None, log=False, strict=True):
+    def get_red_model(self, teff, logg, av, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
         reddening law "redmod" at wavelengths wave If not specified,
@@ -159,7 +160,7 @@ class WDmodel:
         modwave, modflux = self.get_model(teff, logg, wave=wave, log=log, strict=strict)
         av = float(av)
         rv = float(rv)
-        bluening = reddening(modwave*u.Angrstrom, av, r_v=rv, model=redmod)
+        bluening = reddening(modwave*u.Angrstrom, av, r_v=rv, model=rvmodel)
         if log:
             modflux = 10.**modflux
         modflux/=bluening
