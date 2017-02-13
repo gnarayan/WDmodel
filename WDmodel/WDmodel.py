@@ -5,7 +5,7 @@ from . import io
 import scipy.interpolate as spinterp
 from astropy import units as u                                                                                          
 from specutils.extinction import reddening
-from astropy.convolution import Gaussian1DKernel, convolve
+from scipy.ndimage.filters import gaussian_filter
 
 
 class WDmodel:
@@ -80,6 +80,20 @@ class WDmodel:
         return mod
 
 
+    def _get_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, rvmodel='od94'):
+        xi = self._get_xi(teff, logg, wave)
+        mod = self._get_model(xi, log=log)
+        bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
+        if log:
+            mod = 10.**mod
+        mod/=bluening
+        gsig     = fwhm/np.sqrt(8.*np.log(2.))
+        mod = gaussian_filter(mod, gsig, order=0, mode='nearest')
+        if log:
+            mod = np.log10(mod)
+        return mod
+
+
     @classmethod
     def _wave_test(cls, wave):
         """
@@ -149,13 +163,13 @@ class WDmodel:
     def get_red_model(self, teff, logg, av, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
-        reddening law "redmod" at wavelengths wave If not specified,
+        reddening law "rvmodel" at wavelengths wave If not specified,
         wavelengths are from 3000-9000A Applies reddening that is specified to
         the spectrum (the model has no reddening by default)
 
-        Checks inputs for consistency and calls _get_xi(), _get_red_model() If you
-        need the model repeatedly for slightly different parameters, use those
-        functions directly
+        Checks inputs for consistency and calls _get_xi(), _get_model() If you
+        need the model repeatedly for slightly different parameters, use
+        _get_red_model directly.
         """
         modwave, modflux = self.get_model(teff, logg, wave=wave, log=log, strict=strict)
         av = float(av)
@@ -167,6 +181,29 @@ class WDmodel:
         if log:
             modflux = np.log10(modflux)
         return modwave, modflux
+
+    
+    def get_obs_model(self, teff, logg, av, fwhm, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
+        """
+        Returns the model (wavelength and flux) for some teff, logg av, rv with
+        reddening law "rvmodel" at wavelengths wave If not specified,
+        wavelengths are from 3000-9000A Applies reddening that is specified to
+        the spectrum (the model has no reddening by default)
+
+        Checks inputs for consistency and calls _get_xi(), _get_model() If you
+        need the model repeatedly for slightly different parameters, use
+        _get_obs_model directly
+        """
+        modwave, modflux = self.get_red_model(teff, logg, av, rv=rv, rvmodel=rvmodel,\
+                wave=wave, log=log, strict=strict)
+        if log:
+            modflux = 10.**modflux
+        gsig     = fwhm/np.sqrt(8.*np.log(2.))
+        modflux = gaussian_filter(modflux, gsig, order=0, mode='nearest')
+        if log:
+            modflux = np.log10(modflux)
+        return modwave, modflux
+
 
 
     def _normalize_model(self, spec, log=False):
