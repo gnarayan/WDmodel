@@ -208,7 +208,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
 
 #**************************************************************************************************************
 
-def quick_fit_spec_model(spec, model, kernel, rv=3.1, rvmodel='od94'):
+def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     """
     Does a quick fit of the spectrum to get an initial guess of the spectral parameters
     This isn't robust, but it's good enough for an initial guess
@@ -217,38 +217,40 @@ def quick_fit_spec_model(spec, model, kernel, rv=3.1, rvmodel='od94'):
     It beats hard-coded pre-defined regions which are only valid for some Teff, logg
     """
 
-    nparam = 4
+    nparam = 5
     
     # hardcode an initial guess that's somewhere near the mean of the sample
-    teff_guess = 50000.
+    teff_guess = 35000.
     logg_guess = 7.8
     av_guess   = 0.1
-    mod = model._get_red_model(teff_guess, logg_guess, av_guess, wave=spec.wave, rv=rv, rvmodel=rvmodel)
+    fwhm_guess = fwhm
+    mod = model._get_obs_model(teff_guess, logg_guess, av_guess, fwhm_guess, spec.wave, rv=rv, rvmodel=rvmodel)
     c_guess    = spec.flux.mean()/mod.mean()
 
     teff_scale = 2000.
     logg_scale = 0.1
     av_scale   = 0.1
     c_scale    = 10
+    fwhm_scale = 1.
 
     teff_bounds = (17000,80000)
     logg_bounds = (7.,9.499999)
     av_bounds   = (0.,0.5)
+    fwhm_bounds = (1., max(fwhm_guess, 20.))
 
-    def chi2(teff, logg, av, c):
-        mod = model._get_red_model(teff, logg, av, spec.wave)
+    def chi2(teff, logg, av, c, fwhm):
+        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
 
         # smooth the model, and extract the section that overlays the model
         # since we smooth the full model, computed on the full wavelength range of the spectrum
         # and then extract the subset range that overlaps with the data
         # we avoid any edge effects with smoothing at the end of the range
-        smoothedmod = convolve(mod, kernel, boundary='extend')
-        smoothedmod *= c
-        return np.sum(((spec.flux-smoothedmod)/spec.flux_err)**2.)
+        mod *= c
+        return np.sum(((spec.flux-mod)/spec.flux_err)**2.)
 
-    m = Minuit(chi2, teff=teff_guess, logg=logg_guess, av=av_guess, c=c_guess,\
-                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale,\
-                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds,\
+    m = Minuit(chi2, teff=teff_guess, logg=logg_guess, av=av_guess, c=c_guess, fwhm=fwhm_guess,\
+                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale, error_fwhm=fwhm_scale,\
+                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_fwhm=fwhm_bounds,\
                 print_level=1)
 
     m.migrad()
@@ -298,9 +300,6 @@ def fit_model(spec, phot,\
     dset_spec.create_dataset("flux",data=flux)
     dset_spec.create_dataset("fluxerr",data=fluxerr)
 
-    # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
-    gsig     = fwhm/np.sqrt(8.*np.log(2.))
-    kernel   = Gaussian1DKernel(gsig)
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel()
@@ -308,9 +307,12 @@ def fit_model(spec, phot,\
     # do a quick, not very robust fit to create the quantities we need to store
     # get a reasonable starting position for the chains 
     # and set the wavelength thresholds for each line
-    result = quick_fit_spec_model(spec, model, kernel, rv=rv, rvmodel=rvmodel)
+    result = quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
     print result
-    teff, logg, av, c = result
+    teff, logg, av, c, fwhm = result
+    # init a simple Gaussian 1D kernel to smooth the model to the resolution of the instrument
+    gsig     = fwhm/np.sqrt(8.*np.log(2.))
+    kernel   = Gaussian1DKernel(gsig)
     quick_fit_result = teff, logg, av, c, kernel
     fig = viz.plot_spectrum_fit(spec, objname, specfile, model, quick_fit_result, rv=rv, rvmodel=rvmodel)
     fig.show()
