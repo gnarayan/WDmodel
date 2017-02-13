@@ -148,9 +148,10 @@ def set_objname_outdir_for_specfile(specfile, outdir=None):
     Else uses provided output directory
     Returns objname and output dirname, if directories were successfully created/exist.
     """
-    objname = os.path.basename(specfile).replace('.flm','').split('-')[0]
+    basespec = os.path.basename(specfile).replace('.flm','')
+    objname = basespec.split('-')[0]
     if outdir is None:
-        dirname = os.path.join(os.getcwd(), "out", objname)
+        dirname = os.path.join(os.getcwd(), "out", objname, basespec)
     else:
         dirname = outdir
     make_outdirs(dirname)

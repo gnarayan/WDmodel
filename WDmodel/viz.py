@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.font_manager import FontProperties as FM
-from astropy.convolution import convolve
 #import corner
 #from matplotlib import rc
 #rc('text', usetex=True)
@@ -11,7 +10,7 @@ from astropy.convolution import convolve
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 
-def plot_spectrum_fit(spec, objname, specfile, model, result, rv=3.1, rvmodel='od94'):
+def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', save=False):
     
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
@@ -27,12 +26,12 @@ def plot_spectrum_fit(spec, objname, specfile, model, result, rv=3.1, rvmodel='o
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
 
     # todo get this from likelihood wrapper 
-    teff, logg, av, c, kernel = result
-    mod = model._get_red_model(teff, logg, av, spec.wave)
-    smoothedmod = convolve(mod, kernel, boundary='extend')
-    smoothedmod *= c
+    teff, logg, av, c, fwhm = result
+    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
+    smoothedmod = mod*c
+    outlabel = 'Model\nTeff = %.2f K\nlog(g) = %.3f\nAv = %.3f mag\nc = %f\nFWHM = %.3f Angstrom\n' %result
 
-    ax_spec.plot(spec.wave, smoothedmod, color='red', linestyle='-',marker='None', label='Model')
+    ax_spec.plot(spec.wave, smoothedmod, color='red', linestyle='-',marker='None', label=outlabel)
 
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod+spec.flux_err, spec.flux-smoothedmod-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
@@ -45,8 +44,9 @@ def plot_spectrum_fit(spec, objname, specfile, model, result, rv=3.1, rvmodel='o
     fig.suptitle('%s (%s)'%(objname, specfile), fontproperties=font_l)
     
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
-    fig.savefig(objname+'.pdf')
-    plt.show(fig)
+    if save:
+        outfile = os.path.join(outdir, os.path.basename(specfile).replace('.flm','_minuit.pdf'))
+        fig.savefig(outfile)
     return fig 
 
 
