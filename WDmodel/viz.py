@@ -44,7 +44,7 @@ def plot_spectrum_fit(spec, objname, specfile, model, result, rv=3.1, rvmodel='o
     ax_spec.legend(frameon=False, prop=font_s)
     fig.suptitle('%s (%s)'%(objname, specfile), fontproperties=font_l)
     
-    plt.tight_layout()
+    gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     fig.savefig(objname+'.pdf')
     plt.show(fig)
     return fig 
