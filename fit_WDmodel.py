@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import os
 import warnings
 warnings.simplefilter('once')
 import argparse
@@ -7,204 +6,8 @@ import numpy as np
 import WDmodel
 import WDmodel.io
 import WDmodel.fit
-from astropy import units as u
-from specutils.extinction import reddening
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.font_manager import FontProperties as FM
-import corner
-#import matplotlib.gridspec as gridspec
-#from matplotlib import rc
-#rc('text', usetex=True)
-#rc('font', family='serif')
-#rc('ps', usedistiller='xpdf')
-#rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
+import WDmodel.viz
 
-
-
-def plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi):
-    
-    font  = FM(size='small')
-    font2 = FM(size='x-small')
-    font3 = FM(size='large')
-    font4 = FM(size='medium')
-
-    wave = spec.wave
-    flux = spec.flux
-    fluxerr = spec.flux_err
-
-    fig = plt.figure(figsize=(10,8))
-    ax_spec  = fig.add_axes([0.075,0.4,0.85,0.55])
-    ax_resid = fig.add_axes([0.075, 0.1,0.85, 0.25])
-
-    fig2 = plt.figure(figsize=(10,5))
-    ax_lines = fig2.add_subplot(1,2,1)
-
-    fig3 = plt.figure(figsize=(10,8))
-    ax_spec_cont  = fig3.add_subplot(3,1,1)
-    ax_mod_cont   = fig3.add_subplot(3,1,2, sharex=ax_spec_cont)
-    ax_ratio_cont = fig3.add_subplot(3,1,3, sharex=ax_spec_cont)
-
-
-    ax_spec.errorbar(wave, flux, fluxerr, color='grey', alpha=0.5, capsize=0, linestyle='-', marker='None')
-    if samples is not None:
-        expsamples = np.ones(samples.shape)
-        expsamples[:, 1] = np.exp(samples[:, 1])
-        #crap_a, crap_tau, teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-        #                                                    zip(*np.percentile(samples, [16, 50, 84],
-        #                                                    axis=0)))
-        teff_mcmc, logg_mcmc, av_mcmc  = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                                                            zip(*np.percentile(samples, [16, 50, 84],
-                                                            axis=0)))
-
-        print teff_mcmc
-        print logg_mcmc
-        print av_mcmc
-
-
-        (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
-
-        _, modelflux = model.get_model(teff_mcmc[0], logg_mcmc[0], wave=wave, strict=False)
-        _, modelhi   = model.get_model(teff_mcmc[0]+teff_mcmc[2], logg_mcmc[0]+logg_mcmc[2], wave=wave, strict=False)
-        _, modello   = model.get_model(teff_mcmc[0]-teff_mcmc[1], logg_mcmc[0]-logg_mcmc[1], wave=wave, strict=False)
-
-        # redden the model
-        bluening   = reddening(wave*u.Angstrom, av_mcmc[0], r_v=3.1, model='od94')
-        blueninglo = reddening(wave*u.Angstrom, av_mcmc[0]+av_mcmc[2], r_v=3.1, model='od94')
-        blueninghi = reddening(wave*u.Angstrom, av_mcmc[0]-av_mcmc[1], r_v=3.1, model='od94')
-        modelflux*=bluening
-        modelhi  *=blueninghi
-        modello  *=blueninglo
-
-        smoothed   = convolve(modelflux, kernel)
-        smoothedhi = convolve(modelhi, kernel)
-        smoothedlo = convolve(modello, kernel)
-
-        cwave = np.delete(wave, save_ind)
-        smoothedc   = get_model_continuum(wave, wave, smoothed,   save_ind, line_ind)
-        smoothedchi = get_model_continuum(wave, wave, smoothedhi, save_ind, line_ind)
-        smoothedclo = get_model_continuum(wave, wave, smoothedlo, save_ind, line_ind)
-
-        cont_ratio = mu/smoothedc
-        ax_spec_cont.plot(wave, mu/np.median(mu))
-        ax_mod_cont.plot(wave, smoothedc/np.median(smoothedc))
-        ax_mod_cont.plot(wave, smoothed/np.median(smoothedc), ls='-', color='red', alpha=0.7)
-        ax_ratio_cont.plot(wave, cont_ratio/np.median(cont_ratio))
-        ax_ratio_cont.set_xlabel('Wavelength~(\AA)')
-        ax_spec_cont.set_ylabel('spectrum')
-        ax_mod_cont.set_ylabel('model')
-        ax_ratio_cont.set_ylabel('continuum')
-        ax_spec_cont.set_title('Continuum Diagnostics')
-        
-        smoothed*=mu/smoothedc
-        smoothedhi*=mu/smoothedchi
-        smoothedlo*=mu/smoothedclo
-        model_lines    = smoothed[line_ind]
-        model_lines_hi = smoothedhi[line_ind]
-        model_lines_lo = smoothedlo[line_ind]
-
-        ax_spec.fill(np.concatenate([wave, wave[::-1]]), np.concatenate([smoothedhi, smoothedlo[::-1]]),\
-                alpha=0.5, fc='grey', ec='None')
-        ax_spec.plot(wave, smoothed, color='red', linestyle='-',marker='None')
-        ax_resid.errorbar(wave, flux-smoothed, fluxerr, linestyle='-', marker=None, capsize=0, color='grey', alpha=0.5)
-
-        for l in np.unique(line_number):
-            m = (line_number == l)
-            try:
-                W0, uZE = bwi[l]
-            except KeyError, e:
-                print l, e
-                continue 
-            ax_resid.errorbar(line_wave[m], (line_flux[m]-smoothed[line_ind][m]), line_fluxerr[m], linestyle='-',\
-                    marker=None, capsize=0, color='black', alpha=0.7)
-        
-            ax_lines.fill_between(line_wave[m]-W0,\
-                    ((model_lines_lo)/line_cflux)[m]+0.2*line_number[m],\
-                    ((model_lines_hi)/line_cflux)[m]+0.2*line_number[m],\
-                    facecolor='purple', alpha=0.5, interpolate=True)
-            ax_lines.fill_between(line_wave[m]-W0,\
-                    ((line_flux-line_fluxerr)/line_cflux)[m]+0.2*line_number[m],\
-                    ((line_flux+line_fluxerr)/line_cflux)[m]+0.2*line_number[m],\
-                    facecolor='grey', alpha=0.5, interpolate=True)
-            ax_lines.plot(line_wave[m]-W0, line_flux[m]/line_cflux[m] + 0.2*line_number[m],color='k',ls='-',lw=2)
-            ax_lines.plot(line_wave[m]-W0, model_lines[m]/line_cflux[m] + 0.2*line_number[m], color='r',ls='-',alpha=0.7)
-
-        spacing = np.median(np.diff(wave))
-        ax_lines.set_title('Lines vs Models')
-        ax_lines.set_xlabel('Delta Wavelength~(\AA)')
-        ax_lines.set_ylabel('Normalized Line Flux')
-
-
-    for l in np.unique(line_number):
-        m = (line_number == l)
-        ax_spec.errorbar(line_wave[m], line_flux[m], line_fluxerr[m],\
-                    color='black', capsize=0, linestyle='-', marker='None',alpha=0.7)
-
-    ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
-    ax_spec.set_ylabel('Normalized Flux', fontproperties=font3)
-    ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font3)
-    return fig, fig2, fig3
-
-
-#**************************************************************************************************************
-
-def plot_continuum_fit(objname, spec, continuumdata, balmerlinedata):
-
-    font  = FM(size='small')
-    font2 = FM(size='x-small')
-    font3 = FM(size='large')
-    font4 = FM(size='medium')
-
-    wave = spec.wave
-    flux = spec.flux
-    fluxerr = spec.flux_err
-    cwave, cflux, cdflux = continuumdata
-    (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov) = balmerlinedata
-
-    fig = plt.figure(figsize=(10,8))
-    ax1 = fig.add_subplot(2,1,1)
-    ax2 = fig.add_subplot(2,1,2, sharex=ax1)
-    ax1.errorbar(spec.wave, spec.flux, yerr=spec.flux_err, marker='None',\
-                        linestyle='-', color='grey', alpha=0.3, capsize=0)
-    ax1.plot(spec.wave, spec.flux, marker='None', linestyle='-', color='black', alpha=0.8)
-    ax1.plot(cwave, cflux, marker='.', linestyle='None', color='blue', ms=1)
-    ax1.plot(spec.wave, mu, marker='None', linestyle='--', color='red')
-
-    ax2.errorbar(spec.wave, spec.flux/mu, yerr=spec.flux_err/mu, marker='None',\
-            linestyle='-', color='grey', alpha=0.3, capsize=0)
-    ax2.plot(spec.wave, spec.flux/mu, marker='None', linestyle='-', color='black', alpha=0.8)
-
-    ax2.set_xlabel('Wavelength~(\AA)',fontproperties=font3, ha='center')
-    ax1.set_ylabel('Flux', fontproperties=font3)
-    ax2.set_ylabel('Norm Flux', fontproperties=font3)
-    ax1.set_title(objname)
-    plt.tight_layout()
-    return fig
-
-
-#**************************************************************************************************************
-
-def plot_model(objname, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=os.getcwd(), discard=5):
-
-    outfilename = os.path.join(outdir, os.path.basename(objname.replace('.flm','.pdf')))
-    with PdfPages(outfilename) as pdf:
-        fig = plot_continuum_fit(objname, spec, continuumdata, balmerlinedata)
-        pdf.savefig(fig)
-        fig, fig2, fig3  =  plot_spectrum_fit(objname, spec,  model, samples, kernel, balmerlinedata, bwi)
-        pdf.savefig(fig)
-        pdf.savefig(fig3)
-        pdf.savefig(fig2)
-
-        #labels = ['Nuisance Amplitude', 'Nuisance Scale', r"$T_\text{eff}$" , r"$log(g)$", r"A$_V$"]
-        labels = [r"Teff" , r"log(g)", r"A_V"]
-        samples = samples[int(round(discard*samples.shape[0]/100)):]
-        fig = corner.corner(samples, bins=41, labels=labels, show_titles=True,quantiles=(0.16,0.84),\
-             use_math_text=True)
-        pdf.savefig(fig)
-        #endwith
-    
-
-#**************************************************************************************************************
 
 def get_options():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -341,14 +144,17 @@ def main():
     phot = WDmodel.io.get_phot_for_obj(objname, photfile)
 
     # fit the spectrum
-    res = WDmodel.fit.fit_model(spec, phot,\
+    model, result = WDmodel.fit.fit_model(spec, phot,\
                 objname, outdir, specfile,\
                 rv=rv, rvmodel=rvmodel, fwhm=fwhm,\
                 nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads,\
                 redo=redo)
 
     # plot output
-    plot_model(specfile, spec,  model, samples, kernel, continuumdata, balmerlinedata, bwi, outdir=outdir, discard=discard)
+    WDmodel.viz.plot_model(spec, phot,\
+            objname, outdir, specfile,\
+            model, result,\
+            balmer=balmer, discard=discard)
     return
 
 
