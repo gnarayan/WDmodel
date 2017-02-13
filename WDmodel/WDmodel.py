@@ -32,6 +32,7 @@ class WDmodel:
         eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,   5.0    ,   3.0   ]
         self._lines = dict(zip(lno, zip(lines, H, D, eps)))
         # we're passing grid_file so we know which model to init 
+        self._fwhm_to_sigma = np.sqrt(8.*np.log(2.))
         self.__init__tlusty(grid_file=grid_file)
 
 
@@ -87,7 +88,7 @@ class WDmodel:
         if log:
             mod = 10.**mod
         mod/=bluening
-        gsig     = fwhm/np.sqrt(8.*np.log(2.))
+        gsig = fwhm/self._fwhm_to_sigma
         mod = gaussian_filter(mod, gsig, order=0, mode='nearest')
         if log:
             mod = np.log10(mod)

@@ -210,9 +210,10 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     """
     Does a quick fit of the spectrum to get an initial guess of the spectral parameters
     This isn't robust, but it's good enough for an initial guess
-    The guess defines the regions of the spectrum that are actually used for each line in the full fit
-    These regions are only weak functions of Teff, logg
-    It beats hard-coded pre-defined regions which are only valid for some Teff, logg
+
+    Accepts spectrum, model, (needs initial guesses, param ranges, freeze/thaw, param scale)
+    Uses iminuit to do a rough diagonal fit
+    Returns best guess parameters (need to return errors as well)
     """
 
     nparam = 5
@@ -251,21 +252,6 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     if outfnmin['is_valid']:
         m.minos()
     result = m.args
-
-    #p0 = np.ones(nparam).tolist()
-    #bounds = []
-    #p0[0] = teff_guess
-    #p0[1] = logg_guess
-    #p0[2] = av_guess
-    #p0[3] = c_guess
-    #bounds.append((17000,80000))
-    #bounds.append((7.,9.499999))
-    #bounds.append((0.,0.5))
-    #bounds.append((None, None))
-
-    #nll = likelihood.nll
-    # do a quick fit with minimize to get a decent starting guess
-    #result = sciopt.minimize(nll, p0, bounds=bounds, args=(spec, model, kernel))
 
     return result
 
