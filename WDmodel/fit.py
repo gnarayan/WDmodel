@@ -1,3 +1,4 @@
+import sys
 import warnings
 warnings.simplefilter('once')
 import os
@@ -6,13 +7,15 @@ import numpy.polynomial.polynomial as poly
 import scipy.stats as scistat
 import scipy.signal as scisig
 import scipy.optimize as sciopt
-from astropy.convolution import Gaussian1DKernel
+from astropy.convolution import Gaussian1DKernel, convolve
+from iminuit import Minuit
 import george
 import emcee
 import h5py
 from clint.textui import progress
 from .WDmodel import WDmodel
 from . import likelihood
+from . import viz
 
 
 def polyfit_continuum(continuumdata, wave):
@@ -205,7 +208,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
 
 #**************************************************************************************************************
 
-def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kernel):
+def quick_fit_spec_model(spec, model, kernel, rv=3.1, rvmodel='od94'):
     """
     Does a quick fit of the spectrum to get an initial guess of the spectral parameters
     This isn't robust, but it's good enough for an initial guess
@@ -214,36 +217,59 @@ def quick_fit_model(spec,linedata, continuumdata, save_ind,  balmer, model, kern
     It beats hard-coded pre-defined regions which are only valid for some Teff, logg
     """
 
-    nparam = 3
+    nparam = 4
+    
+    # hardcode an initial guess that's somewhere near the mean of the sample
+    teff_guess = 50000.
+    logg_guess = 7.8
+    av_guess   = 0.1
+    mod = model._get_red_model(teff_guess, logg_guess, av_guess, wave=spec.wave, rv=rv, rvmodel=rvmodel)
+    c_guess    = spec.flux.mean()/mod.mean()
 
-    wave    = spec.wave
-    flux    = spec.flux
-    fluxerr = spec.flux_err
+    teff_scale = 2000.
+    logg_scale = 0.1
+    av_scale   = 0.1
+    c_scale    = 10
 
-    cwave, cflux, cdflux = continuumdata
-    (line_wave, line_flux, line_fluxerr, line_number, line_ind) = linedata
-    # do a quick Gaussian Process Fit to model the continuum of the spectrum
-    gp = george.GP(kernel=george.kernels.ExpSquaredKernel(10))
-    gp.compute(cwave, cdflux)
-    pars, result = gp.optimize(cwave, cflux, cdflux, bounds=((10,100000),))
-    mu, cov = gp.predict(cflux, wave)
-    line_cflux , line_cov = gp.predict(cflux, line_wave)
+    teff_bounds = (17000,80000)
+    logg_bounds = (7.,9.499999)
+    av_bounds   = (0.,0.5)
 
-    balmerlinedata = (line_wave, line_flux, line_fluxerr, line_number, line_cflux, line_cov, line_ind, save_ind, mu, cov)
+    def chi2(teff, logg, av, c):
+        mod = model._get_red_model(teff, logg, av, spec.wave)
 
-    p0 = np.ones(nparam).tolist()
-    bounds = []
-    p0[0] = 40000.
-    p0[1] = 7.5
-    p0[2] = 0.1
-    bounds.append((17000,80000))
-    bounds.append((7.,9.499999))
-    bounds.append((0.,0.5))
+        # smooth the model, and extract the section that overlays the model
+        # since we smooth the full model, computed on the full wavelength range of the spectrum
+        # and then extract the subset range that overlaps with the data
+        # we avoid any edge effects with smoothing at the end of the range
+        smoothedmod = convolve(mod, kernel, boundary='extend')
+        smoothedmod *= c
+        return np.sum(((spec.flux-smoothedmod)/spec.flux_err)**2.)
 
+    m = Minuit(chi2, teff=teff_guess, logg=logg_guess, av=av_guess, c=c_guess,\
+                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale,\
+                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds,\
+                print_level=1)
+
+    m.migrad()
+    result = m.args
+
+    #p0 = np.ones(nparam).tolist()
+    #bounds = []
+    #p0[0] = teff_guess
+    #p0[1] = logg_guess
+    #p0[2] = av_guess
+    #p0[3] = c_guess
+    #bounds.append((17000,80000))
+    #bounds.append((7.,9.499999))
+    #bounds.append((0.,0.5))
+    #bounds.append((None, None))
+
+    #nll = likelihood.nll
     # do a quick fit with minimize to get a decent starting guess
-    result = sciopt.minimize(nll, p0, args=(wave, model, kernel, balmerlinedata), bounds=bounds)
-    print result
-    return balmerlinedata, continuumdata, result
+    #result = sciopt.minimize(nll, p0, bounds=bounds, args=(spec, model, kernel))
+
+    return result
 
 
 #**************************************************************************************************************
@@ -277,14 +303,20 @@ def fit_model(spec, phot,\
     kernel   = Gaussian1DKernel(gsig)
 
     # init the model, and determine the coarse normalization to match the spectrum
-    model = WDmodel.WDmodel()
-    
+    model = WDmodel()
     
     # do a quick, not very robust fit to create the quantities we need to store
     # get a reasonable starting position for the chains 
     # and set the wavelength thresholds for each line
-    result = quick_fit_model(spec, model, kernel)
+    result = quick_fit_spec_model(spec, model, kernel, rv=rv, rvmodel=rvmodel)
+    print result
+    teff, logg, av, c = result
+    quick_fit_result = teff, logg, av, c, kernel
+    fig = viz.plot_spectrum_fit(spec, objname, specfile, model, quick_fit_result, rv=rv, rvmodel=rvmodel)
+    fig.show()
     outf.close()
+
+    sys.exit(-1)
 
     if nwalkers==0:
         print "nwalkers set to 0. Not running MCMC"
