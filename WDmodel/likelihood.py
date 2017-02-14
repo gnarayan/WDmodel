@@ -1,6 +1,24 @@
 import numpy as np
-from astropy.convolution import convolve
-#TODO: figure out a way to fix parameters, add priors
+from celerite.modeling import Model
+from george import GP, HODLRSolver
+from george.kernels import RationalQuadraticKernel
+
+class WDmodel_Likelihood(Model):
+    parameter_names = ("teff", "logg", "av", "rv", "c", "fwhm", "var_scale", "alpha", "tau")
+
+    def get_value(self, spec, model, rvmodel):
+        mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm, spec.wave, rv=self.rv, rvmodel=rvmodel)
+        mod *= self.c
+        res = spec.flux - mod
+        kernel = self.var_scale * RationalQuadraticKernel(self.alpha, self.tau)
+        gp = GP(kernel, mean=0., solver=HODLRsolver)
+        gp.compute(spec.wave, spec.flux_err)
+        return gp.lnlikelihood(res, quiet=True)
+
+
+
+
+
 
 def lnprior(theta):
     teff, logg, av  = theta

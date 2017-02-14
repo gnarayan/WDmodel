@@ -306,9 +306,9 @@ def fit_model(spec, phot,\
     if nthreads > 1:
         print "Multiproc"
         sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob,\
-                threads=nthreads, args=(wave, model, kernel, balmerlinedata)) 
+                threads=nthreads, args=(spec, model, rvmodel)) 
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(wave, model, kernel, balmerlinedata)) 
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(spec, model, rvmodel)) 
 
     # do a short burn-in
     if nburnin > 0:
