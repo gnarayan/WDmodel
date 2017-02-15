@@ -2,7 +2,7 @@ import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm
 from george import GP, HODLRSolver
-from george.kernels import RationalQuadraticKernel
+from george.kernels import RationalQuadraticKernel, WhiteKernel
 
 class WDmodel_Likelihood(Model):
     """
@@ -34,8 +34,8 @@ class WDmodel_Likelihood(Model):
         mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm, spec.wave, rv=self.rv, rvmodel=rvmodel)
         mod *= self.c
         res = spec.flux - mod
-        kernel = (self.sigf**2.) * RationalQuadraticKernel(self.alpha, self.tau)
-        gp = GP(kernel, mean=0., solver=HODLRSolver)
+        kernel = (self.sigf**2.)*RationalQuadraticKernel(self.alpha, self.tau)
+        gp = GP(kernel, mean=0.)
         gp.compute(spec.wave, spec.flux_err)
         #TODO - add the photometry here
         return gp.lnlikelihood(res, quiet=True) 
