@@ -216,42 +216,77 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     Returns best guess parameters (need to return errors as well)
     """
 
-    nparam = 5
-    
+
     # hardcode an initial guess that's somewhere near the mean of the sample
     teff_guess = 35000.
     logg_guess = 7.8
     av_guess   = 0.1
-    fwhm_guess = fwhm
-    mod = model._get_obs_model(teff_guess, logg_guess, av_guess, fwhm_guess, spec.wave, rv=rv, rvmodel=rvmodel)
+    mod = model._get_obs_model(teff_guess, logg_guess, av_guess, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
     c_guess    = spec.flux.mean()/mod.mean()
+
 
     teff_scale = 2000.
     logg_scale = 0.1
     av_scale   = 0.1
     c_scale    = 10
-    fwhm_scale = 1.
+    fwhm_scale = 0.2
 
     teff_bounds = (17000,80000)
     logg_bounds = (7.,9.499999)
-    av_bounds   = (0.,0.5)
-    fwhm_bounds = (0.1, max(fwhm_guess, 20.))
+    av_bounds   = (0.,2.0)
+    rv_bounds   = (1.7, 5.1)
+    c_bounds    = (None, None)
 
-    def chi2(teff, logg, av, c, fwhm):
-        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
+
+    #rv_guess   = 3.1
+    #fwhm_guess = fwhm
+    #sigf_guess = 0.
+    #alpha_guess= 1.
+    #tau_guess  = 100.
+
+    #fwhm_bounds = (0.1, max(fwhm_guess, 20.))
+    #sigf_bounds = (None, None)
+    #alpha_bounds= (None, None)
+    #tau_bounds  = (None, None)
+
+    #bounds = [teff_bounds, logg_bounds, av_bounds, rv_bounds, c_bounds, fwhm_bounds,\
+    #            sigf_bounds, alpha_bounds, tau_bounds]
+
+    #setup_args = {'teff':teff_guess, 'logg':logg_guess,\
+    #                'av':av_guess, 'rv':rv_guess,\
+    #                'c':c_guess, 'fwhm':fwhm_guess,\
+    #                'sigf':sigf_guess, 'alpha':alpha_guess, 'tau':tau_guess,\
+    #                'bounds':bounds}
+
+    #lnprob = likelihood.WDmodel_Likelihood(**setup_args)
+    #lnprob.freeze_parameter('rv')
+    #lnprob.freeze_parameter('fwhm')
+    #lnprob.freeze_parameter('sigf')
+    #lnprob.freeze_parameter('alpha')
+    #lnprob.freeze_parameter('tau')
+
+    #lnprob.set_parameter_vector([teff, logg, av, c])
+    #out = lnprob.get_value(spec, model, rvmodel) #+ lnprob.lnprior()
+
+    def chi2(teff, logg, av, c):
+        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
         mod *= c
-        return np.sum(((spec.flux-mod)/spec.flux_err)**2.)
+        chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
+        return chi2
 
-    m = Minuit(chi2, teff=teff_guess, logg=logg_guess, av=av_guess, c=c_guess, fwhm=fwhm_guess,\
-                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale, error_fwhm=fwhm_scale,\
-                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_fwhm=fwhm_bounds,\
-                print_level=0)
+    m = Minuit(chi2, teff=teff_guess, logg=logg_guess, av=av_guess, c=c_guess,\
+                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale,\
+                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds,\
+                print_level=1, pedantic=True, errordef=1)
 
     
     outfnmin, outpar = m.migrad()
     if outfnmin['is_valid']:
-        m.minos()
+        m.hesse()
     result = m.args
+    result = list(result)
+    result.append(fwhm)
+    result = tuple(result)
 
     return result
 
@@ -334,6 +369,6 @@ def fit_model(spec, phot,\
 
     samples = np.array(dset_chain)
     outf.close()
-    return model, samples, kernel, balmerlinedata
+    return model, samples
 
 
