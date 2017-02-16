@@ -238,35 +238,6 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     c_bounds    = (None, None)
 
 
-    #rv_guess   = 3.1
-    #fwhm_guess = fwhm
-    #sigf_guess = 0.
-    #alpha_guess= 1.
-    #tau_guess  = 100.
-
-    #fwhm_bounds = (0.1, max(fwhm_guess, 20.))
-    #sigf_bounds = (None, None)
-    #alpha_bounds= (None, None)
-    #tau_bounds  = (None, None)
-
-    #bounds = [teff_bounds, logg_bounds, av_bounds, rv_bounds, c_bounds, fwhm_bounds,\
-    #            sigf_bounds, alpha_bounds, tau_bounds]
-
-    #setup_args = {'teff':teff_guess, 'logg':logg_guess,\
-    #                'av':av_guess, 'rv':rv_guess,\
-    #                'c':c_guess, 'fwhm':fwhm_guess,\
-    #                'sigf':sigf_guess, 'alpha':alpha_guess, 'tau':tau_guess,\
-    #                'bounds':bounds}
-
-    #lnprob = likelihood.WDmodel_Likelihood(**setup_args)
-    #lnprob.freeze_parameter('rv')
-    #lnprob.freeze_parameter('fwhm')
-    #lnprob.freeze_parameter('sigf')
-    #lnprob.freeze_parameter('alpha')
-    #lnprob.freeze_parameter('tau')
-
-    #lnprob.set_parameter_vector([teff, logg, av, c])
-    #out = lnprob.get_value(spec, model, rvmodel) #+ lnprob.lnprior()
 
     def chi2(teff, logg, av, c):
         mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
@@ -282,13 +253,11 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     
     outfnmin, outpar = m.migrad()
     if outfnmin['is_valid']:
-        m.hesse()
+        outpar = m.hesse()
     result = m.args
-    result = list(result)
-    result.append(fwhm)
-    result = tuple(result)
+    errors = m.errors 
 
-    return result
+    return result, errors
 
 
 #**************************************************************************************************************
@@ -305,18 +274,11 @@ def fit_model(spec, phot,\
         message = "Output file %s already exists. Specify --redo to clobber."%outfile
         raise IOError(message)
 
-    nparam = 3
-
-    wave    = spec.wave
-    flux    = spec.flux
-    fluxerr = spec.flux_err
-
     outf = h5py.File(outfile, 'w')
     dset_spec = outf.create_group("spec")
-    dset_spec.create_dataset("wave",data=wave)
-    dset_spec.create_dataset("flux",data=flux)
-    dset_spec.create_dataset("fluxerr",data=fluxerr)
-
+    dset_spec.create_dataset("wave",data=spec.wave)
+    dset_spec.create_dataset("flux",data=spec.flux)
+    dset_spec.create_dataset("fluxerr",data=spec.flux_err)
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel()
@@ -324,39 +286,89 @@ def fit_model(spec, phot,\
     # do a quick, not very robust fit to create the quantities we need to store
     # get a reasonable starting position for the chains 
     # and set the wavelength thresholds for each line
-    result = quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
-    print result
-    fig = viz.plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=rv, rvmodel=rvmodel, save=True)
-    fig.show()
+    result, errors  = quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
+    fig = viz.plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=rv, rvmodel=rvmodel, fwhm=fwhm, save=True)
     outf.close()
 
-    sys.exit(-1)
+    teff, logg, av, c  = result 
+    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+    mod*=c
+    sigf       = np.std(spec.flux-mod)
+    alpha      = 1.
+    tau        = 100.
+
+    teff_std  = errors['teff']
+    logg_std  = errors['logg']
+    av_std    = errors['av']
+    c_std     = errors['c']
+    fwhm_std  = 0.1
+    rv_std    = 0.18
+    sigf_std  = np.median(spec.flux_err)
+    alpha_std = 0.1
+    tau_std   = 10.
+
+    scales = {'teff':teff_std, 'logg':logg_std, 'av':av_std, 'rv':rv_std, 'c':c_std, 'fwhm':fwhm_std,\
+                'sigf':sigf_std, 'alpha':alpha_std, 'tau':tau_std}
+
+    teff_bounds = (17000,80000)
+    logg_bounds = (7.,9.499999)
+    av_bounds   = (0.,2.0)
+    rv_bounds   = (1.7, 5.1)
+    c_bounds    = (None, None)
+    fwhm_bounds = (0.1, max(fwhm, 20.))
+    sigf_bounds = (0.01, 5*sigf)
+    alpha_bounds= (None, None)
+    tau_bounds  = (50., 2000.)
+
+    bounds = [teff_bounds, logg_bounds, av_bounds, rv_bounds, c_bounds, fwhm_bounds,\
+                sigf_bounds, alpha_bounds, tau_bounds]
+
+    setup_args = {'teff':teff, 'logg':logg,\
+                    'av':av, 'rv':rv,\
+                    'c':c, 'fwhm':fwhm,\
+                    'sigf':sigf, 'alpha':alpha, 'tau':tau,\
+                    'bounds':bounds}
+
+    lnprob = likelihood.WDmodel_Likelihood(**setup_args)
+    lnprob.freeze_parameter('rv')
+    nparam = lnprob.vector_size
+    init_p0 = lnprob.get_parameter_dict()
+    p0 = init_p0.values()
+    std = [scales[x] for x in init_p0.keys()]
+
+    def loglikelihood(theta, spec, model, rvmodel):
+        lnprob.set_parameter_vector(theta)
+        out = lnprob.lnprior()
+        if not np.isfinite(out):
+            return out
+        out += lnprob.get_value(spec, model, rvmodel)
+        return out
 
     if nwalkers==0:
         print "nwalkers set to 0. Not running MCMC"
         return
 
     # setup the sampler
-    pos = [result.x + 1e-1*np.random.randn(nparam) for i in range(nwalkers)]
+    pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
     if nthreads > 1:
         print "Multiproc"
-        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob,\
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
                 threads=nthreads, args=(spec, model, rvmodel)) 
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnprob, args=(spec, model, rvmodel)) 
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood, args=(spec, model, rvmodel)) 
 
     # do a short burn-in
     if nburnin > 0:
         print "Burn-in"
         pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
         sampler.reset()
-        pos = pos[np.argmax(prob)] + 1e-2 * np.random.randn(nwalkers, nparam)
+        pos = emcee.utils.sample_ball(pos[np.argmax(prob)], std, size=nwalkers)
 
     # setup incremental chain saving
     # TODO need to test this alongside multiprocessing
     outf = h5py.File(outfile, 'a')
     chain = outf.create_group("chain")
-    dset_chain = chain.create_dataset("position",(nwalkers*nprod,3),maxshape=(None,3))
+    dset_chain = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
 
     # production
     with progress.Bar(label="Production", expected_size=nprod) as bar:
