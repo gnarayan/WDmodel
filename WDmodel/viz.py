@@ -10,7 +10,7 @@ from matplotlib.font_manager import FontProperties as FM
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 
-def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', save=False):
+def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', fwhm=4., save=False):
     
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
@@ -26,10 +26,10 @@ def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rv
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
 
     # todo get this from likelihood wrapper 
-    teff, logg, av, c, fwhm = result
+    teff, logg, av, c = result
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
     smoothedmod = mod*c
-    outlabel = 'Model\nTeff = %.2f K\nlog(g) = %.3f\nAv = %.3f mag\nc = %f\nFWHM = %.3f Angstrom\n' %result
+    outlabel = 'Model\nTeff = %.2f K\nlog(g) = %.3f\nAv = %.3f mag\nc = %f' %result
 
     ax_spec.plot(spec.wave, smoothedmod, color='red', linestyle='-',marker='None', label=outlabel)
 
