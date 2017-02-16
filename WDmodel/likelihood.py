@@ -36,7 +36,10 @@ class WDmodel_Likelihood(Model):
         res = spec.flux - mod
         kernel = (self.sigf**2.)*RationalQuadraticKernel(self.alpha, self.tau)
         gp = GP(kernel, mean=0.)
-        gp.compute(spec.wave, spec.flux_err)
+        try:
+            gp.compute(spec.wave, spec.flux_err)
+        except ValueError:
+            return -np.inf
         #TODO - add the photometry here
         return gp.lnlikelihood(res, quiet=True) 
 
