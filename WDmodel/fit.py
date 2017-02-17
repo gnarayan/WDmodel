@@ -269,7 +269,7 @@ def fit_model(spec, phot,\
             redo=False):
 
     # we set the output file based on the spectrum name, since we can have multiple spectra per object
-    outfile = os.path.join(outdir, os.path.basename(objname.replace('.flm','.mcmc.hdf5')))
+    outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.mcmc.hdf5')))
     if os.path.exists(outfile) and (not redo):
         message = "Output file %s already exists. Specify --redo to clobber."%outfile
         raise IOError(message)
@@ -294,8 +294,8 @@ def fit_model(spec, phot,\
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
     mod*=c
     sigf       = np.std(spec.flux-mod)
-    alpha      = 1.
-    tau        = 100.
+    #alpha      = 1.
+    tau        = 1000.
 
     teff_std  = errors['teff']
     logg_std  = errors['logg']
@@ -304,11 +304,11 @@ def fit_model(spec, phot,\
     fwhm_std  = 0.1
     rv_std    = 0.18
     sigf_std  = np.median(spec.flux_err)
-    alpha_std = 0.1
+    #alpha_std = 0.1
     tau_std   = 10.
 
     scales = {'teff':teff_std, 'logg':logg_std, 'av':av_std, 'rv':rv_std, 'c':c_std, 'fwhm':fwhm_std,\
-                'sigf':sigf_std, 'alpha':alpha_std, 'tau':tau_std}
+                'sigf':sigf_std, 'tau':tau_std}
 
     teff_bounds = (17000,80000)
     logg_bounds = (7.,9.499999)
@@ -316,17 +316,17 @@ def fit_model(spec, phot,\
     rv_bounds   = (1.7, 5.1)
     c_bounds    = (None, None)
     fwhm_bounds = (0.1, max(fwhm, 20.))
-    sigf_bounds = (0.01, 5*sigf)
-    alpha_bounds= (None, None)
-    tau_bounds  = (50., 2000.)
+    sigf_bounds = (1e-10, 5*sigf)
+    #alpha_bounds= (0., None)
+    tau_bounds  = (200., None)
 
     bounds = [teff_bounds, logg_bounds, av_bounds, rv_bounds, c_bounds, fwhm_bounds,\
-                sigf_bounds, alpha_bounds, tau_bounds]
+                sigf_bounds, tau_bounds]
 
     setup_args = {'teff':teff, 'logg':logg,\
                     'av':av, 'rv':rv,\
                     'c':c, 'fwhm':fwhm,\
-                    'sigf':sigf, 'alpha':alpha, 'tau':tau,\
+                    'sigf':sigf, 'tau':tau,\
                     'bounds':bounds}
 
     lnprob = likelihood.WDmodel_Likelihood(**setup_args)

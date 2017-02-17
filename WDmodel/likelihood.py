@@ -2,7 +2,7 @@ import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm
 from george import GP, HODLRSolver
-from george.kernels import RationalQuadraticKernel, WhiteKernel
+from george.kernels import ExpSquaredKernel
 
 class WDmodel_Likelihood(Model):
     """
@@ -28,13 +28,13 @@ class WDmodel_Likelihood(Model):
     function that wraps get_value() and lnprior() and sample the posterior
     however you like. 
     """
-    parameter_names = ("teff", "logg", "av", "rv", "c", "fwhm", "sigf", "alpha", "tau")
+    parameter_names = ("teff", "logg", "av", "rv", "c", "fwhm", "sigf", "tau")
 
     def get_value(self, spec, model, rvmodel):
         mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm, spec.wave, rv=self.rv, rvmodel=rvmodel)
         mod *= self.c
         res = spec.flux - mod
-        kernel = (self.sigf**2.)*RationalQuadraticKernel(self.alpha, self.tau)
+        kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
         gp = GP(kernel, mean=0.)
         try:
             gp.compute(spec.wave, spec.flux_err)
