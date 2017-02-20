@@ -7,7 +7,6 @@ import numpy.polynomial.polynomial as poly
 import scipy.stats as scistat
 import scipy.signal as scisig
 from iminuit import Minuit
-import george
 import emcee
 import h5py
 from clint.textui import progress
@@ -244,14 +243,11 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     logg_scale = 0.1
     av_scale   = 0.1
     c_scale    = 10
-    fwhm_scale = 0.2
 
     teff_bounds = (17000,80000)
     logg_bounds = (7.,9.499999)
     av_bounds   = (0.,2.0)
-    rv_bounds   = (1.7, 5.1)
     c_bounds    = (None, None)
-
 
 
     def chi2(teff, logg, av, c):
@@ -293,8 +289,8 @@ def fit_model(spec, phot,\
     fig = viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
             model, result, rv=rv, rvmodel=rvmodel, fwhm=fwhm, save=True)
 
-
     teff, logg, av, c  = result 
+
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
     mod*=c
     sigf       = np.std(spec.flux-mod)

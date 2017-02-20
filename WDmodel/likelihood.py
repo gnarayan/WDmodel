@@ -1,8 +1,11 @@
 import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm
-from george import GP, HODLRSolver
+from george import GP
 from george.kernels import ExpSquaredKernel
+
+# Declare this tuple to init the likelihood model, and to preserve order of parameters
+_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "c", "fwhm", "sigf", "tau")
 
 class WDmodel_Likelihood(Model):
     """
@@ -28,9 +31,12 @@ class WDmodel_Likelihood(Model):
     function that wraps get_value() and lnprior() and sample the posterior
     however you like. 
     """
-    parameter_names = ("teff", "logg", "av", "rv", "c", "fwhm", "sigf", "tau")
+    parameter_names = _PARAMETER_NAMES
 
     def get_value(self, spec, model, rvmodel):
+        """
+        Returns the log likelihood of the data given the model
+        """
         mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm, spec.wave, rv=self.rv, rvmodel=rvmodel)
         mod *= self.c
         res = spec.flux - mod
@@ -43,10 +49,16 @@ class WDmodel_Likelihood(Model):
         #TODO - add the photometry here
         return gp.lnlikelihood(res, quiet=True) 
 
-    def lnprior(self):
 
-        # log prior is implemented in celerite.modeling.Model
-        # it returns -inf for out of bounds and 0 otherwise
+    def lnprior(self):
+        """
+        Extends the log_prior() is implemented in celerite.modeling.Model which
+        returns -inf for out of bounds and 0 otherwise, by adding in priors on Rv, Av
+
+        We have no priors outside the bounds (i.e. weak top hat) on the other parameters
+
+        TODO: Allow the user to specify a custom filename with a function for the prior
+        """
         lp = self.log_prior()
         if not np.isfinite(lp):
             return -np.inf
@@ -55,10 +67,10 @@ class WDmodel_Likelihood(Model):
             out = norm.logpdf(self.rv, 3.1, 0.18)
 
             # this implements the glos prior on Av
-            avtau = 0.4
+            avtau   = 0.4
             avsdelt = 0.1
-            wtexp = 1.
-            wtdelt = 0.5
+            wtexp   = 1.
+            wtdelt  = 0.5
             sqrt2pi = np.sqrt(2.*np.pi)
             normpeak = (wtdelt/sqrt2pi)/(2.*avsdelt) + wtexp/avtau
             pav = (wtdelt/sqrt2pi)*np.exp((-self.av**2.)/(2.*avsdelt**2.))/(2.*avsdelt) +\
