@@ -32,7 +32,9 @@ def polyfit_continuum(continuumdata, wave):
     Returns a recarray with wave, continuum flux derived from the polyfit.
     """
 
-    cwave, cflux, cdflux = continuumdata
+    cwave = continuumdata.wave
+    cflux = continuumdata.flux
+    cdflux = continuumdata.flux_err
     w = 1./cdflux**2.
 
     # divide the wavelengths into a blue and red side at 5500 Angstroms 
@@ -74,8 +76,8 @@ def orig_cut_lines(spec, model):
     routine is intended to provide a rough starting point for that process.
 
     Accepts a spectrum and the model
-    returns a tuple with the data on the absorption lines
-    (wave, flux, fluxerr, Balmer line number, index from original spectrum)
+    returns a recarray with the data on the absorption lines
+    (wave, flux, fluxerr, Balmer line number for use as a mask)
 
     and coarse continuum data - the part of the spectrum that's not masked as lines
     (wave, flux, fluxerr) 
@@ -103,7 +105,11 @@ def orig_cut_lines(spec, model):
         line_ind     = np.hstack((line_ind, ZE[0]))
     # continuum data is just the spectrum with the Balmer lines removed
     continuumdata  = (np.delete(wave, line_ind), np.delete(flux, line_ind), np.delete(fluxerr, line_ind))
-    linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
+    linedata = (line_wave, line_flux, line_fluxerr, line_number)
+
+    linedata = np.rec.fromarrays(linedata, names='wave,flux,flux_err,line_mask')
+    continuumdata = np.rec.fromarrays(continuumdata, names='wave,flux,flux_err')
+
     return linedata, continuumdata
 
 
@@ -170,6 +176,9 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
 
     Returns the (optionally blotched) spectrum, the continuum model for the
     spectrum, and the extracted line and continuum data for visualization
+
+    Note that the continuum model and spectrum are the same length and both
+    respect blue/red limits.
     """
 
     # Test that the array is monotonic 
@@ -196,10 +205,16 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     else:
         redlimit = spec.wave.max()
     
-    # trim the spectrum to the requested length
+    # trim the outputs to the requested length
     usemask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
     spec = spec[usemask]
     cont_model = cont_model[usemask]
+
+    usemask = ((linedata.wave >= bluelimit) & (linedata.wave <= redlimit))
+    linedata = linedata[usemask]
+
+    usemask = ((continuumdata.wave >= bluelimit) & (continuumdata.wave <= redlimit))
+    continuumdata = continuumdata[usemask]
 
     return spec, cont_model, linedata, continuumdata
 
@@ -268,18 +283,6 @@ def fit_model(spec, phot,\
             nwalkers=200, nburnin=500, nprod=2000, nthreads=1,\
             redo=False):
 
-    # we set the output file based on the spectrum name, since we can have multiple spectra per object
-    outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.mcmc.hdf5')))
-    if os.path.exists(outfile) and (not redo):
-        message = "Output file %s already exists. Specify --redo to clobber."%outfile
-        raise IOError(message)
-
-    outf = h5py.File(outfile, 'w')
-    dset_spec = outf.create_group("spec")
-    dset_spec.create_dataset("wave",data=spec.wave)
-    dset_spec.create_dataset("flux",data=spec.flux)
-    dset_spec.create_dataset("fluxerr",data=spec.flux_err)
-
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel()
     
@@ -287,8 +290,9 @@ def fit_model(spec, phot,\
     # get a reasonable starting position for the chains 
     # and set the wavelength thresholds for each line
     result, errors  = quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
-    fig = viz.plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=rv, rvmodel=rvmodel, fwhm=fwhm, save=True)
-    outf.close()
+    fig = viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
+            model, result, rv=rv, rvmodel=rvmodel, fwhm=fwhm, save=True)
+
 
     teff, logg, av, c  = result 
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
@@ -350,12 +354,7 @@ def fit_model(spec, phot,\
 
     # setup the sampler
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
-    if nthreads > 1:
-        print "Multiproc"
-        sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-                threads=nthreads, args=(spec, model, rvmodel)) 
-    else:
-        sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood, args=(spec, model, rvmodel)) 
+    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood, args=(spec, model, rvmodel)) 
 
     # do a short burn-in
     if nburnin > 0:
@@ -364,8 +363,12 @@ def fit_model(spec, phot,\
         sampler.reset()
         pos = emcee.utils.sample_ball(pos[np.argmax(prob)], std, size=nwalkers)
 
+    outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.mcmc.hdf5')))
+    if os.path.exists(outfile) and (not redo):
+        message = "Output file %s already exists. Specify --redo to clobber."%outfile
+        raise IOError(message)
+
     # setup incremental chain saving
-    # TODO need to test this alongside multiprocessing
     outf = h5py.File(outfile, 'a')
     chain = outf.create_group("chain")
     dset_chain = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
