@@ -24,9 +24,7 @@ def get_options():
             help="Specify red limit of spectrum - trim wavelengths higher")
     parser.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
-    parser.add_argument('-f', '--fwhm', required=False, type=float, default=None,\
-            help="Specify custom instrumental resolution for smoothing (FWHM, angstroms)")
-    
+
     # output options
     parser.add_argument('-o', '--outdir', required=False,\
             help="Specify a custom output directory. Default is CWD+objname/ subdir")
@@ -34,14 +32,26 @@ def get_options():
     # photometry options
     parser.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
             help="Specify file containing photometry lookup table for objects")
-    parser.add_argument('-r', '--rv', required=False, type=float, default=3.1,\
-            help="Specify reddening law R_V")
     parser.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
     parser.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
             help="Ignores missing photometry and does the fit with just the spectrum")
 
+    def str2bool(v):
+        return v.lower() in ("yes", "true", "t", "1")
+    parser.register('type','bool',str2bool)
     # fitting options
+    params = WDmodel.io.read_param_defaults()
+    for param in params:
+        parser.add_argument('--%s'%param, required=False, type=float, default=params[param]['default'],\
+                help="Specify parameter %s"%param)
+        parser.add_argument('--fix_%s'%param, required=False, default=params[param]['fixed'], type="bool",\
+                help="Specify if parameter {} is fixed or not".format(param))
+        parser.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"],\
+                help="Specify parameter {} bounds".format(param))
+
+
+    # MCMC config options
     parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
             help="Specify number of walkers to use (0 disables MCMC)")
     parser.add_argument('--nburnin',  required=False, type=int, default=200,\
@@ -105,6 +115,8 @@ def get_options():
 
 def main():
     args   = get_options() 
+    print args
+    sys.exit(-1)
 
     specfile  = args.specfile
     bluelim   = args.bluelimit
