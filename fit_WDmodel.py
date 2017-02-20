@@ -15,13 +15,25 @@ def get_options():
     Get command line options for the WDmodel fitter
     """
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    # create a couple of custom types to use with the parser 
+    def str2bool(v):
+        return v.lower() in ("yes", "true", "t", "1")
+
+    def NoneOrFloat(v):
+        if v.lower() in ("none", "null", "nan"):
+            return None
+        else:
+            return float(v)
+
+    parser.register('type','bool',str2bool)
+    parser.register('type','NoneOrFloat',NoneOrFloat)
+
     # spectrum options
     parser.add_argument('--specfile', required=True, \
             help="Specify spectrum to fit")
-    parser.add_argument('--bluelimit', required=False, type=float,\
-            help="Specify blue limit of spectrum - trim wavelengths lower")
-    parser.add_argument('--redlimit', required=False, type=float,\
-            help="Specify red limit of spectrum - trim wavelengths higher")
+    parser.add_argument('--trimspec', required=False, nargs=2, default=(None,None), 
+                type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
     parser.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
 
@@ -37,19 +49,6 @@ def get_options():
     parser.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
             help="Ignores missing photometry and does the fit with just the spectrum")
 
-    # create a couple of custom types to use with the parser 
-    def str2bool(v):
-        return v.lower() in ("yes", "true", "t", "1")
-
-    def NoneOrFloat(v):
-        if v.lower() in ("none", "null", "nan"):
-            return None
-        else:
-            return float(v)
-
-    parser.register('type','bool',str2bool)
-    parser.register('type','NoneOrFloat',NoneOrFloat)
-
     # fitting options
     params = WDmodel.io.read_param_defaults()
     for param in params:
@@ -58,7 +57,7 @@ def get_options():
         parser.add_argument('--fix_%s'%param, required=False, default=params[param]['fixed'], type="bool",\
                 help="Specify if parameter {} is fixed or not".format(param))
         parser.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
-                type='NoneOrFloat',help="Specify parameter {} bounds".format(param))
+                type='NoneOrFloat', metavar=("LOWERLIM", "UPPERLIM"), help="Specify parameter {} bounds".format(param))
 
     # MCMC config options
     parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
@@ -117,8 +116,7 @@ def main():
     args   = get_options() 
 
     specfile  = args.specfile
-    bluelim   = args.bluelimit
-    redlim    = args.redlimit
+    bluelim, redlim   = args.trimspec
     blotch    = args.blotch
     fwhm      = args.fwhm
 
