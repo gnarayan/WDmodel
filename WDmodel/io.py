@@ -28,7 +28,7 @@ def read_model_grid(grid_file=None, grid_name=None):
         # and "wanted to save disk space"
         # and then their old IDL interpolation routine couldn't handle the variable spacing
         # so they broke up the grids
-        # So really, the original IDL SAV files were annoyingly broken up by wavelength because old dudes
+        # So really, the original IDL SAV files were annoyingly broken up by wavelength because reasons...
         # We have concatenated these "large" arrays because we don't care about disk space
         # This grid is called "default", but the orignals also exist 
         # and you can pass grid_name to use them if you choose to
@@ -103,7 +103,7 @@ def read_spec(filename, **kwargs):
     return spec
 
 
-def get_phot_for_obj(objname, filename):
+def get_phot_for_obj(objname, filename, ignore=False):
     """
     Accepts an object name, objname, and a lookup table filename
 
@@ -114,15 +114,35 @@ def get_phot_for_obj(objname, filename):
     There must be only one line per objname 
     Lines beginning  with # are ignored
 
-    Returns the photometry for objname, obj 
+    Returns the photometry for objname, obj formatted as a recarray with pb, mag, mag_err
 
     """
     phot = read_phot(filename)
     mask = (phot.obj == objname)
+
     if len(phot[mask]) != 1:
         message = 'Got no or multiple matches for object %s in file %s'%(objname, filename)
-        raise RuntimeError(message)
-    return phot[mask]
+        if ignore:
+            message += '\nSkipping photometry.'
+            warnings.warn(message, RuntimeWarning)
+            return None
+        else:
+            raise RuntimeError(message)
+
+    this_phot =  phot[mask][0]
+    colnames  = this_phot.dtype.names
+    pbnames   = [pb for pb in colnames[1:] if not pb.startswith('d')]
+
+    mags = [this_phot[pb] for pb in pbnames]
+    errs = [this_phot['d'+pb] for pb in pbnames]
+
+    pbnames = np.array(pbnames)
+    mags    = np.array(mags)
+    errs    = np.array(errs)
+
+    out_phot = np.rec.fromarrays([pbnames, mags, errs],names='pb,mag,mag_err')
+    return out_phot
+
 
 
 def make_outdirs(dirname):
@@ -156,3 +176,61 @@ def set_objname_outdir_for_specfile(specfile, outdir=None):
         dirname = outdir
     make_outdirs(dirname)
     return objname, dirname
+
+
+def save_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outdir, specfile, redo=False):
+    """
+    Save the spectrum, photometry (raw fit inputs) as well as a
+    pseudo-continuum model and line data (visualization only inputs) to a file.
+
+    This is intended to be called after WDmodel.fit.pre_process_spectrum() and
+    WDmodel.io.get_phot_for_obj()
+
+    This file is enough to redo the fit with the same input and
+    different settings or redo the output for without redoing the fit. 
+
+    Alternatively, this file together with the HDF5 file written by
+    WDmodel.fit.fit_model() with the sample chain is enough to regenerate the
+    plots and output without redoing the fit.
+
+    Accepts a recarray spectrum (spec), recarray photometry (phot), a recarray
+    continuum model (cont_model), recarray Balmer line data (linedata) and
+    recarray continuum line data (continuumdata) as well as outdir, specfile to
+    control where the output is written.
+    """
+
+    # we set the output file based on the spectrum name, since we can have multiple spectra per object
+    outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.inputs.hdf5')))
+    if os.path.exists(outfile) and (not redo):
+        message = "Output file %s already exists. Specify --redo to clobber."%outfile
+        raise IOError(message)
+
+    outf = h5py.File(outfile, 'w')
+    dset_spec = outf.create_group("spec")
+    dset_spec.create_dataset("wave",data=spec.wave)
+    dset_spec.create_dataset("flux",data=spec.flux)
+    dset_spec.create_dataset("flux_err",data=spec.flux_err)
+
+    dset_cont_model = outf.create_group("cont_model")
+    dset_cont_model.create_dataset("wave",data=cont_model.wave)
+    dset_cont_model.create_dataset("flux",data=cont_model.flux)
+
+    dset_linedata = outf.create_group("linedata")
+    dset_linedata.create_dataset("wave",data=linedata.wave)
+    dset_linedata.create_dataset("flux",data=linedata.flux)
+    dset_linedata.create_dataset("flux_err",data=linedata.flux_err)
+    dset_linedata.create_dataset("line_mask",data=linedata.line_mask)
+
+    dset_continuumdata = outf.create_group("continuumdata")
+    dset_continuumdata.create_dataset("wave",data=continuumdata.wave)
+    dset_continuumdata.create_dataset("flux",data=continuumdata.flux)
+    dset_continuumdata.create_dataset("flux_err",data=continuumdata.flux_err)
+
+    if phot is not None:
+        dset_phot = outf.create_group("phot")
+        dt = phot.pb.dtype.str.lstrip('|')
+        dset_phot.create_dataset("pb", data=phot.pb, dtype=dt)
+        dset_phot.create_dataset("mag",data=phot.mag)
+        dset_phot.create_dataset("mag_err",data=phot.mag_err)
+
+    outf.close()
