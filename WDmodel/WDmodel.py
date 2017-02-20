@@ -175,7 +175,7 @@ class WDmodel:
         modwave, modflux = self.get_model(teff, logg, wave=wave, log=log, strict=strict)
         av = float(av)
         rv = float(rv)
-        bluening = reddening(modwave*u.Angrstrom, av, r_v=rv, model=rvmodel)
+        bluening = reddening(modwave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             modflux = 10.**modflux
         modflux/=bluening
