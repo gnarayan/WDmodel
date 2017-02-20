@@ -1,0 +1,66 @@
+{
+    "teff": {
+        "default": 35000.0, 
+        "fixed": false, 
+        "bounds": [
+            16000.0, 
+            90000.0
+        ]
+    }, 
+    "logg": {
+        "default": 7.8, 
+        "fixed": false, 
+        "bounds": [
+            7.0, 
+            9.5
+        ]
+    }, 
+    "av": {
+        "default": 0.2, 
+        "fixed": false, 
+        "bounds": [
+            0.0, 
+            2.0
+        ]
+    }, 
+    "rv": {
+        "default": 3.1, 
+        "fixed": true, 
+        "bounds": [
+            1.7, 
+            5.1
+        ]
+    }, 
+    "c": {
+        "default": 1e-09, 
+        "fixed": false, 
+        "bounds": [
+            1e-25, 
+            null
+        ]
+    }, 
+    "fwhm": {
+        "default": 8.0, 
+        "fixed": false, 
+        "bounds": [
+            0.1, 
+            25.0
+        ]
+    }, 
+    "sigf": {
+        "default": 0.01, 
+        "fixed": false, 
+        "bounds": [
+            1e-09, 
+            null
+        ]
+    }, 
+    "tau": {
+        "default": 5000.0, 
+        "fixed": true, 
+        "bounds": [
+            200.0, 
+            10000.0
+        ]
+    }
+}
