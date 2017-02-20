@@ -1,3 +1,6 @@
+"""
+Routines to visualize the DA White Dwarf model atmosphere fit
+"""
 import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -10,7 +13,27 @@ from matplotlib.font_manager import FontProperties as FM
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 
-def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', fwhm=4., save=False):
+def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', fwhm=4., save=False):
+    """
+    Quick plot to show the output from the limited Minuit fit of the spectrum.
+    This fit doesn't try to account for the covariance in the data, and is not
+    expected to be great - just fast, and capable of setting a reasonable
+    initial guess. If this fit is very far off, refine the intial guess.
+
+    Accepts:
+        spec - the recarray spectrum
+        objname - object name - cosmetic only
+        outdir  - controls where the plot is written out if save=True
+        specfile - Used in the title, and to set the name of the outfile if save=True
+        model - WDmodel.WDmodel instance 
+        result - tuple with teff, logg, av, c values
+        rv - keyword allows a non-standard Rv value (default=3.1)
+        rvmodel - keyword allows a different model for the reddening law (default O'Donnell '94)
+        fwhm - instrumental FWHM of the spectrum
+        save - if True, save the file
+
+    Returns a matplotlib figure instance
+    """
     
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
@@ -25,7 +48,6 @@ def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rv
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
 
-    # todo get this from likelihood wrapper 
     teff, logg, av, c = result
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
     smoothedmod = mod*c
@@ -41,7 +63,7 @@ def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rv
     ax_spec.set_ylabel('Normalized Flux', fontproperties=font_m)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
-    fig.suptitle('%s (%s)'%(objname, specfile), fontproperties=font_l)
+    fig.suptitle('Quick Fit: %s (%s)'%(objname, specfile), fontproperties=font_l)
     
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     if save:
@@ -50,7 +72,11 @@ def plot_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rv
     return fig 
 
 
-def plot_model(spec, phot, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', discard=5):
+
+def plot_model(spec, phot, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', balmer=None, discard=5):
+    """
+    Plot the full fit of the DA White Dwarf 
+    """
 
     outfilename = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.pdf')))
     with PdfPages(outfilename) as pdf:
