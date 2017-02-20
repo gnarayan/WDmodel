@@ -37,9 +37,19 @@ def get_options():
     parser.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
             help="Ignores missing photometry and does the fit with just the spectrum")
 
+    # create a couple of custom types to use with the parser 
     def str2bool(v):
         return v.lower() in ("yes", "true", "t", "1")
+
+    def NoneOrFloat(v):
+        if v.lower() in ("none", "null", "nan"):
+            return None
+        else:
+            return float(v)
+
     parser.register('type','bool',str2bool)
+    parser.register('type','NoneOrFloat',NoneOrFloat)
+
     # fitting options
     params = WDmodel.io.read_param_defaults()
     for param in params:
@@ -47,9 +57,8 @@ def get_options():
                 help="Specify parameter %s"%param)
         parser.add_argument('--fix_%s'%param, required=False, default=params[param]['fixed'], type="bool",\
                 help="Specify if parameter {} is fixed or not".format(param))
-        parser.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"],\
-                help="Specify parameter {} bounds".format(param))
-
+        parser.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
+                type='NoneOrFloat',help="Specify parameter {} bounds".format(param))
 
     # MCMC config options
     parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
@@ -79,15 +88,6 @@ def get_options():
         message = 'Invalid balmer line value - must be in range [1,6]'
         raise ValueError(message)
 
-    if args.rv < 2.1 or args.rv > 5.1:
-        message = 'That Rv Value is ridiculous'
-        raise ValueError(message)
-
-    if args.fwhm is not None:
-        if args.fwhm < 0:
-            message = 'Gaussian Smoothing FWHM cannot be less that zero'
-            raise ValueError(message)
-
     reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
     if not args.reddeningmodel in reddeninglaws:
         message = 'That reddening law is not known (%s)'%' '.join(reddeninglaws) 
@@ -115,8 +115,6 @@ def get_options():
 
 def main():
     args   = get_options() 
-    print args
-    sys.exit(-1)
 
     specfile  = args.specfile
     bluelim   = args.bluelimit
