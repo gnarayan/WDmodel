@@ -2,7 +2,50 @@ import os
 import warnings
 import numpy as np
 import pkg_resources
+from collections import OrderedDict
+import json
 import h5py
+from . import likelihood
+
+def read_param_defaults(param_file=None):
+    """
+    Read a JSON file that configures the default guesses and bounds for the
+    parameters, as well as if they should be fixed.  The JSON keys are the
+    parameter names, as defined in WDmodel.likelihood.PARAMETER_NAMES.
+    Each key must have a dictionary with keys 
+        "default" : default value - make sure this is a floating point
+        "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
+        "bounds"  : An upper and lower limit on parameter values. Use null for None.
+
+    Note that the default bounds are set by the grids available for the DA
+    White Dwarf atmospheres, and by reasonable plausible ranges for the other
+    parameters. Don't muck with them unless you really have good reason to.
+
+    Returns the dictionary with the parameter defaults.
+    """
+    if param_file is None:
+        param_file = pkg_resources.resource_filename('WDmodel','WDmodel_param_defaults.json')
+
+    if not os.path.exists(param_file):
+        message = 'Could not find param file {}'.format(param_file)
+        raise IOError(message)
+
+    with open(param_file, 'r') as f:
+        params = json.load(f)
+
+    # JSON does't preserve ordering at all, but I'd like to keep it consistent
+    out = OrderedDict()
+    for param in likelihood._PARAMETER_NAMES:
+        # note that we're only checking if we have the right keys here, not if the values are reasonable
+        if not param in params:
+            message = "Parameter {} not found in JSON param file {}".format(param, param_file)
+            raise KeyError(message)
+        if not all (key in params[param] for key in ("default","fixed","bounds")):
+            message = "Parameter {} does not have default|fixed|bounds specified in param file {}".format(param, param_file)
+            raise KeyError(message)
+        out[param] = params[param]
+    
+    return out
 
 
 def read_model_grid(grid_file=None, grid_name=None):
