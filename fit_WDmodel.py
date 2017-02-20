@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import sys
 import warnings
 warnings.simplefilter('once')
 import argparse
@@ -10,6 +11,9 @@ import WDmodel.viz
 
 
 def get_options():
+    """
+    Get command line options for the WDmodel fitter
+    """
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # spectrum options
     parser.add_argument('--specfile', required=True, \
@@ -34,6 +38,8 @@ def get_options():
             help="Specify reddening law R_V")
     parser.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
+    parser.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
+            help="Ignores missing photometry and does the fit with just the spectrum")
 
     # fitting options
     parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
@@ -42,8 +48,6 @@ def get_options():
             help="Specify number of steps for burn-in")
     parser.add_argument('--nprod',  required=False, type=int, default=1000,\
             help="Specify number of steps for production")
-    parser.add_argument('--nthreads',  required=False, type=int, default=1,\
-            help="Specify number of threads to use. (>1 implies multiprocessing)")
     parser.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
     parser.add_argument('--redo',  required=False, action="store_true", default=False,\
@@ -83,10 +87,6 @@ def get_options():
         message = 'Number of walkers must be greater than zero for MCMC'
         raise ValueError(message)
 
-    if args.nthreads <= 0:
-        message = 'Number of threads must be greater than zero'
-        raise ValueError(message)
-    
     if args.nburnin <= 0:
         message = 'Number of walkers must be greater than zero'
         raise ValueError(message)
@@ -117,11 +117,11 @@ def main():
     photfile  = args.photfile
     rv        = args.rv
     rvmodel   = args.reddeningmodel
+    ignorephot= args.ignorephot
     
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
-    nthreads  = args.nthreads
     discard   = args.discard
     redo      = args.redo
 
@@ -133,21 +133,26 @@ def main():
     # get resolution
     fwhm = WDmodel.io.get_spectrum_resolution(specfile, fwhm=fwhm)
 
+    # set the object name and create output directories
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
+
     # pre-process spectrum
     out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, blotch=blotch)
     spec, cont_model, linedata, continuumdata = out
 
-    # set the object name and create output directories
-    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
-
     # get photometry 
-    phot = WDmodel.io.get_phot_for_obj(objname, photfile)
+    phot = WDmodel.io.get_phot_for_obj(objname, photfile, ignore=ignorephot)
+
+    # save the inputs to the fitter
+    WDmodel.io.save_fit_inputs(spec, phot,\
+            cont_model, linedata, continuumdata,\
+            outdir, specfile, redo=redo)
 
     # fit the spectrum
     model, result = WDmodel.fit.fit_model(spec, phot,\
                 objname, outdir, specfile,\
                 rv=rv, rvmodel=rvmodel, fwhm=fwhm,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, nthreads=nthreads,\
+                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod,\
                 redo=redo)
 
     # plot output
