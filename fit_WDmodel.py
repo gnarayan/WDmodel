@@ -30,50 +30,56 @@ def get_options():
     parser.register('type','NoneOrFloat',NoneOrFloat)
 
     # spectrum options
-    parser.add_argument('--specfile', required=True, \
+    spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
+    spectrum.add_argument('--specfile', required=True, \
             help="Specify spectrum to fit")
-    parser.add_argument('--trimspec', required=False, nargs=2, default=(None,None), 
+    spectrum.add_argument('--trimspec', required=False, nargs=2, default=(None,None), 
                 type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
-    parser.add_argument('--blotch', required=False, action='store_true',\
+    spectrum.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
 
-    # output options
-    parser.add_argument('-o', '--outdir', required=False,\
-            help="Specify a custom output directory. Default is CWD+objname/ subdir")
-
     # photometry options
-    parser.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
+    phot = parser.add_argument_group('photometry', 'Photometry options')
+    phot.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
             help="Specify file containing photometry lookup table for objects")
-    parser.add_argument('--reddeningmodel', required=False, default='od94',\
+    phot.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
-    parser.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
+    phot.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
             help="Ignores missing photometry and does the fit with just the spectrum")
 
     # fitting options
+    model = parser.add_argument_group('model', 'Model options')
     params = WDmodel.io.read_param_defaults()
     for param in params:
-        parser.add_argument('--%s'%param, required=False, type=float, default=params[param]['default'],\
-                help="Specify parameter %s"%param)
-        parser.add_argument('--fix_%s'%param, required=False, default=params[param]['fixed'], type="bool",\
+        model.add_argument('--{}'.format(param), required=False, type=float, default=params[param]['default'],\
+                help="Specify parameter {} value".format(param))
+        model.add_argument('--{}_fixs'.format(param), required=False, default=params[param]['fixed'], type="bool",\
                 help="Specify if parameter {} is fixed or not".format(param))
-        parser.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
+        model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
                 type='NoneOrFloat', metavar=("LOWERLIM", "UPPERLIM"), help="Specify parameter {} bounds".format(param))
 
     # MCMC config options
-    parser.add_argument('--nwalkers',  required=False, type=int, default=200,\
+    mcmc = parser.add_argument_group('mcmc', 'MCMC options')
+    mcmc.add_argument('--nwalkers',  required=False, type=int, default=200,\
             help="Specify number of walkers to use (0 disables MCMC)")
-    parser.add_argument('--nburnin',  required=False, type=int, default=200,\
+    mcmc.add_argument('--nburnin',  required=False, type=int, default=200,\
             help="Specify number of steps for burn-in")
-    parser.add_argument('--nprod',  required=False, type=int, default=1000,\
+    mcmc.add_argument('--nprod',  required=False, type=int, default=1000,\
             help="Specify number of steps for production")
-    parser.add_argument('--discard',  required=False, type=float, default=5,\
+    mcmc.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
-    parser.add_argument('--redo',  required=False, action="store_true", default=False,\
-            help="Clobber existing fits")
 
     # visualization options
-    parser.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
+    viz = parser.add_argument_group('viz', 'Visualization options')
+    viz.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
             help="Specify Balmer lines to visualize [1:7]")
+
+    # output options
+    output = parser.add_argument_group('output', 'Output options')
+    output.add_argument('-o', '--outdir', required=False,\
+            help="Specify a custom output directory. Default is CWD+objname/ subdir")
+    output.add_argument('--redo',  required=False, action="store_true", default=False,\
+            help="Clobber existing fits")
 
     args = parser.parse_args()
 
