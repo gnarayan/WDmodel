@@ -12,7 +12,6 @@ import h5py
 from clint.textui import progress
 from .WDmodel import WDmodel
 from . import likelihood
-from . import viz
 
 
 def polyfit_continuum(continuumdata, wave):
@@ -230,7 +229,6 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
     Returns best guess parameters (need to return errors as well)
     """
 
-
     # hardcode an initial guess that's somewhere near the mean of the sample
     teff_guess = 35000.
     logg_guess = 7.8
@@ -278,18 +276,6 @@ def fit_model(spec, phot,\
             rv=3.1, rvmodel='od94', fwhm=4.,\
             nwalkers=200, nburnin=500, nprod=2000, nthreads=1,\
             redo=False):
-
-    # init the model, and determine the coarse normalization to match the spectrum
-    model = WDmodel()
-    
-    # do a quick, not very robust fit to create the quantities we need to store
-    # get a reasonable starting position for the chains 
-    # and set the wavelength thresholds for each line
-    result, errors  = quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
-    fig = viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
-            model, result, rv=rv, rvmodel=rvmodel, fwhm=fwhm, save=True)
-
-    teff, logg, av, c  = result 
 
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
     mod*=c
