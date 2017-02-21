@@ -10,7 +10,7 @@ import WDmodel.fit
 import WDmodel.viz
 
 
-def get_options():
+def get_options(args=None):
     """
     Get command line options for the WDmodel fitter
     """
@@ -81,7 +81,7 @@ def get_options():
     output.add_argument('--redo',  required=False, action="store_true", default=False,\
             help="Clobber existing fits")
 
-    args = parser.parse_args()
+    args = parser.parse_args(args=args)
 
     # some sanity checking for option values
     balmer = args.balmerlines
@@ -119,7 +119,7 @@ def get_options():
 #**************************************************************************************************************
 
 def main():
-    args   = get_options() 
+    args   = get_options(sys.argv[1:]) 
 
     specfile  = args.specfile
     bluelim, redlim   = args.trimspec
