@@ -128,7 +128,7 @@ def get_spectrum_resolution(specfile, fwhm=None):
     else:                                                                                                               
         message = 'Smoothing factor specified on command line - overriding spectable file'                               
         warnings.warn(message, RuntimeWarning)                                                                          
-    print('Using smoothing instrumental FWHM {}'.format{fwhm}) 
+    print('Using smoothing instrumental FWHM {}'.format(fwhm)) 
     return fwhm
 
 
