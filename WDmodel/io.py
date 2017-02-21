@@ -40,7 +40,7 @@ def read_param_defaults(param_file=None):
         if not param in params:
             message = "Parameter {} not found in JSON param file {}".format(param, param_file)
             raise KeyError(message)
-        if not all (key in params[param] for key in ("default","fixed","bounds")):
+        if not all (key in params[param] for key in ("value","fixed","bounds")):
             message = "Parameter {} does not have default|fixed|bounds specified in param file {}".format(param, param_file)
             raise KeyError(message)
         out[param] = params[param]
@@ -128,7 +128,7 @@ def get_spectrum_resolution(specfile, fwhm=None):
     else:                                                                                                               
         message = 'Smoothing factor specified on command line - overriding spectable file'                               
         warnings.warn(message, RuntimeWarning)                                                                          
-    print('Using smoothing instrumental FWHM %.2f'%fwhm) 
+    print('Using smoothing instrumental FWHM {}'.format{fwhm}) 
     return fwhm
 
 

@@ -51,9 +51,9 @@ def get_options(args=None):
     model = parser.add_argument_group('model', 'Model options')
     params = WDmodel.io.read_param_defaults()
     for param in params:
-        model.add_argument('--{}'.format(param), required=False, type=float, default=params[param]['default'],\
+        model.add_argument('--{}'.format(param), required=False, type='NoneOrFloat', default=params[param]['value'],\
                 help="Specify parameter {} value".format(param))
-        model.add_argument('--{}_fixs'.format(param), required=False, default=params[param]['fixed'], type="bool",\
+        model.add_argument('--{}_fix'.format(param), required=False, default=params[param]['fixed'], type="bool",\
                 help="Specify if parameter {} is fixed or not".format(param))
         model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
                 type='NoneOrFloat', metavar=("LOWERLIM", "UPPERLIM"), help="Specify parameter {} bounds".format(param))
@@ -161,6 +161,18 @@ def main():
     WDmodel.io.save_fit_inputs(spec, phot,\
             cont_model, linedata, continuumdata,\
             outdir, specfile, redo=redo)
+
+    # init the model, and determine the coarse normalization to match the spectrum
+    model = WDmodel.WDmodel()
+
+    # do a quick fit to refine the input params
+    result, errors  = WDmodel.fit.quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
+
+    # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
+    WDmodel.viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
+            model, result, rv=rv, rvmodel=rvmodel, fwhm=fwhm, save=True)
+
+    sys.exit(-1)
 
     # fit the spectrum
     model, result = WDmodel.fit.fit_model(spec, phot,\
