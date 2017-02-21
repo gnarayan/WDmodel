@@ -14,7 +14,21 @@ def get_options(args=None):
     """
     Get command line options for the WDmodel fitter
     """
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    # create a config parser that will take a single option - param file
+    conf_parser = argparse.ArgumentParser(add_help=False)
+
+    # config options - this lets you specify a parameter configuration file,
+    # set the default parameters values from it, and override them later as needed
+    # if not supplied, it'll use the default parameter file included in the package
+    conf_parser.add_argument("--param_file", required=False, default=None, help="Specify parameter config JSON file")
+    args, remaining_argv = conf_parser.parse_known_args(args)
+    params = WDmodel.io.read_param_defaults(param_file=args.param_file)
+
+    # now that we've gotten the param_file and the params (either custom, or default), create the parse
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,\
+                    parents=[conf_parser],\
+                    description=__doc__)
 
     # create a couple of custom types to use with the parser 
     def str2bool(v):
@@ -28,6 +42,7 @@ def get_options(args=None):
 
     parser.register('type','bool',str2bool)
     parser.register('type','NoneOrFloat',NoneOrFloat)
+
 
     # spectrum options
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
@@ -49,7 +64,6 @@ def get_options(args=None):
 
     # fitting options
     model = parser.add_argument_group('model', 'Model options')
-    params = WDmodel.io.read_param_defaults()
     for param in params:
         model.add_argument('--{}'.format(param), required=False, type='NoneOrFloat', default=params[param]['value'],\
                 help="Specify parameter {} value".format(param))
@@ -81,7 +95,7 @@ def get_options(args=None):
     output.add_argument('--redo',  required=False, action="store_true", default=False,\
             help="Clobber existing fits")
 
-    args = parser.parse_args(args=args)
+    args = parser.parse_args(args=remaining_argv)
 
     # some sanity checking for option values
     balmer = args.balmerlines
