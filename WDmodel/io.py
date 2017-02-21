@@ -41,10 +41,35 @@ def read_param_defaults(param_file=None):
             message = "Parameter {} not found in JSON param file {}".format(param, param_file)
             raise KeyError(message)
         if not all (key in params[param] for key in ("value","fixed","bounds")):
-            message = "Parameter {} does not have default|fixed|bounds specified in param file {}".format(param, param_file)
+            message = "Parameter {} does not have value|fixed|bounds specified in param file {}".format(param, param_file)
             raise KeyError(message)
         out[param] = params[param]
     
+    return out
+
+
+def get_params_from_argparse(args):
+    """
+    Converts the argparse args Namespace back into an ordered parameter
+    dictionary. Assumes that the argument parser options were names
+        param_value  = Value of the parameter (float or None)
+        param_fix    = Bool specifying if the parameter 
+        param_bounds = tuple with lower limit and upper limit 
+
+    Accepts Namespace from argparse
+    Returns OrderedDict of parameter keywords
+    """
+    kwargs = vars(args)
+    out = OrderedDict()
+    for param in likelihood._PARAMETER_NAMES:
+        if not all (key in params[param] for key in (param, "{}_fix".format(param), "{}_bounds".format(param))):
+            message = "Parameter {} does not have value|fixed|bounds specified in argparse args".format(param)
+            raise KeyError(message)
+        out[param]={}
+        out[param]['value'] = args[param]
+        out[param]['fixed'] = args['{}_fix'.format(param)]
+        out[param]['bounds'] = args['{}_bounds'.format(param)]
+
     return out
 
 
