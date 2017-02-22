@@ -33,7 +33,7 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = _PARAMETER_NAMES
 
-    def get_value(self, spec, model, rvmodel):
+    def get_value(self, spec, model, rvmodel, n):
         """
         Returns the log likelihood of the data given the model
         """
@@ -43,11 +43,11 @@ class WDmodel_Likelihood(Model):
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
         gp = GP(kernel, mean=0.)
         try:
-            gp.compute(spec.wave, spec.flux_err)
+            gp.compute(spec.wave[::n], spec.flux_err[::n])
         except ValueError:
             return -np.inf
         #TODO - add the photometry here
-        return gp.lnlikelihood(res, quiet=True) 
+        return gp.lnlikelihood(res[::n], quiet=True) 
 
 
     def lnprior(self):

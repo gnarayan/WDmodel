@@ -310,7 +310,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 def fit_model(spec, phot, model, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
-            ascale=2.0, nwalkers=200, nburnin=500, nprod=2000,\
+            ascale=2.0, nwalkers=200, nburnin=500, nprod=2000, everyn=1,\
             redo=False):
     """
     Models the spectrum using the white dwarf model and a gaussian process with
@@ -367,7 +367,7 @@ def fit_model(spec, phot, model, params,\
         out = lnprob.lnprior()
         if not np.isfinite(out):
             return out
-        out += lnprob.get_value(spec, model, rvmodel)
+        out += lnprob.get_value(spec, model, rvmodel, everyn)
         return out
 
     if nwalkers==0:
@@ -383,6 +383,10 @@ def fit_model(spec, phot, model, params,\
         print "Burn-in"
         pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
         sampler.reset()
+        lnprob.set_parameter_vector(pos[np.argmax(prob)])
+        print "\nParameters after Burn-in"
+        for k, v in lnprob.get_parameter_dict().items():
+            print "{} = {:f}".format(k,v)
         pos = emcee.utils.sample_ball(pos[np.argmax(prob)], std, size=nwalkers)
 
     outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.mcmc.hdf5')))
@@ -400,6 +404,7 @@ def fit_model(spec, phot, model, params,\
     chain.create_dataset("nwalkers", data=nwalkers)
     chain.create_dataset("nprod", data=nprod)
     chain.create_dataset("nparam", data=nparam)
+    chain.create_dataset("everyn",data=everyn)
     names = lnprob.get_parameter_names()
     names = np.array(names)
     dt = names.dtype.str.lstrip('|')

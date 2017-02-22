@@ -97,6 +97,8 @@ def get_options(args=None):
             help="Specify number of steps for burn-in")
     mcmc.add_argument('--nprod',  required=False, type=int, default=1000,\
             help="Specify number of steps for production")
+    mcmc.add_argument('--everyn',  required=False, type=int, default=1,\
+            help="Use only every nth point in data for computing likelihood - useful for testing.")
     mcmc.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
 
@@ -167,6 +169,7 @@ def main():
     nburnin   = args.nburnin
     nprod     = args.nprod
     discard   = args.discard
+    everyn    = args.everyn
     redo      = args.redo
 
     balmer    = args.balmerlines
@@ -216,7 +219,7 @@ def main():
     result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
                 objname, outdir, specfile,\
                 rvmodel=rvmodel,\
-                ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod,\
+                ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
                 redo=redo)
 
     sys.exit(-1)
