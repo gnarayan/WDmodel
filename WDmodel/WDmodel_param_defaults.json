@@ -40,7 +40,7 @@
         "fixed": false,
         "scale": 10.0,
         "bounds": [
-            1e-25, 
+            1e-7, 
             1e7
         ]
     }, 
@@ -59,7 +59,7 @@
         "scale": 0.005,
         "bounds": [
             1e-09, 
-            null
+            1e3
         ]
     }, 
     "tau": {
