@@ -62,13 +62,13 @@ def get_params_from_argparse(args):
     kwargs = vars(args)
     out = OrderedDict()
     for param in likelihood._PARAMETER_NAMES:
-        if not all (key in params[param] for key in (param, "{}_fix".format(param), "{}_bounds".format(param))):
+        if not all (key in kwargs for key in (param, "{}_fix".format(param), "{}_bounds".format(param))):
             message = "Parameter {} does not have value|fixed|bounds specified in argparse args".format(param)
             raise KeyError(message)
         out[param]={}
-        out[param]['value'] = args[param]
-        out[param]['fixed'] = args['{}_fix'.format(param)]
-        out[param]['bounds'] = args['{}_bounds'.format(param)]
+        out[param]['value']  = kwargs[param]
+        out[param]['fixed']  = kwargs['{}_fix'.format(param)]
+        out[param]['bounds'] = kwargs['{}_bounds'.format(param)]
 
     return out
 
@@ -149,7 +149,7 @@ def get_spectrum_resolution(specfile, fwhm=None):
                 warnings.warn(message, RuntimeWarning)                                                                  
                 fwhm = _default_resolution
             else:                                                                                                       
-                fwhm = spectable[mask].fwhm                                                                           
+                fwhm = spectable[mask].fwhm[0] 
     else:                                                                                                               
         message = 'Smoothing factor specified on command line - overriding spectable file'                               
         warnings.warn(message, RuntimeWarning)                                                                          
