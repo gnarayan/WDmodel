@@ -33,9 +33,13 @@ def get_options(args=None):
                     description=__doc__)
 
     # create a couple of custom types to use with the parser 
+    # this type exists to make a quasi bool type instead of store_false/store_true
     def str2bool(v):
         return v.lower() in ("yes", "true", "t", "1")
 
+    # this type exists for parameters where we can't or don't really want the
+    # user to guess a default value - better to make a guess internally than
+    # have a bad  starting point
     def NoneOrFloat(v):
         if v.lower() in ("none", "null", "nan"):
             return None
@@ -79,10 +83,14 @@ def get_options(args=None):
         model.add_argument('--{}_scale'.format(param), required=False, type=float, default=params[param]['scale'],\
                 help="Specify param {} scale/step size".format(param))
         model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
-                type='NoneOrFloat', metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
+                type=float, metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
+    mcmc.add_argument('--skipminuit',  required=False, action="store_true", default=False,\
+            help="Skip Minuit fit - make sure to specify dl guess")
+    mcmc.add_argument('--ascale', required=False, type=float, default=2.0,\
+            help="Specify proposal scale for MCMC") 
     mcmc.add_argument('--nwalkers',  required=False, type=int, default=200,\
             help="Specify number of walkers to use (0 disables MCMC)")
     mcmc.add_argument('--nburnin',  required=False, type=int, default=200,\
@@ -125,8 +133,8 @@ def get_options(args=None):
         message = 'Number of walkers must be greater than zero for MCMC'
         raise ValueError(message)
 
-    if args.nburnin <= 0:
-        message = 'Number of walkers must be greater than zero'
+    if args.nburnin < 0:
+        message = 'Number of burnin steps must be greater than zero'
         raise ValueError(message)
 
     if args.nprod <= 0:
@@ -154,6 +162,7 @@ def main():
     rvmodel   = args.reddeningmodel
     ignorephot= args.ignorephot
     
+    ascale    = args.ascale
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
@@ -193,21 +202,24 @@ def main():
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
 
-    # do a quick fit to refine the input params
-    migrad_params  = WDmodel.fit.quick_fit_spec_model(spec, model, params, rvmodel=rvmodel)
+    if not args.skipminuit:
+        # do a quick fit to refine the input params
+        migrad_params  = WDmodel.fit.quick_fit_spec_model(spec, model, params, rvmodel=rvmodel)
 
-    # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
-    WDmodel.viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
+        # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
+        WDmodel.viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
             model, migrad_params, rvmodel=rvmodel, save=True)
-
-    sys.exit(-1)
+    else:
+        migrad_params = params.copy()
 
     # fit the spectrum
-    model, result = WDmodel.fit.fit_model(spec, phot,\
+    result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
                 objname, outdir, specfile,\
-                rv=rv, rvmodel=rvmodel, fwhm=fwhm,\
-                nwalkers=nwalkers, nburnin=nburnin, nprod=nprod,\
+                rvmodel=rvmodel,\
+                ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod,\
                 redo=redo)
+
+    sys.exit(-1)
 
     # plot output
     WDmodel.viz.plot_model(spec, phot,\
