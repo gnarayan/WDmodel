@@ -1,4 +1,3 @@
-import sys
 import warnings
 warnings.simplefilter('once')
 import os
@@ -219,34 +218,58 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
 
 #**************************************************************************************************************
 
-def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
+def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     """
-    Does a quick fit of the spectrum to get an initial guess of the spectral parameters
+    Does a quick fit of the spectrum to get an initial guess of the fit parameters
     This isn't robust, but it's good enough for an initial guess
+    None of the starting values for the parameters maybe None EXCEPT c
+    This refines the starting guesses, and determines a reasonable value for c
 
-    Accepts spectrum, model, (needs initial guesses, param ranges, freeze/thaw, param scale)
-    Uses iminuit to do a rough diagonal fit
-    Returns best guess parameters (need to return errors as well)
+    Accepts spec, model, params
+        spectrum: recarray spectrum with wave, flux, flux_err
+        model: WDmodel.WDmodel instance
+        param: dict of parameters with keywords value, fixed, bounds for each
+
+    Uses iminuit to do a rough diagonal fit - i.e. ignores covariance
+    For simplicity, also fixed FWHM and Rv 
+    Therefore, only teff, logg, av, c are fit for (at most)
+
+    Returns best guess parameters and errors
     """
+    teff0 = params['teff']['value']
+    logg0 = params['logg']['value']
+    av0   = params['av']['value']
+    c0    = params['c']['value']
 
-    # hardcode an initial guess that's somewhere near the mean of the sample
-    teff_guess = 35000.
-    logg_guess = 7.8
-    av_guess   = 0.1
-    mod = model._get_obs_model(teff_guess, logg_guess, av_guess, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
-    c_guess    = spec.flux.mean()/mod.mean()
+    # we don't actually fit for these values
+    rv   = params['rv']['value']
+    fwhm = params['fwhm']['value']
 
+    fix_teff = params['teff']['fixed']
+    fix_logg = params['logg']['fixed']
+    fix_av   = params['av']['fixed']
+    fix_c    = params['c']['fixed']
+
+    if all((fix_teff, fix_logg, fix_av, fix_c)):
+        message = "All of teff, logg, av, c are marked as fixed - nothing to fit."
+        raise RuntimeError(message)
+
+    if c0 is None:
+        # only c and fwhm are allowed to have None as input values
+        # fwhm will get set to a default fwhm if it's None
+        # c can only be set
+        mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+        c0   = spec.flux.mean()/mod.mean()
 
     teff_scale = 2000.
     logg_scale = 0.1
     av_scale   = 0.1
     c_scale    = 10
 
-    teff_bounds = (17000,80000)
-    logg_bounds = (7.,9.499999)
-    av_bounds   = (0.,2.0)
-    c_bounds    = (None, None)
-
+    teff_bounds = params['teff']['bounds']
+    logg_bounds = params['logg']['bounds']
+    av_bounds   = params['av']['bounds']
+    c_bounds    = params['c']['bounds']
 
     def chi2(teff, logg, av, c):
         mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
@@ -254,16 +277,25 @@ def quick_fit_spec_model(spec, model, fwhm, rv=3.1, rvmodel='od94'):
         chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
         return chi2
 
-    m = Minuit(chi2, teff=teff_guess, logg=logg_guess, av=av_guess, c=c_guess,\
+    m = Minuit(chi2, teff=teff0, logg=logg0, av=av0, c=c0,\
+                fix_teff=fix_teff, fix_logg=fix_logg, fix_av=fix_av, fix_c=fix_c,\
                 error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale,\
-                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds,\
+                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_c=c_bounds,\
                 print_level=1, pedantic=True, errordef=1)
 
     
     outfnmin, outpar = m.migrad()
     if outfnmin['is_valid']:
-        outpar = m.hesse()
-    result = m.args
+        try:
+            m.hesse()
+        except RuntimeError:
+            message = "Something seems to have gone wrong with Hessian matrix computation. You should probably stop."
+            warnings.warn(message, RuntimeWarning)
+    else:
+        message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
+        warnings.warn(message, RuntimeWarning)
+
+    result = m.values
     errors = m.errors 
 
     return result, errors
