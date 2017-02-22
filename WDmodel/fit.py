@@ -228,7 +228,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     Accepts
         spectrum: recarray spectrum with wave, flux, flux_err
         model: WDmodel.WDmodel instance
-        param: dict of parameters with keywords value, fixed, bounds for each
+        params: dict of parameters with keywords value, fixed, bounds for each
 
     Uses iminuit to do a rough diagonal fit - i.e. ignores covariance
     For simplicity, also fixed FWHM and Rv 
@@ -307,57 +307,61 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
 #**************************************************************************************************************
 
-def fit_model(spec, phot,\
+def fit_model(spec, phot, model, params,\
             objname, outdir, specfile,\
-            rv=3.1, rvmodel='od94', fwhm=4.,\
-            nwalkers=200, nburnin=500, nprod=2000, nthreads=1,\
+            rvmodel='od94',\
+            ascale=2.0, nwalkers=200, nburnin=500, nprod=2000,\
             redo=False):
+    """
+    Models the spectrum using the white dwarf model and a gaussian process with
+    an exponential squared kernel to account for any flux miscalibration
 
-    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
-    mod*=c
-    sigf       = np.std(spec.flux-mod)
-    #alpha      = 1.
-    tau        = 1000.
+    TODO: add modeling the phot
 
-    teff_std  = errors['teff']
-    logg_std  = errors['logg']
-    av_std    = errors['av']
-    c_std     = errors['c']
-    fwhm_std  = 0.1
-    rv_std    = 0.18
-    sigf_std  = np.median(spec.flux_err)
-    #alpha_std = 0.1
-    tau_std   = 10.
+    Accepts
+        spec: recarray spectrum with wave, flux, flux_err
+        phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
+        model: WDmodel.WDmodel instance
+        param: dict of parameters with keywords value, fixed, bounds for each
 
-    scales = {'teff':teff_std, 'logg':logg_std, 'av':av_std, 'rv':rv_std, 'c':c_std, 'fwhm':fwhm_std,\
-                'sigf':sigf_std, 'tau':tau_std}
+    Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
+    posterior. Does a short burn-in around the initial guess model parameters -
+    either minuit or user supplied values/defaults. Model parameters may be
+    frozen/fixed. Parameters can have bounds limiting their range.
 
-    teff_bounds = (17000,80000)
-    logg_bounds = (7.,9.499999)
-    av_bounds   = (0.,2.0)
-    rv_bounds   = (1.7, 5.1)
-    c_bounds    = (None, None)
-    fwhm_bounds = (0.1, max(fwhm, 20.))
-    sigf_bounds = (1e-10, 5*sigf)
-    #alpha_bounds= (0., None)
-    tau_bounds  = (200., None)
+    The prior is a tophat on all parameters, preventing them from going out of
+    range. The WDmodel.likelihood class can implement additional priors on
+    parameters.
 
-    bounds = [teff_bounds, logg_bounds, av_bounds, rv_bounds, c_bounds, fwhm_bounds,\
-                sigf_bounds, tau_bounds]
+    Incrementally saves the chain. 
+    """
 
-    setup_args = {'teff':teff, 'logg':logg,\
-                    'av':av, 'rv':rv,\
-                    'c':c, 'fwhm':fwhm,\
-                    'sigf':sigf, 'tau':tau,\
-                    'bounds':bounds}
+    setup_args = {}
+    bounds     = []
+    scales     = {}
+    fixed      = {}
+    for param in likelihood._PARAMETER_NAMES:
+        setup_args[param] = params[param]['value']
+        bounds.append(params[param]['bounds'])
+        scales[param] = params[param]['scale']
+        fixed[param] = params[param]['fixed']
 
+    setup_args['bounds'] = bounds
     lnprob = likelihood.WDmodel_Likelihood(**setup_args)
-    lnprob.freeze_parameter('rv')
-    nparam = lnprob.vector_size
-    init_p0 = lnprob.get_parameter_dict()
-    p0 = init_p0.values()
+    for param, val in fixed.items():
+        if val:
+            print "Freezing {}".format(param)
+            lnprob.freeze_parameter(param)
+
+
+    nparam   = lnprob.vector_size
+    init_p0  = lnprob.get_parameter_dict()
+    p0       = init_p0.values()
+
     std = [scales[x] for x in init_p0.keys()]
 
+    # define the likelihood function locally
+    # TODO - the drawback here is that it breaks multiprocessing
     def loglikelihood(theta, spec, model, rvmodel):
         lnprob.set_parameter_vector(theta)
         out = lnprob.lnprior()
@@ -372,7 +376,7 @@ def fit_model(spec, phot,\
 
     # setup the sampler
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
-    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood, args=(spec, model, rvmodel)) 
+    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood, a=ascale, args=(spec, model, rvmodel)) 
 
     # do a short burn-in
     if nburnin > 0:
@@ -387,21 +391,46 @@ def fit_model(spec, phot,\
         raise IOError(message)
 
     # setup incremental chain saving
-    outf = h5py.File(outfile, 'a')
+    outf = h5py.File(outfile, 'w')
     chain = outf.create_group("chain")
-    dset_chain = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
+    dset_chain  = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
+    dset_lnprob = chain.create_dataset("lnprob",(nwalkers*nprod,),maxshape=(None,))
+
+    # save some other attributes about the chain
+    chain.create_dataset("nwalkers", data=nwalkers)
+    chain.create_dataset("nprod", data=nprod)
+    chain.create_dataset("nparam", data=nparam)
+    names = lnprob.get_parameter_names()
+    names = np.array(names)
+    dt = names.dtype.str.lstrip('|')
+    chain.create_dataset("names",data=names, dtype=dt)
+    
+    # save the parameter configuration as well
+    names = lnprob.get_parameter_names(include_frozen=True)
+    names = np.array(names)
+    dt = names.dtype.str.lstrip('|')
+    par_grp = outf.create_group("params")
+    par_grp.create_dataset("names",data=names, dtype=dt)
+    for param in params:
+        this_par = par_grp.create_group(param)
+        this_par.create_dataset("value",data=params[param]["value"])
+        this_par.create_dataset("fixed",data=params[param]["fixed"])
+        this_par.create_dataset("scale",data=params[param]["scale"])
+        this_par.create_dataset("bounds",data=params[param]["bounds"])
 
     # production
     with progress.Bar(label="Production", expected_size=nprod) as bar:
         for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
             position = result[0]
+            lnpost   = result[1]
             dset_chain[nwalkers*i:nwalkers*(i+1),:] = position
+            dset_lnprob[nwalkers*i:nwalkers*(i+1)] = lnpost
             outf.flush()
             bar.show(i+1)
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     samples = np.array(dset_chain)
     outf.close()
-    return model, samples
+    return  samples
 
 
