@@ -1,0 +1,13 @@
+astropy==1.3
+celerite==0.1.1
+clint==0.5.1
+corner==2.0.1
+emcee==2.2.1
+george==0.2.1
+h5py==2.6.0
+iminuit==1.2
+matplotlib==2.0.0
+numpy==1.12.0
+pysynphot==0.9.8.5
+scipy==0.18.1
+specutils==0.2.2
