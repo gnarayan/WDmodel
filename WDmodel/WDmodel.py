@@ -8,7 +8,7 @@ from specutils.extinction import reddening
 from scipy.ndimage.filters import gaussian_filter
 
 
-class WDmodel:
+class WDmodel(object):
     """
     Base class defines the routines to generate and work with DA White Dwarf
     model spectra. Requires the grid file - TlustyGrids.hdf5, or a custom
