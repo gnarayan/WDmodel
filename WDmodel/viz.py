@@ -2,6 +2,7 @@
 Routines to visualize the DA White Dwarf model atmosphere fit
 """
 import os
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
@@ -13,7 +14,7 @@ from matplotlib.font_manager import FontProperties as FM
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 
-def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=3.1, rvmodel='od94', fwhm=4., save=False):
+def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvmodel='od94', save=False):
     """
     Quick plot to show the output from the limited Minuit fit of the spectrum.
     This fit doesn't try to account for the covariance in the data, and is not
@@ -21,16 +22,14 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=
     initial guess. If this fit is very far off, refine the intial guess.
 
     Accepts:
-        spec - the recarray spectrum
-        objname - object name - cosmetic only
-        outdir  - controls where the plot is written out if save=True
-        specfile - Used in the title, and to set the name of the outfile if save=True
-        model - WDmodel.WDmodel instance 
-        result - tuple with teff, logg, av, c values
-        rv - keyword allows a non-standard Rv value (default=3.1)
-        rvmodel - keyword allows a different model for the reddening law (default O'Donnell '94)
-        fwhm - instrumental FWHM of the spectrum
-        save - if True, save the file
+        spec: the recarray spectrum
+        objname: object name - cosmetic only
+        outdir: controls where the plot is written out if save=True
+        specfile: Used in the title, and to set the name of the outfile if save=True
+        model: WDmodel.WDmodel instance 
+        result: dict of parameters with keywords value, fixed, scale, bounds for each
+        rvmodel: keyword allows a different model for the reddening law (default O'Donnell '94)
+        save: if True, save the file
 
     Returns a matplotlib figure instance
     """
@@ -48,10 +47,16 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rv=
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
 
-    teff, logg, av, c = result
+    teff = result['teff']['value']
+    logg = result['logg']['value']
+    av   = result['av']['value']
+    dl   = result['dl']['value']
+    rv   = result['rv']['value']
+    fwhm = result['fwhm']['value']
+
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
-    smoothedmod = mod*c
-    outlabel = 'Model\nTeff = %.2f K\nlog(g) = %.3f\nAv = %.3f mag\nc = %f' %result
+    smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
+    outlabel = 'Model\nTeff = {:.1f} K\nlog(g) = {:.2f}\nAv = {:.2f} mag\ndl = {:.2f}'.format(teff, logg, av, dl)
 
     ax_spec.plot(spec.wave, smoothedmod, color='red', linestyle='-',marker='None', label=outlabel)
 

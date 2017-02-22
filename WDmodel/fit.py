@@ -225,21 +225,21 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     None of the starting values for the parameters maybe None EXCEPT c
     This refines the starting guesses, and determines a reasonable value for c
 
-    Accepts spec, model, params
+    Accepts
         spectrum: recarray spectrum with wave, flux, flux_err
         model: WDmodel.WDmodel instance
         param: dict of parameters with keywords value, fixed, bounds for each
 
     Uses iminuit to do a rough diagonal fit - i.e. ignores covariance
     For simplicity, also fixed FWHM and Rv 
-    Therefore, only teff, logg, av, c are fit for (at most)
+    Therefore, only teff, logg, av, dl are fit for (at most)
 
     Returns best guess parameters and errors
     """
     teff0 = params['teff']['value']
     logg0 = params['logg']['value']
     av0   = params['av']['value']
-    c0    = params['c']['value']
+    dl0   = params['dl']['value']
 
     # we don't actually fit for these values
     rv   = params['rv']['value']
@@ -248,39 +248,39 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     fix_teff = params['teff']['fixed']
     fix_logg = params['logg']['fixed']
     fix_av   = params['av']['fixed']
-    fix_c    = params['c']['fixed']
+    fix_dl   = params['dl']['fixed']
 
-    if all((fix_teff, fix_logg, fix_av, fix_c)):
-        message = "All of teff, logg, av, c are marked as fixed - nothing to fit."
+    if all((fix_teff, fix_logg, fix_av, fix_dl)):
+        message = "All of teff, logg, av, dl are marked as fixed - nothing to fit."
         raise RuntimeError(message)
 
-    if c0 is None:
-        # only c and fwhm are allowed to have None as input values
+    if dl0 is None:
+        # only dl and fwhm are allowed to have None as input values
         # fwhm will get set to a default fwhm if it's None
-        # c can only be set
         mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
         c0   = spec.flux.mean()/mod.mean()
+        dl0 = (1./(4.*np.pi*c0))**0.5
 
-    teff_scale = 2000.
-    logg_scale = 0.1
-    av_scale   = 0.1
-    c_scale    = 10
+    teff_scale = params['teff']['scale']
+    logg_scale = params['logg']['scale']
+    av_scale   = params['av']['scale']
+    dl_scale   = params['dl']['scale']
 
     teff_bounds = params['teff']['bounds']
     logg_bounds = params['logg']['bounds']
     av_bounds   = params['av']['bounds']
-    c_bounds    = params['c']['bounds']
+    dl_bounds   = params['dl']['bounds']
 
-    def chi2(teff, logg, av, c):
+    def chi2(teff, logg, av, dl):
         mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
-        mod *= c
+        mod *= (1./(4.*np.pi*(dl)**2.))
         chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
         return chi2
 
-    m = Minuit(chi2, teff=teff0, logg=logg0, av=av0, c=c0,\
-                fix_teff=fix_teff, fix_logg=fix_logg, fix_av=fix_av, fix_c=fix_c,\
-                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_c=c_scale,\
-                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_c=c_bounds,\
+    m = Minuit(chi2, teff=teff0, logg=logg0, av=av0, dl=dl0,\
+                fix_teff=fix_teff, fix_logg=fix_logg, fix_av=fix_av, fix_dl=fix_dl,\
+                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_dl=dl_scale,\
+                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_dl=dl_bounds,\
                 print_level=1, pedantic=True, errordef=1)
 
     
@@ -297,8 +297,12 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
     result = m.values
     errors = m.errors 
+    migrad_params = params.copy()
+    for param in result:
+        migrad_params[param]['value'] = result[param]
+        migrad_params[param]['scale'] = errors[param]
 
-    return result, errors
+    return migrad_params
 
 
 #**************************************************************************************************************

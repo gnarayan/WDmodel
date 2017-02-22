@@ -21,7 +21,9 @@ def get_options(args=None):
     # config options - this lets you specify a parameter configuration file,
     # set the default parameters values from it, and override them later as needed
     # if not supplied, it'll use the default parameter file included in the package
-    conf_parser.add_argument("--param_file", required=False, default=None, help="Specify parameter config JSON file")
+    conf_parser.add_argument("--param_file", required=False, default=None,\
+            help="Specify parameter config JSON file")
+
     args, remaining_argv = conf_parser.parse_known_args(args)
     params = WDmodel.io.read_param_defaults(param_file=args.param_file)
 
@@ -43,7 +45,6 @@ def get_options(args=None):
     parser.register('type','bool',str2bool)
     parser.register('type','NoneOrFloat',NoneOrFloat)
 
-
     # spectrum options
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
     spectrum.add_argument('--specfile', required=True, \
@@ -63,14 +64,22 @@ def get_options(args=None):
             help="Ignores missing photometry and does the fit with just the spectrum")
 
     # fitting options
-    model = parser.add_argument_group('model', 'Model options')
+    model = parser.add_argument_group('model',\
+            'Model options. Modify using --param_file or CL. CL overrides. Caveat emptor.')
     for param in params:
-        model.add_argument('--{}'.format(param), required=False, type='NoneOrFloat', default=params[param]['value'],\
-                help="Specify parameter {} value".format(param))
+        if param in ('fwhm','dl'):
+            dtype = 'NoneOrFloat'
+        else:
+            dtype = float
+
+        model.add_argument('--{}'.format(param), required=False, type=dtype, default=params[param]['value'],\
+                help="Specify param {} value".format(param))
         model.add_argument('--{}_fix'.format(param), required=False, default=params[param]['fixed'], type="bool",\
-                help="Specify if parameter {} is fixed or not".format(param))
+                help="Specify if param {} is fixed".format(param))
+        model.add_argument('--{}_scale'.format(param), required=False, type=float, default=params[param]['scale'],\
+                help="Specify param {} scale/step size".format(param))
         model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
-                type='NoneOrFloat', metavar=("LOWERLIM", "UPPERLIM"), help="Specify parameter {} bounds".format(param))
+                type='NoneOrFloat', metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
@@ -138,12 +147,10 @@ def main():
     specfile  = args.specfile
     bluelim, redlim   = args.trimspec
     blotch    = args.blotch
-    fwhm      = args.fwhm
 
     outdir    = args.outdir
 
     photfile  = args.photfile
-    rv        = args.rv
     rvmodel   = args.reddeningmodel
     ignorephot= args.ignorephot
     
@@ -155,11 +162,18 @@ def main():
 
     balmer    = args.balmerlines
 
+    # parse the parameter keywords in the argparse Namespace into a dictionary
+    params = WDmodel.io.get_params_from_argparse(args)
+
     # read spectrum
     spec = WDmodel.io.read_spec(specfile)
 
-    # get resolution
+    # get resolution - by default, this is None, since it depends on instrument settings for each spectra
+    # we can look it up from a lookup table provided by Tom Matheson for our spectra
+    # a custom argument from the command line overrides the lookup
+    fwhm = params['fwhm']['value']
     fwhm = WDmodel.io.get_spectrum_resolution(specfile, fwhm=fwhm)
+    params['fwhm']['value'] = fwhm
 
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
@@ -180,11 +194,11 @@ def main():
     model = WDmodel.WDmodel()
 
     # do a quick fit to refine the input params
-    result, errors  = WDmodel.fit.quick_fit_spec_model(spec, model, fwhm, rv=rv, rvmodel=rvmodel)
+    migrad_params  = WDmodel.fit.quick_fit_spec_model(spec, model, params, rvmodel=rvmodel)
 
     # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
     WDmodel.viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
-            model, result, rv=rv, rvmodel=rvmodel, fwhm=fwhm, save=True)
+            model, migrad_params, rvmodel=rvmodel, save=True)
 
     sys.exit(-1)
 

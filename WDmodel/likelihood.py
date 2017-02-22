@@ -5,7 +5,7 @@ from george import GP
 from george.kernels import ExpSquaredKernel
 
 # Declare this tuple to init the likelihood model, and to preserve order of parameters
-_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "c", "fwhm", "sigf", "tau")
+_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "sigf", "tau")
 
 class WDmodel_Likelihood(Model):
     """
@@ -38,7 +38,7 @@ class WDmodel_Likelihood(Model):
         Returns the log likelihood of the data given the model
         """
         mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm, spec.wave, rv=self.rv, rvmodel=rvmodel)
-        mod *= self.c
+        mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
         gp = GP(kernel, mean=0.)

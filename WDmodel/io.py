@@ -15,6 +15,7 @@ def read_param_defaults(param_file=None):
     Each key must have a dictionary with keys 
         "default" : default value - make sure this is a floating point
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
+        "scale"   : a scale parameter used to set the step size in this dimension 
         "bounds"  : An upper and lower limit on parameter values. Use null for None.
 
     Note that the default bounds are set by the grids available for the DA
@@ -40,7 +41,7 @@ def read_param_defaults(param_file=None):
         if not param in params:
             message = "Parameter {} not found in JSON param file {}".format(param, param_file)
             raise KeyError(message)
-        if not all (key in params[param] for key in ("value","fixed","bounds")):
+        if not all (key in params[param] for key in ("value","fixed","scale", "bounds")):
             message = "Parameter {} does not have value|fixed|bounds specified in param file {}".format(param, param_file)
             raise KeyError(message)
         out[param] = params[param]
@@ -62,12 +63,14 @@ def get_params_from_argparse(args):
     kwargs = vars(args)
     out = OrderedDict()
     for param in likelihood._PARAMETER_NAMES:
-        if not all (key in kwargs for key in (param, "{}_fix".format(param), "{}_bounds".format(param))):
-            message = "Parameter {} does not have value|fixed|bounds specified in argparse args".format(param)
+        keys = (param, "{}_fix".format(param),"{}_scale".format(param), "{}_bounds".format(param))
+        if not all (key in kwargs for key in keys):
+            message = "Parameter {} does not have value|fixed|scale|bounds specified in argparse args".format(param)
             raise KeyError(message)
         out[param]={}
         out[param]['value']  = kwargs[param]
         out[param]['fixed']  = kwargs['{}_fix'.format(param)]
+        out[param]['scale']  = kwargs['{}_scale'.format(param)]
         out[param]['bounds'] = kwargs['{}_bounds'.format(param)]
 
     return out
