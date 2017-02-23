@@ -89,6 +89,8 @@ def get_options(args=None):
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
     mcmc.add_argument('--skipminuit',  required=False, action="store_true", default=False,\
             help="Skip Minuit fit - make sure to specify dl guess")
+    mcmc.add_argument('--skipmcmc',  required=False, action="store_true", default=False,\
+            help="Skip MCMC - if you skip both minuit and MCMC, simply prepares files")
     mcmc.add_argument('--ascale', required=False, type=float, default=2.0,\
             help="Specify proposal scale for MCMC") 
     mcmc.add_argument('--nwalkers',  required=False, type=int, default=200,\
@@ -215,20 +217,27 @@ def main():
     else:
         migrad_params = params.copy()
 
-    # fit the spectrum
-    result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
-                objname, outdir, specfile,\
-                rvmodel=rvmodel,\
-                ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                redo=redo)
+    ### WRITE OUT MIGRAD PARAMS
+    ### Now if we skipminuit and skipmcmc we have inputs, migrad_params
+    ### In another code import get_options, restore inputs, migrad params after pool.is_master()
+    ### run the fit, make the plots
 
-    sys.exit(-1)
 
-    # plot output
-    WDmodel.viz.plot_model(spec, phot,\
-            objname, outdir, specfile,\
-            model, result,\
-            balmer=balmer, discard=discard)
+    if not args.skipmcmc:
+        # fit the spectrum
+        result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
+                    objname, outdir, specfile,\
+                    rvmodel=rvmodel,\
+                    ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
+                    redo=redo)
+
+        sys.exit(-1)
+        # plot output
+        WDmodel.viz.plot_model(spec, phot,\
+                    objname, outdir, specfile,\
+                    model, result,\
+                    balmer=balmer, discard=discard)
+
     return
 
 
