@@ -176,11 +176,15 @@ def main():
 
     balmer    = args.balmerlines
 
+
+    ##### SETUP #####
+
+
+    # set the object name and create output directories
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
+
     # parse the parameter keywords in the argparse Namespace into a dictionary
     params = WDmodel.io.get_params_from_argparse(args)
-
-    # read spectrum
-    spec = WDmodel.io.read_spec(specfile)
 
     # get resolution - by default, this is None, since it depends on instrument settings for each spectra
     # we can look it up from a lookup table provided by Tom Matheson for our spectra
@@ -189,8 +193,8 @@ def main():
     fwhm = WDmodel.io.get_spectrum_resolution(specfile, fwhm=fwhm)
     params['fwhm']['value'] = fwhm
 
-    # set the object name and create output directories
-    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
+    # read spectrum
+    spec = WDmodel.io.read_spec(specfile)
 
     # pre-process spectrum
     out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, blotch=blotch)
@@ -200,13 +204,18 @@ def main():
     phot = WDmodel.io.get_phot_for_obj(objname, photfile, ignore=ignorephot)
 
     # save the inputs to the fitter
-    WDmodel.io.save_fit_inputs(spec, phot,\
-            cont_model, linedata, continuumdata,\
-            outdir, specfile, redo=redo)
+    outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5')
+    WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
+            outfile, redo=redo)
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
 
+
+    ##### MINUIT #####
+
+
+    # to avoid minuit messing up inputs, it can be skipped entirely to force the MCMC to start at a specific position
     if not args.skipminuit:
         # do a quick fit to refine the input params
         migrad_params  = WDmodel.fit.quick_fit_spec_model(spec, model, params, rvmodel=rvmodel)
@@ -215,14 +224,21 @@ def main():
         WDmodel.viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
             model, migrad_params, rvmodel=rvmodel, save=True)
     else:
+        # we didn't run minuit, so we'll assume the user intended to start us at some specific position
         migrad_params = params.copy()
 
-    ### WRITE OUT MIGRAD PARAMS
-    ### Now if we skipminuit and skipmcmc we have inputs, migrad_params
-    ### In another code import get_options, restore inputs, migrad params after pool.is_master()
-    ### run the fit, make the plots
+
+    # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
+    # if skipmcmc is set, you can now run the code with MPI
+    outfile = WDmodel.io.get_outfile(outdir, specfile, '_params.json')
+    WDmodel.io.write_params(migrad_params, outfile)
 
 
+    ##### MCMC #####
+
+
+    # to allow running the MCMC with MPI easily, the single process MCMC can be skipped entirely
+    # all the inputs have been written to disk with save_inputs and save_params
     if not args.skipmcmc:
         # fit the spectrum
         result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
@@ -232,7 +248,7 @@ def main():
                     redo=redo)
 
         sys.exit(-1)
-        # plot output
+        # plot the MCMC output
         WDmodel.viz.plot_model(spec, phot,\
                     objname, outdir, specfile,\
                     model, result,\
