@@ -80,3 +80,10 @@ class WDmodel_Likelihood(Model):
             return out
 
 
+def loglikelihood(theta, spec, model, rvmodel , lnprob, everyn):
+    lnprob.set_parameter_vector(theta)
+    out = lnprob.lnprior()
+    if not np.isfinite(out):
+        return -np.inf
+    out += lnprob.get_value(spec, model, rvmodel, everyn)
+    return out
