@@ -314,10 +314,43 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
 #**************************************************************************************************************
 
+# make a local copy of the loglikelihood function
 loglikelihood = likelihood.loglikelihood
 
 #**************************************************************************************************************
 
+def fix_pos(pos, free_param_names, params):
+    """
+    emcee.utils.sample_ball doesn't care about bounds but is really convenient to init the walker positions
+
+    Accepts 
+        pos: list of starting positions for all walkers produced by emcee.utils.sample_ball
+        free_param_names: list of the names of free parameters
+        param: dict of parameters with keywords value, fixed, bounds for each
+
+    Assumes that the parameter values p0 was within bounds to begin with 
+    Takes p0 -/+ 5sigma or lower/upper bounds as the lower/upper limits whichever is higher/lower
+
+    Returns pos with out of bounds positions fixed to be within bounds
+    """
+
+    for i, name in enumerate(free_param_names):
+        lb, ub = params[name]['bounds']
+        p0     = params[name]['value']
+        std    = params[name]['scale']
+        # take a 5 sigma range 
+        lr, ur = (p0-5.*std, p0+5.*std)
+        ll = max(lb, lr)
+        ul = min(ub, ur)
+        ind = np.where((pos[:,i] <= ll) & (pos[:,i] >= ul))
+        nreplace = len(pos[:i][ind])
+        pos[:,i][ind] = np.random.rand(nreplace)*(ul - ll) + ll
+
+    return pos
+
+
+
+#**************************************************************************************************************
 def fit_model(spec, phot, model, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
@@ -372,7 +405,8 @@ def fit_model(spec, phot, model, params,\
     # get the starting position and the scales for each parameter
     init_p0  = lnprob.get_parameter_dict()
     p0       = init_p0.values()
-    std = [scales[x] for x in init_p0.keys()]
+    free_param_names = init_p0.keys()
+    std = [scales[x] for x in free_param_names]
 
     if nwalkers==0:
         print "nwalkers set to 0. Not running MCMC"
@@ -380,6 +414,7 @@ def fit_model(spec, phot, model, params,\
 
     # create a sample ball 
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
+    pos = fix_pos(pos, free_param_names, params)
 
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
@@ -394,7 +429,14 @@ def fit_model(spec, phot, model, params,\
         print "\nParameters after Burn-in"
         for k, v in lnprob.get_parameter_dict().items():
             print "{} = {:f}".format(k,v)
-        pos = emcee.utils.sample_ball(pos[np.argmax(prob)], std, size=nwalkers)
+
+        # init a new set of walkers around the maximum likelihood position from the burn-in
+        burnin_p0 = pos[np.argmax(prob)]
+        pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
+        burnin_params = params.copy()
+        for i, key in enumerate(free_param_names):
+            burnin_params[key]['value'] = burnin_p0[i]
+        pos = fix_pos(pos, free_param_names, burnin_params)
 
     # create a HDF5 file to hold the chain data
     outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5')
