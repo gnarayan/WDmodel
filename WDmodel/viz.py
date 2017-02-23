@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.font_manager import FontProperties as FM
+from . import io
 #import corner
 #from matplotlib import rc
 #rc('text', usetex=True)
@@ -72,7 +73,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     if save:
-        outfile = os.path.join(outdir, os.path.basename(specfile).replace('.flm','_minuit.pdf'))
+        outfile = io.get_outfile(outdir, specfile, '_minuit.pdf')
         fig.savefig(outfile)
     return fig 
 
