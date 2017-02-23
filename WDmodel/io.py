@@ -24,7 +24,7 @@ def write_params(params, outfile):
         json.dump(params, f, indent=4)
 
 
-def read_param_defaults(param_file=None):
+def read_params(param_file=None):
     """
     Read a JSON file that configures the default guesses and bounds for the
     parameters, as well as if they should be fixed.  The JSON keys are the
@@ -331,3 +331,61 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile, r
         dset_phot.create_dataset("mag_err",data=phot.mag_err)
 
     outf.close()
+
+def read_fit_inputs(input_file):
+    """
+    Read the saved HDF5 input_file and return recarrays of the contents
+    input files are expected to contain at least 4 groups, with the 5th optional
+    The groups, and the datasets they must have are 
+        spec
+            wave, flux, flux_err
+        cont_model
+            wave, flux
+        linedata
+            wave, flux, flux_err, line_mask
+        continuumdata
+            wave, flux, flux_err
+        [phot]
+            pb, mag, mag_err
+
+    Returns a tuple of recarrays 
+        spec, cont_model, linedata, continuumdata, phot[=None if absent]
+    """
+    d = h5py.File(input_file, mode='r')
+
+    try:
+        spec_wave = d['spec']['wave'].value
+        spec_flux = d['spec']['flux'].value
+        spec_ferr = d['spec']['flux_err'].value
+        spec = np.rec.fromarrays([spec_wave, spec_flux, spec_ferr], names='wave,flux,flux_err')
+
+        cmod_wave = d['cont_model']['wave'].value
+        cmod_flux = d['cont_model']['flux'].value
+        cont_model = np.rec.fromarrays([cmod_wave, cmod_flux], names='wave,flux')
+
+        line_wave = d['linedata']['wave'].value
+        line_flux = d['linedata']['flux'].value
+        line_ferr = d['linedata']['flux_err'].value
+        line_mask = d['linedata']['line_mask'].value
+        linedata = np.rec.fromarrays([line_wave, line_flux, line_ferr,line_mask], names='wave,flux,flux_err,line_mask')
+    
+        cont_wave = d['continuumdata']['wave'].value
+        cont_flux = d['continuumdata']['flux'].value
+        cont_ferr = d['continuumdata']['flux_err'].value
+        continuumdata = np.rec.fromarrays([cont_wave, cont_flux, cont_ferr], names='wave,flux,flux_err')
+    except KeyError as e:
+        message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
+        raise IOError(message)
+    
+    phot = None
+    if 'phot' in d.keys():
+        try:
+            pb  = d['phot']['pb'].value
+            mag = d['phot']['mag'].value
+            mag_err = d['phot']['mag_err'].value
+            phot = np.rec.fromarrays([pb, mag, mag_err], names='pb,mag,mag_err')
+        except KeyError as e:
+            message = '{}\nFailed to restore photometry from input file {} though group exists'.format(e, input_file)
+            warnings.warn(message, RuntimeWarning)
+            phot = None
+    return spec, cont_model, linedata, continuumdata, phot
