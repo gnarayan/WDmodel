@@ -1,4 +1,4 @@
-import sys
+import time
 import warnings
 warnings.simplefilter('once')
 import os
@@ -8,7 +8,6 @@ import scipy.stats as scistat
 import scipy.signal as scisig
 from iminuit import Minuit
 import emcee
-from emcee.utils import MPIPool
 import h5py
 from clint.textui import progress
 from .WDmodel import WDmodel
@@ -486,5 +485,144 @@ def fit_model(spec, phot, model, params,\
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     samples = np.array(dset_chain)
+    lnprob  = np.array(dset_lnprob)
     outf.close()
-    return  samples
+    return  samples, lnprob
+
+
+#**************************************************************************************************************
+def mpi_fit_model(spec, phot, model, params,\
+            objname, outdir, specfile,\
+            rvmodel='od94',\
+            ascale=2.0, nwalkers=200, nburnin=500, nprod=2000, everyn=1, pool=None,\
+            redo=False):
+    """
+    Models the spectrum using the white dwarf model and a gaussian process with
+    an exponential squared kernel to account for any flux miscalibration
+
+    TODO: add modeling the phot
+
+    Accepts
+        spec: recarray spectrum with wave, flux, flux_err
+        phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
+        model: WDmodel.WDmodel instance
+        param: dict of parameters with keywords value, fixed, bounds for each
+
+    Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
+    posterior. Does a short burn-in around the initial guess model parameters -
+    either minuit or user supplied values/defaults. Model parameters may be
+    frozen/fixed. Parameters can have bounds limiting their range.
+
+    The prior is a tophat on all parameters, preventing them from going out of
+    range. The WDmodel.likelihood class can implement additional priors on
+    parameters.
+
+    """
+
+    # parse the params to create a dictionary and init the WDmodel.likelihood.WDmodel_Likelihood instance
+    setup_args = {}
+    bounds     = []
+    scales     = {}
+    fixed      = {}
+    for param in likelihood._PARAMETER_NAMES:
+        setup_args[param] = params[param]['value']
+        bounds.append(params[param]['bounds'])
+        scales[param] = params[param]['scale']
+        fixed[param] = params[param]['fixed']
+
+    setup_args['bounds'] = bounds
+    lnprob = likelihood.WDmodel_Likelihood(**setup_args)
+
+    # freeze any parameters that we want fixed
+    for param, val in fixed.items():
+        if val:
+            print "Freezing {}".format(param)
+            lnprob.freeze_parameter(param)
+
+    nparam   = lnprob.vector_size
+
+    # get the starting position and the scales for each parameter
+    init_p0  = lnprob.get_parameter_dict()
+    p0       = init_p0.values()
+    free_param_names = init_p0.keys()
+    std = [scales[x] for x in free_param_names]
+
+    if nwalkers==0:
+        print "nwalkers set to 0. Not running MCMC"
+        return
+
+    # create a sample ball 
+    pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
+    pos = fix_pos(pos, free_param_names, params)
+
+    # setup the sampler
+    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
+            a=ascale, args=(spec, model, rvmodel, lnprob, everyn), pool=pool) 
+
+    # do a short burn-in
+    if nburnin > 0:
+        print "Burn-in"
+        pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
+        sampler.reset()
+        lnprob.set_parameter_vector(pos[np.argmax(prob)])
+        print "\nParameters after Burn-in"
+        for k, v in lnprob.get_parameter_dict().items():
+            print "{} = {:f}".format(k,v)
+
+        # init a new set of walkers around the maximum likelihood position from the burn-in
+        burnin_p0 = pos[np.argmax(prob)]
+        pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
+        burnin_params = params.copy()
+        for i, key in enumerate(free_param_names):
+            burnin_params[key]['value'] = burnin_p0[i]
+        pos = fix_pos(pos, free_param_names, burnin_params)
+
+    # create a HDF5 file to hold the chain data
+    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5')
+    if os.path.exists(outfile) and (not redo):
+        message = "Output file %s already exists. Specify --redo to clobber."%outfile
+        raise IOError(message)
+
+    # setup incremental chain saving
+    outf = h5py.File(outfile, 'w')
+    chain = outf.create_group("chain")
+
+    # save some other attributes about the chain
+    chain.create_dataset("nwalkers", data=nwalkers)
+    chain.create_dataset("nprod", data=nprod)
+    chain.create_dataset("nparam", data=nparam)
+    chain.create_dataset("everyn",data=everyn)
+    names = lnprob.get_parameter_names()
+    names = np.array(names)
+    dt = names.dtype.str.lstrip('|')
+    chain.create_dataset("names",data=names, dtype=dt)
+    
+    # save the parameter configuration as well
+    names = lnprob.get_parameter_names(include_frozen=True)
+    names = np.array(names)
+    dt = names.dtype.str.lstrip('|')
+    par_grp = outf.create_group("params")
+    par_grp.create_dataset("names",data=names, dtype=dt)
+    for param in params:
+        this_par = par_grp.create_group(param)
+        this_par.create_dataset("value",data=params[param]["value"])
+        this_par.create_dataset("fixed",data=params[param]["fixed"])
+        this_par.create_dataset("scale",data=params[param]["scale"])
+        this_par.create_dataset("bounds",data=params[param]["bounds"])
+
+    # production
+    start = time.clock()
+    print "Started at : {:f}".format(start)
+    pos, prob, state = sampler.run_mcmc(pos, nprod)
+    end = time.clock()
+    print "Stopped at : {:f}".format(end)
+    print "Done in {:f} minutes".format((end-start)/60.)
+    dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
+    dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
+
+    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+
+    samples = np.array(dset_chain)
+    lnprob  = np.array(dset_lnprob)
+    outf.close()
+    return  samples, lnprob
