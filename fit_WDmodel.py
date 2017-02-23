@@ -25,7 +25,7 @@ def get_options(args=None):
             help="Specify parameter config JSON file")
 
     args, remaining_argv = conf_parser.parse_known_args(args)
-    params = WDmodel.io.read_param_defaults(param_file=args.param_file)
+    params = WDmodel.io.read_params(param_file=args.param_file)
 
     # now that we've gotten the param_file and the params (either custom, or default), create the parse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,\
