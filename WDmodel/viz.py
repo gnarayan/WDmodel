@@ -55,7 +55,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     rv   = result['rv']['value']
     fwhm = result['fwhm']['value']
 
-    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave)
+    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv)
     smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
     outlabel = 'Model\nTeff = {:.1f} K\nlog(g) = {:.2f}\nAv = {:.2f} mag\ndl = {:.2f}'.format(teff, logg, av, dl)
 
