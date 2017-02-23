@@ -95,7 +95,7 @@ def get_options(args=None):
             help="Specify proposal scale for MCMC") 
     mcmc.add_argument('--nwalkers',  required=False, type=int, default=200,\
             help="Specify number of walkers to use (0 disables MCMC)")
-    mcmc.add_argument('--nburnin',  required=False, type=int, default=200,\
+    mcmc.add_argument('--nburnin',  required=False, type=int, default=50,\
             help="Specify number of steps for burn-in")
     mcmc.add_argument('--nprod',  required=False, type=int, default=1000,\
             help="Specify number of steps for production")
