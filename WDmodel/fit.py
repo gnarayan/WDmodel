@@ -1,3 +1,4 @@
+import sys
 import warnings
 warnings.simplefilter('once')
 import os
@@ -7,6 +8,7 @@ import scipy.stats as scistat
 import scipy.signal as scisig
 from iminuit import Minuit
 import emcee
+from emcee.utils import MPIPool
 import h5py
 from clint.textui import progress
 from .WDmodel import WDmodel
@@ -271,20 +273,23 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     av_bounds   = params['av']['bounds']
     dl_bounds   = params['dl']['bounds']
 
+    # ignore the covariance and define a simple chi2 to minimize
     def chi2(teff, logg, av, dl):
         mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
         mod *= (1./(4.*np.pi*(dl)**2.))
         chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
         return chi2
 
+    # use minuit to refine our starting guess
     m = Minuit(chi2, teff=teff0, logg=logg0, av=av0, dl=dl0,\
                 fix_teff=fix_teff, fix_logg=fix_logg, fix_av=fix_av, fix_dl=fix_dl,\
                 error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_dl=dl_scale,\
                 limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_dl=dl_bounds,\
                 print_level=1, pedantic=True, errordef=1)
-
-    
+   
     outfnmin, outpar = m.migrad()
+ 
+    # there's some objects for which minuit will fail
     if outfnmin['is_valid']:
         try:
             m.hesse()
@@ -296,13 +301,19 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
         warnings.warn(message, RuntimeWarning)
 
     result = m.values
-    errors = m.errors 
+    errors = m.errors
+    # duplicate the input dicrionary and update
     migrad_params = params.copy()
     for param in result:
         migrad_params[param]['value'] = result[param]
         migrad_params[param]['scale'] = errors[param]
 
     return migrad_params
+
+
+#**************************************************************************************************************
+
+loglikelihood = likelihood.loglikelihood
 
 
 #**************************************************************************************************************
@@ -336,6 +347,7 @@ def fit_model(spec, phot, model, params,\
     Incrementally saves the chain. 
     """
 
+    # parse the params to create a dictionary and init the WDmodel.likelihood.WDmodel_Likelihood instance
     setup_args = {}
     bounds     = []
     scales     = {}
@@ -348,35 +360,30 @@ def fit_model(spec, phot, model, params,\
 
     setup_args['bounds'] = bounds
     lnprob = likelihood.WDmodel_Likelihood(**setup_args)
+
+    # freeze any parameters that we want fixed
     for param, val in fixed.items():
         if val:
             print "Freezing {}".format(param)
             lnprob.freeze_parameter(param)
 
-
     nparam   = lnprob.vector_size
+
+    # get the starting position and the scales for each parameter
     init_p0  = lnprob.get_parameter_dict()
     p0       = init_p0.values()
-
     std = [scales[x] for x in init_p0.keys()]
-
-    # define the likelihood function locally
-    # TODO - the drawback here is that it breaks multiprocessing
-    def loglikelihood(theta, spec, model, rvmodel):
-        lnprob.set_parameter_vector(theta)
-        out = lnprob.lnprior()
-        if not np.isfinite(out):
-            return out
-        out += lnprob.get_value(spec, model, rvmodel, everyn)
-        return out
 
     if nwalkers==0:
         print "nwalkers set to 0. Not running MCMC"
         return
 
-    # setup the sampler
+    # create a sample ball 
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
-    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood, a=ascale, args=(spec, model, rvmodel)) 
+
+    # setup the sampler
+    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
+            a=ascale, args=(spec, model, rvmodel, lnprob, everyn)) 
 
     # do a short burn-in
     if nburnin > 0:
@@ -389,6 +396,7 @@ def fit_model(spec, phot, model, params,\
             print "{} = {:f}".format(k,v)
         pos = emcee.utils.sample_ball(pos[np.argmax(prob)], std, size=nwalkers)
 
+    # create a HDF5 file to hold the chain data
     outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.mcmc.hdf5')))
     if os.path.exists(outfile) and (not redo):
         message = "Output file %s already exists. Specify --redo to clobber."%outfile
@@ -432,6 +440,7 @@ def fit_model(spec, phot, model, params,\
             dset_lnprob[nwalkers*i:nwalkers*(i+1)] = lnpost
             outf.flush()
             bar.show(i+1)
+
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     samples = np.array(dset_chain)
