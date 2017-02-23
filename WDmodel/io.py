@@ -7,6 +7,23 @@ import json
 import h5py
 from . import likelihood
 
+def write_params(params, outfile):
+    """
+    Dumps the parameter dictionary params to a JSON file
+
+    params is a dict the parameter names, as defined in WDmodel.likelihood.PARAMETER_NAMES as keys
+    Each key must have a dictionary with keys 
+        "default" : default value - make sure this is a floating point
+        "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
+        "scale"   : a scale parameter used to set the step size in this dimension 
+        "bounds"  : An upper and lower limit on parameter values. Use null for None.
+
+    Note that JSON doesn't preserve ordering necessarily - this is enforced by read_params
+    """
+    with open(outfile, 'w') as f:
+        json.dump(params, f, indent=4)
+
+
 def read_param_defaults(param_file=None):
     """
     Read a JSON file that configures the default guesses and bounds for the
@@ -249,7 +266,18 @@ def set_objname_outdir_for_specfile(specfile, outdir=None):
     return objname, dirname
 
 
-def save_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outdir, specfile, redo=False):
+def get_outfile(outdir, specfile, ext):
+    """
+    Returns the full path to a file given outdir, specfile
+    Replaces .flm at the end of specfile with extension ext (i.e. you need to include the period)
+    We set the output file based on the spectrum name, since we can have multiple spectra per object
+    If outdir is configured by get_objname_outdir_for_specfile, it'll take care of the objname
+    """
+    outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm', ext)))
+    return outfile
+
+
+def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile, redo=False):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
@@ -266,12 +294,10 @@ def save_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outdir, spe
 
     Accepts a recarray spectrum (spec), recarray photometry (phot), a recarray
     continuum model (cont_model), recarray Balmer line data (linedata) and
-    recarray continuum line data (continuumdata) as well as outdir, specfile to
+    recarray continuum line data (continuumdata) as well as outfile to
     control where the output is written.
     """
 
-    # we set the output file based on the spectrum name, since we can have multiple spectra per object
-    outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.inputs.hdf5')))
     if os.path.exists(outfile) and (not redo):
         message = "Output file %s already exists. Specify --redo to clobber."%outfile
         raise IOError(message)
