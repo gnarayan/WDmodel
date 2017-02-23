@@ -12,6 +12,7 @@ from emcee.utils import MPIPool
 import h5py
 from clint.textui import progress
 from .WDmodel import WDmodel
+from . import io
 from . import likelihood
 
 
@@ -315,7 +316,6 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
 loglikelihood = likelihood.loglikelihood
 
-
 #**************************************************************************************************************
 
 def fit_model(spec, phot, model, params,\
@@ -397,7 +397,7 @@ def fit_model(spec, phot, model, params,\
         pos = emcee.utils.sample_ball(pos[np.argmax(prob)], std, size=nwalkers)
 
     # create a HDF5 file to hold the chain data
-    outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm','.mcmc.hdf5')))
+    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5')
     if os.path.exists(outfile) and (not redo):
         message = "Output file %s already exists. Specify --redo to clobber."%outfile
         raise IOError(message)
@@ -446,5 +446,3 @@ def fit_model(spec, phot, model, params,\
     samples = np.array(dset_chain)
     outf.close()
     return  samples
-
-
