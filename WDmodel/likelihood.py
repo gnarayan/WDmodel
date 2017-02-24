@@ -33,7 +33,7 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = _PARAMETER_NAMES
 
-    def get_value(self, spec, model, rvmodel, n):
+    def get_value(self, spec, model, rvmodel):
         """
         Returns the log likelihood of the data given the model
         """
