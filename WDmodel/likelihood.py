@@ -1,7 +1,7 @@
 import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm
-from george import GP
+from george import GP, HODLRSolver
 from george.kernels import ExpSquaredKernel
 
 # Declare this tuple to init the likelihood model, and to preserve order of parameters
@@ -41,7 +41,7 @@ class WDmodel_Likelihood(Model):
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
-        gp = GP(kernel, mean=0.)
+        gp = GP(kernel, mean=0., solver=HODLRSolver)
         try:
             gp.compute(spec.wave[::n], spec.flux_err[::n])
         except ValueError:
