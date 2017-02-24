@@ -415,9 +415,12 @@ def fit_model(spec, phot, model, params,\
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
     pos = fix_pos(pos, free_param_names, params)
 
+    if everyn != 1:
+        spec = spec[::everyn]
+
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, model, rvmodel, lnprob, everyn)) 
+            a=ascale, args=(spec, model, rvmodel, lnprob)) 
 
     # do a short burn-in
     if nburnin > 0:
@@ -555,9 +558,12 @@ def mpi_fit_model(spec, phot, model, params,\
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
     pos = fix_pos(pos, free_param_names, params)
 
+    if everyn != 1:
+        spec = spec[::everyn]
+
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, model, rvmodel, lnprob, everyn), pool=pool) 
+            a=ascale, args=(spec, model, rvmodel, lnprob), pool=pool) 
 
     # do a short burn-in
     if nburnin > 0:

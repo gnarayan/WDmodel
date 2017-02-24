@@ -43,11 +43,11 @@ class WDmodel_Likelihood(Model):
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
         gp = GP(kernel, mean=0., solver=HODLRSolver)
         try:
-            gp.compute(spec.wave[::n], spec.flux_err[::n])
+            gp.compute(spec.wave, spec.flux_err)
         except ValueError:
             return -np.inf
         #TODO - add the photometry here
-        return gp.lnlikelihood(res[::n], quiet=True) 
+        return gp.lnlikelihood(res, quiet=True) 
 
 
     def lnprior(self):
@@ -80,10 +80,10 @@ class WDmodel_Likelihood(Model):
             return out
 
 
-def loglikelihood(theta, spec, model, rvmodel , lnprob, everyn):
+def loglikelihood(theta, spec, model, rvmodel , lnprob):
     lnprob.set_parameter_vector(theta)
     out = lnprob.lnprior()
     if not np.isfinite(out):
         return -np.inf
-    out += lnprob.get_value(spec, model, rvmodel, everyn)
+    out += lnprob.get_value(spec, model, rvmodel)
     return out
