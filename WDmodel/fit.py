@@ -218,8 +218,6 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     return spec, cont_model, linedata, continuumdata
 
 
-#**************************************************************************************************************
-
 def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     """
     Does a quick fit of the spectrum to get an initial guess of the fit parameters
@@ -348,12 +346,10 @@ def fix_pos(pos, free_param_names, params):
     return pos
 
 
-
-#**************************************************************************************************************
 def fit_model(spec, phot, model, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
-            ascale=2.0, nwalkers=200, nburnin=500, nprod=2000, everyn=1,\
+            ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1,\
             redo=False):
     """
     Models the spectrum using the white dwarf model and a gaussian process with
@@ -365,7 +361,7 @@ def fit_model(spec, phot, model, params,\
         spec: recarray spectrum with wave, flux, flux_err
         phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
         model: WDmodel.WDmodel instance
-        param: dict of parameters with keywords value, fixed, bounds for each
+        params: dict of parameters with keywords value, fixed, bounds for each
 
     Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
     posterior. Does a short burn-in around the initial guess model parameters -
@@ -457,10 +453,11 @@ def fit_model(spec, phot, model, params,\
     chain.create_dataset("nprod", data=nprod)
     chain.create_dataset("nparam", data=nparam)
     chain.create_dataset("everyn",data=everyn)
-    names = lnprob.get_parameter_names()
-    names = np.array(names)
-    dt = names.dtype.str.lstrip('|')
-    chain.create_dataset("names",data=names, dtype=dt)
+
+    # save the parameter names corresponding to the chain 
+    free_param_names = np.array(free_param_names)
+    dt = free_param_names.dtype.str.lstrip('|')
+    chain.create_dataset("names",data=free_param_names, dtype=dt)
     
     # save the parameter configuration as well
     names = lnprob.get_parameter_names(include_frozen=True)
@@ -487,17 +484,17 @@ def fit_model(spec, phot, model, params,\
 
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
-    samples = np.array(dset_chain)
-    lnprob  = np.array(dset_lnprob)
+    samples         = np.array(dset_chain)
+    samples_lnprob  = np.array(dset_lnprob)
     outf.close()
-    return  samples, lnprob
+
+    return  free_param_names, samples, samples_lnprob
 
 
-#**************************************************************************************************************
 def mpi_fit_model(spec, phot, model, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
-            ascale=2.0, nwalkers=200, nburnin=500, nprod=2000, everyn=1, pool=None,\
+            ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
             redo=False):
     """
     Models the spectrum using the white dwarf model and a gaussian process with
@@ -509,7 +506,7 @@ def mpi_fit_model(spec, phot, model, params,\
         spec: recarray spectrum with wave, flux, flux_err
         phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
         model: WDmodel.WDmodel instance
-        param: dict of parameters with keywords value, fixed, bounds for each
+        params: dict of parameters with keywords value, fixed, bounds for each
 
     Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
     posterior. Does a short burn-in around the initial guess model parameters -
@@ -519,6 +516,11 @@ def mpi_fit_model(spec, phot, model, params,\
     The prior is a tophat on all parameters, preventing them from going out of
     range. The WDmodel.likelihood class can implement additional priors on
     parameters.
+
+    This version is identical to the fit_model() routine except for the
+    incremental chain saving It's intended for use with mpifit_WDmodel.py since
+    with MPI, we do not want the pool sitting idle, while master is making
+    incremental writes to disk.
 
     """
 
@@ -558,6 +560,7 @@ def mpi_fit_model(spec, phot, model, params,\
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
     pos = fix_pos(pos, free_param_names, params)
 
+    # only use every n'th point - useful for testing since we want speedup
     if everyn != 1:
         spec = spec[::everyn]
 
@@ -589,7 +592,9 @@ def mpi_fit_model(spec, phot, model, params,\
         message = "Output file %s already exists. Specify --redo to clobber."%outfile
         raise IOError(message)
 
-    # setup incremental chain saving
+    # setup chain saving
+    # NOTE THAT THIS IS NOT INCREMENTAL WITH MPI
+    # We don't want the entire pool sitting around while master is buys writing to disk
     outf = h5py.File(outfile, 'w')
     chain = outf.create_group("chain")
 
@@ -598,10 +603,10 @@ def mpi_fit_model(spec, phot, model, params,\
     chain.create_dataset("nprod", data=nprod)
     chain.create_dataset("nparam", data=nparam)
     chain.create_dataset("everyn",data=everyn)
-    names = lnprob.get_parameter_names()
-    names = np.array(names)
-    dt = names.dtype.str.lstrip('|')
-    chain.create_dataset("names",data=names, dtype=dt)
+
+    free_param_names = np.array(free_param_names)
+    dt = free_param_names.dtype.str.lstrip('|')
+    chain.create_dataset("names",data=free_param_names, dtype=dt)
     
     # save the parameter configuration as well
     names = lnprob.get_parameter_names(include_frozen=True)
@@ -623,12 +628,70 @@ def mpi_fit_model(spec, phot, model, params,\
     end = time.clock()
     print "Stopped at : {:f}".format(end)
     print "Done in {:f} minutes".format((end-start)/60.)
+
+    # save the chain and 
     dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
     dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
 
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
-    samples = np.array(dset_chain)
-    lnprob  = np.array(dset_lnprob)
+    samples         = np.array(dset_chain)
+    samples_lnprob  = np.array(dset_lnprob)
     outf.close()
-    return  samples, lnprob
+
+    return  free_param_names, samples, samples_lnprob
+
+
+def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nwalkers=300, nprod=1000, discard=5): 
+    """
+    Get the margnialized parameters from the sample chain
+
+    Accepts
+        param_names: ordered vector of parameter names, corresponding to each of the dimensions of sample
+        samples: flat chain (nwalker*nprod, ndim) array of walker positions
+        samples_lnprob: flat chain (nwalker*nprod) array of log likelihood corresponding to sampler position
+        params: dict of parameters with keywords value, fixed, bounds for each
+
+        The following keyword arguments should be consistent with the call to fit_model/mpifit_model
+            nwalkers: number of walkers
+            nprod:  number of steps
+
+        Finally, even with the burn-in, the walkers may be tightly correlated
+        initially, so the discard keyword allows a percentage of the nprod
+        steps to be discarded.
+            discard: percentage of nprod steps to discard
+
+    Returns dictionary with the marginalized parameter values and errors
+    """
+
+    ndim = len(param_names)
+
+    in_samp   = samples.reshape(nwalkers, nprod, ndim)
+    in_lnprob = samples_lnprob.reshape(nwalkers, nprod)
+
+    # discard the first %discard steps from all the walkers
+    nstart    = int(np.ceil((discard/100.)*nprod))
+    in_samp   = in_samp[:,nstart:,:]
+    in_lnprob = in_lnprob[:,nstart:]
+
+    in_samp = in_samp.reshape((-1, ndim))
+    in_lnprob = in_lnprob.reshape(in_samp.shape[0])
+        
+    mask = np.isfinite(in_lnprob)
+
+    result = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]), zip(*np.percentile(in_samp[mask,:], [16, 50, 84], axis=0)))
+    print zip(param_names, result)
+    for i, param in enumerate(param_names):
+        params[param]['value']  = result[i][0]
+        params[param]['bounds'] = (result[i][0] - result[i][2], result[i][1] + result[i][0])
+        params[param]['errors_pm'] = (result[i][1], result[i][2])
+        scale = float(np.std(in_samp[mask,i]))
+        params[param]['scale']  = scale
+    fixed_params = set(params.keys()) - set(param_names)
+    for param in fixed_params:
+        if params[param]['fixed']:
+            params[param]['scale'] = 0.
+        else:
+            # this should never happen, unless we did something stupid between fit_WDmodel and mpifit_WDmodel
+            print "Huh.... {} not marked as fixed but was not fit for...".format(param)
+    return params
