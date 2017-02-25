@@ -17,9 +17,15 @@ def write_params(params, outfile):
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
         "scale"   : a scale parameter used to set the step size in this dimension 
         "bounds"  : An upper and lower limit on parameter values. Use null for None.
+    Any extra keys are simply written as-is
 
     Note that JSON doesn't preserve ordering necessarily - this is enforced by read_params
     """
+    for param in params:
+        if not all (key in params[param] for key in ("value","fixed","scale", "bounds")):
+            message = "Parameter {} does not have value|fixed|bounds specified in params dict".format(param)
+            raise KeyError(message)
+
     with open(outfile, 'w') as f:
         json.dump(params, f, indent=4)
 
@@ -34,6 +40,7 @@ def read_params(param_file=None):
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
         "scale"   : a scale parameter used to set the step size in this dimension 
         "bounds"  : An upper and lower limit on parameter values. Use null for None.
+    And extra keys are simply loaded as-is
 
     Note that the default bounds are set by the grids available for the DA
     White Dwarf atmospheres, and by reasonable plausible ranges for the other
@@ -232,7 +239,6 @@ def get_phot_for_obj(objname, filename, ignore=False):
     return out_phot
 
 
-
 def make_outdirs(dirname):
     """
     Checks if output directory exists, else creates it
@@ -331,6 +337,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile, r
         dset_phot.create_dataset("mag_err",data=phot.mag_err)
 
     outf.close()
+
 
 def read_fit_inputs(input_file):
     """
