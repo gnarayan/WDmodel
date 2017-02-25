@@ -50,6 +50,13 @@ def main(pool):
                 rvmodel=rvmodel,\
                 ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
                 redo=redo, pool=pool)
+
+    param_names, samples, samples_lnprob = result
+    mcmc_params = migrad_params.copy()
+    mcmc_params = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
+                    nwalkers=nwalkers, nprod=nprod, discard=discard)
+    outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
+    WDmodel.io.write_params(mcmc_params, outfile)
     # make plot
 
 

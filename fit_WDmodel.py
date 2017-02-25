@@ -170,9 +170,10 @@ def main():
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
-    discard   = args.discard
     everyn    = args.everyn
     redo      = args.redo
+
+    discard   = args.discard
 
     balmer    = args.balmerlines
 
@@ -246,6 +247,13 @@ def main():
                     rvmodel=rvmodel,\
                     ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
                     redo=redo)
+
+        param_names, samples, samples_lnprob = result
+        mcmc_params = migrad_params.copy()
+        mcmc_params = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
+                        nwalkers=nwalkers, nprod=nprod, discard=discard)
+        outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
+        WDmodel.io.write_params(mcmc_params, outfile)
 
         sys.exit(-1)
         # plot the MCMC output
