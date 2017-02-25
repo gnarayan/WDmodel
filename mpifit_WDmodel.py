@@ -52,7 +52,7 @@ def main(pool):
                 redo=redo, pool=pool)
 
     param_names, samples, samples_lnprob = result
-    mcmc_params = migrad_params.copy()
+    mcmc_params = params.copy()
     mcmc_params = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                     nwalkers=nwalkers, nprod=nprod, discard=discard)
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
