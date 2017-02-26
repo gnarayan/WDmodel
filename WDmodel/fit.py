@@ -661,7 +661,10 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
         steps to be discarded.
             discard: percentage of nprod steps to discard
 
-    Returns dictionary with the marginalized parameter values and errors
+    Returns dictionary with the marginalized parameter values and errors,
+    filtered flat chain of sampler position, filtered flat chain of log
+    likelihood corresponding to sampler position
+
     """
 
     ndim = len(param_names)
@@ -680,7 +683,6 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
     mask = np.isfinite(in_lnprob)
 
     result = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]), zip(*np.percentile(in_samp[mask,:], [16, 50, 84], axis=0)))
-    print zip(param_names, result)
     for i, param in enumerate(param_names):
         params[param]['value']  = result[i][0]
         params[param]['bounds'] = (result[i][0] - result[i][2], result[i][1] + result[i][0])
@@ -694,4 +696,4 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
         else:
             # this should never happen, unless we did something stupid between fit_WDmodel and mpifit_WDmodel
             print "Huh.... {} not marked as fixed but was not fit for...".format(param)
-    return params
+    return params, in_samp, in_lnprob
