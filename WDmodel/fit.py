@@ -693,7 +693,8 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
     for param in fixed_params:
         if params[param]['fixed']:
             params[param]['scale'] = 0.
+            params[param]['errors_pm'] = (0., 0.)
         else:
             # this should never happen, unless we did something stupid between fit_WDmodel and mpifit_WDmodel
             print "Huh.... {} not marked as fixed but was not fit for...".format(param)
-    return params, in_samp, in_lnprob
+    return params, in_samp[mask,:], in_lnprob[mask]
