@@ -263,7 +263,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
         # label the axis and match the limits for the overall residuals
         ax_resid.set_xlabel('Fit Residual Flux', fontproperties=font_m)
         ax_resid.set_ylabel('Norm', fontproperties=font_m)
-        ax_resid.set_xlim((res_xlim, res_xmax))
+        ax_resid.set_xlim((res_xmin, res_xmax))
         ax_resid.legend(frameon=False, prop=font_s)
         ax_resid.set_xticklabels(ax_resid.xaxis.get_majorticklabels(), rotation=45)
         k+=1
