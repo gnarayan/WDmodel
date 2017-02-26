@@ -31,6 +31,7 @@ def main(pool):
     redo      = args.redo
     balmer    = args.balmerlines
     ndraws    = args.ndraws
+    savefig   = args.savefig
 
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
@@ -66,7 +67,7 @@ def main(pool):
                 objname, outdir, specfile,\
                 model, cont_model,\
                 mcmc_params, param_names, in_samp, in_lnprob,\
-                rvmodel=rvmodel, balmer=balmer, ndraws=ndraws)
+                rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
 
     return
 

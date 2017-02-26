@@ -110,6 +110,8 @@ def get_options(args=None):
             help="Specify Balmer lines to visualize [1:7]")
     viz.add_argument('--ndraws', required=False, type=int, default=21,\
             help="Specify number of draws from posterior to overplot for model")
+    viz.add_argument('--savefig',  required=False, action="store_true", default=False,\
+            help="Save individual plots")
 
     # output options
     output = parser.add_argument_group('output', 'Output options')
@@ -179,7 +181,7 @@ def main():
 
     balmer    = args.balmerlines
     ndraws    = args.ndraws
-
+    savefig   = args.savefig
 
     ##### SETUP #####
 
@@ -263,7 +265,7 @@ def main():
                     objname, outdir, specfile,\
                     model, cont_model,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
-                    rvmodel=rvmodel, balmer=balmer, ndraws=ndraws)
+                    rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
 
     return
 
