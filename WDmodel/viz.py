@@ -18,7 +18,7 @@ import corner
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 
-def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvmodel='od94', save=False):
+def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvmodel='od94', save=True):
     """
     Quick plot to show the output from the limited Minuit fit of the spectrum.
     This fit doesn't try to account for the covariance in the data, and is not
@@ -81,7 +81,8 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     return fig 
 
 
-def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, samples, rvmodel='od94', ndraws=21):
+def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, samples,\
+        rvmodel='od94', ndraws=21):
     """
     Plot the full spectrum of the DA White Dwarf 
     """
@@ -160,6 +161,52 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
     
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     return fig, out
+
+
+def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
+    """
+    Plot the full spectrum of the DA White Dwarf 
+    """
+
+    font_s  = FM(size='small')
+    font_m  = FM(size='medium')
+    font_l  = FM(size='large')
+
+    fig = plt.figure(figsize=(10,8))
+    gs = gridspec.GridSpec(2, 1, height_ratios=[4,1])
+    ax_spec  = fig.add_subplot(gs[0])
+    ax_resid = fig.add_subplot(gs[1])
+
+    ax_spec.fill_between(spec.wave, spec.flux+spec.flux_err, spec.flux-spec.flux_err,\
+        facecolor='grey', alpha=0.5, interpolate=True)
+    ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
+    ax_spec.plot(cont_model.wave, cont_model.flux, color='blue', linestyle='--', marker='None', label='Continuum')
+
+    smoothedmod, wres = draws[-1]
+    ax_resid.fill_between(spec.wave, spec.flux-smoothedmod+spec.flux_err, spec.flux-smoothedmod-spec.flux_err,\
+        facecolor='grey', alpha=0.5, interpolate=True)
+    ax_resid.plot(spec.wave, spec.flux - smoothedmod, color='black', linestyle='-', marker='None')
+
+    def plot_draw(draw, color='red', alpha=1.0, label=None):
+        smoothed_mod, wres = draw
+        ax_resid.plot(spec.wave, wres,  linestyle='-', marker=None,  color=color, alpha=alpha)
+        ax_spec.plot(spec.wave, smoothedmod, color=color, linestyle='-', marker='None', alpha=alpha, label=label)
+
+    for draw in draws[:-1]:
+        plot_draw(draw, color='orange', alpha=0.3)
+    plot_draw(draws[-1], color='red', alpha=1.0, label='Model - no Covariance')
+
+    # label the axes
+    ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font_m, ha='center')
+    ax_spec.set_ylabel('Normalized Flux', fontproperties=font_m)
+    ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
+    ax_spec.legend(frameon=False, prop=font_s)
+    fig.suptitle('MCMC Fit - No Covariance: %s (%s)'%(objname, specfile), fontproperties=font_l)
+    
+    gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
+
+    return fig
+
 
 
 def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
@@ -277,6 +324,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     gs2.tight_layout(fig2, rect=[0, 0.03, 1, 0.95])
+
     return fig, fig2
 
 
@@ -286,7 +334,7 @@ def plot_mcmc_model(spec, phot, linedata,\
         objname, outdir, specfile,\
         model, cont_model,\
         params, param_names, samples, samples_lnprob,\
-        rvmodel='od94', balmer=None, save=True, ndraws=21):
+        rvmodel='od94', balmer=None, save=True, ndraws=21, savefig=False):
     """
     Plot the full fit of the DA White Dwarf 
     """
@@ -296,10 +344,25 @@ def plot_mcmc_model(spec, phot, linedata,\
         # plot spectrum and model
         fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, model, params, param_names, samples,\
                 rvmodel=rvmodel, ndraws=ndraws)
+        if savefig:
+            outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum.pdf')
+            fig.savefig(outfile)
+        pdf.savefig(fig)
+
+        # plot continuum, model and draws without gp
+        fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws)
+        if savefig:
+            outfile = io.get_outfile(outdir, specfile, '_mcmc_nogp.pdf')
+            fig.savefig(outfile)
         pdf.savefig(fig)
 
         # plot lines
         fig, fig2 = plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=balmer)
+        if savefig:
+            outfile = io.get_outfile(outdir, specfile, '_mcmc_lines.pdf')
+            fig.savefig(outfile)
+            outfile = io.get_outfile(outdir, specfile, '_mcmc_resids.pdf')
+            fig2.savefig(outfile)
         pdf.savefig(fig)
         pdf.savefig(fig2)
         
@@ -307,6 +370,9 @@ def plot_mcmc_model(spec, phot, linedata,\
 
         # plot corner plot
         fig = corner.corner(samples, bins=51, labels=param_names, show_titles=True,quantiles=(0.16,0.84), smooth=1.)
+        if savefig:
+            outfile = io.get_outfile(outdir, specfile, '_mcmc_corner.pdf')
+            fig.savefig(outfile)
         pdf.savefig(fig)
         #endwith
     
