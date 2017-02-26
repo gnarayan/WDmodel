@@ -205,7 +205,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     ax_resid.set_xlabel('Fit Residual Flux', fontproperties=font_m)
     ax_resid.set_ylabel('Norm', fontproperties=font_m)
     ax_resid.legend(loc='upper left', frameon=False, prop=font_s)
-    ax_resid.set_xticklabels(ax_resid.xaxis.get_majorticklabels(), rotation=45)
+    plt.setp(ax_resid.get_xticklabels(), rotation=30, horizontalalignment='right')
     (res_xmin, res_xmax) = ax_resid.get_xlim()
     k = 1
 
@@ -265,7 +265,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
         ax_resid.set_ylabel('Norm', fontproperties=font_m)
         ax_resid.set_xlim((res_xmin, res_xmax))
         ax_resid.legend(frameon=False, prop=font_s)
-        ax_resid.set_xticklabels(ax_resid.xaxis.get_majorticklabels(), rotation=45)
+        plt.setp(ax_resid.get_xticklabels(), rotation=30, horizontalalignment='right')
         k+=1
 
     # label the axes
