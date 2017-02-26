@@ -108,6 +108,8 @@ def get_options(args=None):
     viz = parser.add_argument_group('viz', 'Visualization options')
     viz.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
             help="Specify Balmer lines to visualize [1:7]")
+    viz.add_argument('--ndraws', required=False, type=int, default=21,\
+            help="Specify number of draws from posterior to overplot for model")
 
     # output options
     output = parser.add_argument_group('output', 'Output options')
@@ -176,6 +178,7 @@ def main():
     discard   = args.discard
 
     balmer    = args.balmerlines
+    ndraws    = args.ndraws
 
 
     ##### SETUP #####
@@ -228,7 +231,6 @@ def main():
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
         migrad_params = params.copy()
 
-
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_params.json')
@@ -250,17 +252,18 @@ def main():
 
         param_names, samples, samples_lnprob = result
         mcmc_params = migrad_params.copy()
-        mcmc_params = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
+        result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                         nwalkers=nwalkers, nprod=nprod, discard=discard)
+        mcmc_params, in_samp, in_lnprob = result
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
         WDmodel.io.write_params(mcmc_params, outfile)
 
-        sys.exit(-1)
         # plot the MCMC output
-        WDmodel.viz.plot_model(spec, phot,\
+        WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                     objname, outdir, specfile,\
-                    model, result,\
-                    balmer=balmer, discard=discard)
+                    model, cont_model,\
+                    mcmc_params, param_names, in_samp, in_lnprob,\
+                    rvmodel=rvmodel, balmer=balmer, ndraws=ndraws)
 
     return
 

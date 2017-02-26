@@ -29,6 +29,8 @@ def main(pool):
     discard   = args.discard
     everyn    = args.everyn
     redo      = args.redo
+    balmer    = args.balmer
+    ndraws    = args.ndraws
 
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
@@ -53,12 +55,20 @@ def main(pool):
 
     param_names, samples, samples_lnprob = result
     mcmc_params = params.copy()
-    mcmc_params = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
+    result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                     nwalkers=nwalkers, nprod=nprod, discard=discard)
+    mcmc_params, in_samp, in_lnprob = result
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
     WDmodel.io.write_params(mcmc_params, outfile)
-    # make plot
 
+    # plot the MCMC output
+    WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+                objname, outdir, specfile,\
+                model, cont_model,\
+                mcmc_params, param_names, in_samp, in_lnprob,\
+                rvmodel=rvmodel, balmer=balmer, ndraws=ndraws)
+
+    return
 
 if __name__ =='__main__':
     # Initialize the MPI-based pool used for parallelization.
