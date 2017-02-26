@@ -5,12 +5,13 @@ from . import io
 import scipy.interpolate as spinterp
 from astropy import units as u                                                                                          
 from specutils.extinction import reddening
+from scipy.ndimage.filters import gaussian_filter
 
 
-class WDmodel:
+class WDmodel(object):
     """
     Base class defines the routines to generate and work with DA White Dwarf
-    model spectrai. Requires the grid file - TlustyGrids.hdf5, or a custom
+    model spectra. Requires the grid file - TlustyGrids.hdf5, or a custom
     user-specified grid. Look at the package level help for description on the
     grid file. There are various convenience methods that begin with an
     underscore (_) that will  not be imported by default These are intended for
@@ -20,7 +21,7 @@ class WDmodel:
     def __init__(self, grid_file=None, grid_name=None):
         """
         constructs a white dwarf model atmosphere object
-        Virtually nore of the attributes should be used directly
+        Virtually none of the attributes should be used directly
         since it is trivially possible to break the model by redefining them
         Access to them is best through the functions connected to the models
         """
@@ -31,12 +32,13 @@ class WDmodel:
         eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,   5.0    ,   3.0   ]
         self._lines = dict(zip(lno, zip(lines, H, D, eps)))
         # we're passing grid_file so we know which model to init 
+        self._fwhm_to_sigma = np.sqrt(8.*np.log(2.))
         self.__init__tlusty(grid_file=grid_file)
 
 
     def __init__tlusty(self, grid_file=None, grid_name=None):
         """
-        Initalize the Tlusty Model <grid_name> from the grid file <grid_file>
+        Initialize the Tlusty Model <grid_name> from the grid file <grid_file>
         """
         self._fluxnorm = 1. #LEGACY CRUFT
 
@@ -67,13 +69,27 @@ class WDmodel:
         return (10.**self._model(xi))
 
 
-    def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False, redmod='od94'):
+    def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False, rvmodel='od94'):
         xi = self._get_xi(teff, logg, wave)
         mod = self._get_model(xi, log=log)
-        bluening = reddening(wave*u.Angrstrom, av, r_v=rv, model=redmod)
+        bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             mod = 10.**mod
         mod/=bluening
+        if log:
+            mod = np.log10(mod)
+        return mod
+
+
+    def _get_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, rvmodel='od94'):
+        xi = self._get_xi(teff, logg, wave)
+        mod = self._get_model(xi, log=log)
+        bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
+        if log:
+            mod = 10.**mod
+        mod/=bluening
+        gsig = fwhm/self._fwhm_to_sigma
+        mod = gaussian_filter(mod, gsig, order=0, mode='nearest')
         if log:
             mod = np.log10(mod)
         return mod
@@ -144,21 +160,22 @@ class WDmodel:
             message = 'No valid wavelengths'
             raise ValueError(message)
             
-    def get_red_model(self, teff, logg, av, rv=3.1, redmod='od94', wave=None, log=False, strict=True):
+            
+    def get_red_model(self, teff, logg, av, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
-        reddening law "redmod" at wavelengths wave If not specified,
+        reddening law "rvmodel" at wavelengths wave If not specified,
         wavelengths are from 3000-9000A Applies reddening that is specified to
         the spectrum (the model has no reddening by default)
 
-        Checks inputs for consistency and calls _get_xi(), _get_red_model() If you
-        need the model repeatedly for slightly different parameters, use those
-        functions directly
+        Checks inputs for consistency and calls _get_xi(), _get_model() If you
+        need the model repeatedly for slightly different parameters, use
+        _get_red_model directly.
         """
         modwave, modflux = self.get_model(teff, logg, wave=wave, log=log, strict=strict)
         av = float(av)
         rv = float(rv)
-        bluening = reddening(modwave*u.Angrstrom, av, r_v=rv, model=redmod)
+        bluening = reddening(modwave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             modflux = 10.**modflux
         modflux/=bluening
@@ -166,6 +183,27 @@ class WDmodel:
             modflux = np.log10(modflux)
         return modwave, modflux
 
+    
+    def get_obs_model(self, teff, logg, av, fwhm, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
+        """
+        Returns the model (wavelength and flux) for some teff, logg av, rv with
+        reddening law "rvmodel" at wavelengths wave If not specified,
+        wavelengths are from 3000-9000A Applies reddening that is specified to
+        the spectrum (the model has no reddening by default)
+
+        Checks inputs for consistency and calls _get_xi(), _get_model() If you
+        need the model repeatedly for slightly different parameters, use
+        _get_obs_model directly
+        """
+        modwave, modflux = self.get_red_model(teff, logg, av, rv=rv, rvmodel=rvmodel,\
+                wave=wave, log=log, strict=strict)
+        if log:
+            modflux = 10.**modflux
+        gsig     = fwhm/np.sqrt(8.*np.log(2.))
+        modflux = gaussian_filter(modflux, gsig, order=0, mode='nearest')
+        if log:
+            modflux = np.log10(modflux)
+        return modwave, modflux
 
 
 
@@ -185,6 +223,7 @@ class WDmodel:
         self._fluxnorm = modelmedian/datamedian
         return self._fluxnorm
 
+
     @classmethod
     def _get_indices_in_range(cls, w, WA, WB, W0=None):
         if W0 is None:
@@ -201,13 +240,6 @@ class WDmodel:
         _, W0, WID, DW = self._lines[line]
         WA  = W0 - WID - DW
         WB  = W0 + WID + DW
-        #wred  = w[((W0 + WID) <  w < WB)]        
-        #wblue = w[(WA < w < (W0 - WID))] 
-        #wbluecore = w[(W0 - WID) < w < W0]
-        #wredcore  = W[(W0 < w < (W0 + WID))]
-        #if len(wblue)==0 or len(wred) == 0 or len(wbluecore) == 0 or len(wredcore) == 0:
-        #    message = 'Spectrum does not adequately cover line %s'%line
-        #    raise ValueError(message)
         return self._get_indices_in_range(w, WA, WB, W0=W0)
 
 
@@ -233,7 +265,7 @@ class WDmodel:
         """
         try:
             _, W0, WID, DW = self._lines[line]
-        except KeyError, e:
+        except KeyError:
             message = 'Line name %s is not valid. Must be one of (%s)' %(str(line), ','.join(self._lines.keys())) 
             raise ValueError(message)
 
@@ -251,7 +283,7 @@ class WDmodel:
                 message = 'Shape mismatch between wavelength and fluxerr arrays'
                 raise ValueError(message)
 
-        return self._extract_spectral_line(w, f, ZE, df=df)
+        return self._extract_spectral_line(w, f, line, df=df)
 
 
     def _extract_spectral_line(self, w, f, line, df=None):
@@ -268,8 +300,10 @@ class WDmodel:
     def __getstate__(self):
         return self.__dict__
 
+
     def __setstate__(self, d):
         self.__dict__.update(d)
+
 
     __call__ = get_model
         
