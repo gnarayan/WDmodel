@@ -200,9 +200,13 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     res = spec.flux - smoothedmod - wres
     hist(res, bins='knuth', normed=True, histtype='stepfilled', color='grey', alpha=0.5, label='Residuals',ax=ax_resid)
     ax_resid.axvline(0., color='red', linestyle='--')
+
+    # label the axes, rotate the tick labels, and get the xlim
     ax_resid.set_xlabel('Fit Residual Flux', fontproperties=font_m)
     ax_resid.set_ylabel('Norm', fontproperties=font_m)
-    ax_resid.legend(frameon=False, prop=font_s)
+    ax_resid.legend(loc='upper left', frameon=False, prop=font_s)
+    ax_resid.set_xticklabels(ax_resid.xaxis.get_majorticklabels(), rotation=45)
+    (res_xmin, res_xmax) = ax_resid.get_xlim()
     k = 1
 
     for i, line in enumerate(np.unique(linedata.line_mask)):
@@ -227,7 +231,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
         shifted_ferr  = linedata.flux_err[mask]/this_line_cont
 
         # plot the lines, adding a small vertical offset between each
-        voff = 0.15*i
+        voff = 0.2*i
         ax_lines.fill_between(shifted_wave, shifted_flux + voff + shifted_ferr, shifted_flux + voff - shifted_ferr,\
                 facecolor='grey', alpha=0.5, interpolate=True)
         ax_lines.plot(shifted_wave, shifted_flux + voff, linestyle='-', marker='None', color='black')
@@ -255,16 +259,22 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
         hist(linedata.flux[mask] - (smoothedmod + wres)[ind] , bins='knuth', normed=True,ax=ax_resid,\
                 histtype='stepfilled', label=label, alpha=0.3, color=next(colors))
         ax_resid.axvline(0., color='red', linestyle='--')
+
+        # label the axis and match the limits for the overall residuals
         ax_resid.set_xlabel('Fit Residual Flux', fontproperties=font_m)
         ax_resid.set_ylabel('Norm', fontproperties=font_m)
+        ax_resid.set_xlim((res_xlim, res_xmax))
         ax_resid.legend(frameon=False, prop=font_s)
+        ax_resid.set_xticklabels(ax_resid.xaxis.get_majorticklabels(), rotation=45)
         k+=1
 
     # label the axes
     ax_lines.set_xlabel('Delta Wavelength~(\AA)',fontproperties=font_m, ha='center')
     ax_lines.set_ylabel('Normalized Flux', fontproperties=font_m)
+
     fig.suptitle('Line Profiles', fontproperties=font_l)
     fig2.suptitle('Residual Distributions', fontproperties=font_l)
+
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     gs2.tight_layout(fig2, rect=[0, 0.03, 1, 0.95])
     return fig, fig2
