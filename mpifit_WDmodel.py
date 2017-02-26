@@ -29,7 +29,7 @@ def main(pool):
     discard   = args.discard
     everyn    = args.everyn
     redo      = args.redo
-    balmer    = args.balmer
+    balmer    = args.balmerlines
     ndraws    = args.ndraws
 
     # set the object name and create output directories
