@@ -31,7 +31,9 @@ def get_options(args=None):
     # now that we've gotten the param_file and the params (either custom, or default), create the parse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,\
                     parents=[conf_parser],\
-                    description=__doc__)
+                    description=__doc__,\
+                    epilog="If running fit_WDmodel.py with MPI using mpirun,\
+                    mpi must be the first argument, and -np must be at least 2.")
 
     # create a couple of custom types to use with the parser 
     # this type exists to make a quasi bool type instead of store_false/store_true
