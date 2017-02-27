@@ -414,9 +414,12 @@ def fit_model(spec, phot, model, params,\
     if everyn != 1:
         spec = spec[::everyn]
 
+    # TODO get the passbands
+    pbmodel = None
+
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, model, rvmodel, lnprob)) 
+            a=ascale, args=(spec, phot model, rvmodel, pbmodel, lnprob)) 
 
     # do a short burn-in
     if nburnin > 0:
@@ -564,9 +567,10 @@ def mpi_fit_model(spec, phot, model, params,\
     if everyn != 1:
         spec = spec[::everyn]
 
+    pbmodel = None
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, model, rvmodel, lnprob), pool=pool) 
+            a=ascale, args=(spec, phot, model, rvmodel, pbmodel, lnprob), pool=pool) 
 
     # do a short burn-in
     if nburnin > 0:

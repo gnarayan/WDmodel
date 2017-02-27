@@ -33,7 +33,7 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = _PARAMETER_NAMES
 
-    def get_value(self, spec, model, rvmodel):
+    def get_value(self, spec, phot, model, rvmodel, pbmodel):
         """
         Returns the log likelihood of the data given the model
         """
@@ -80,10 +80,10 @@ class WDmodel_Likelihood(Model):
             return out
 
 
-def loglikelihood(theta, spec, model, rvmodel , lnprob):
+def loglikelihood(theta, spec, phot, model, rvmodel, pbmodel, lnprob):
     lnprob.set_parameter_vector(theta)
     out = lnprob.lnprior()
     if not np.isfinite(out):
         return -np.inf
-    out += lnprob.get_value(spec, model, rvmodel)
+    out += lnprob.get_value(spec, phot, model, rvmodel, pbmodel)
     return out
