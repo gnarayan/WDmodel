@@ -3,6 +3,7 @@ import sys
 import warnings
 warnings.simplefilter('once')
 import argparse
+from emcee.utils import MPIPool
 import numpy as np
 import WDmodel
 import WDmodel.io
@@ -157,8 +158,19 @@ def get_options(args=None):
 
 #**************************************************************************************************************
 
-def main():
-    args   = get_options(sys.argv[1:]) 
+def main(inargs=None, pool=None):
+
+    # Wait for instructions from the master process if we are running MPI
+    if pool is not None:
+        if not pool.is_master():
+            pool.wait()
+            sys.exit(0)
+            
+    if inargs is None:
+        inargs = sys.argv[1:]
+
+    # parse the arguments
+    args   = get_options(inargs) 
 
     specfile  = args.specfile
     bluelim, redlim   = args.trimspec
@@ -242,15 +254,21 @@ def main():
     ##### MCMC #####
 
 
-    # to allow running the MCMC with MPI easily, the single process MCMC can be skipped entirely
-    # all the inputs have been written to disk with save_inputs and save_params
+    # skipmcmc can be run to just prepare the inputs 
     if not args.skipmcmc:
         # fit the spectrum
-        result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
-                    objname, outdir, specfile,\
-                    rvmodel=rvmodel,\
-                    ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                    redo=redo)
+        if pool is None:
+            result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
+                        objname, outdir, specfile,\
+                        rvmodel=rvmodel,\
+                        ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
+                        redo=redo)
+        else:
+            result = WDmodel.fit.mpi_fit_model(spec, phot, model, params,\
+                        objname, outdir, specfile,\
+                        rvmodel=rvmodel,\
+                        ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
+                        redo=redo, pool=pool)
 
         param_names, samples, samples_lnprob = result
         mcmc_params = migrad_params.copy()
@@ -273,10 +291,19 @@ def main():
 #**************************************************************************************************************
 
 if __name__=='__main__':
-    main()
-    #cProfile.run('main()', 'profile.dat')
-    #import pstats
-    #p = pstats.Stats('profile.dat')
-    #p.sort_stats('cumulative','time').print_stats(20)
+    mpi = False
+    if str(sys.argv[1]).lower() == 'mpi':
+        pool = MPIPool()
+        mpi = True
+        inargs = sys.argv[2:]
+    else:
+        pool = None
+        inargs = sys.argv[1:]
+
+    main(inargs, pool)
+
+    if mpi:
+        # Close the processes.
+        pool.close()
 
 
