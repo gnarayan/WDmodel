@@ -272,9 +272,13 @@ def main(inargs=None, pool=None):
 
         param_names, samples, samples_lnprob = result
         mcmc_params = migrad_params.copy()
+
+        # parse the samples in the chain and get the result 
         result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                         nwalkers=nwalkers, nprod=nprod, discard=discard)
         mcmc_params, in_samp, in_lnprob = result
+
+        # write the result to a file
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
         WDmodel.io.write_params(mcmc_params, outfile)
 
