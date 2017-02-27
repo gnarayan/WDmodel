@@ -25,10 +25,18 @@ Very much in beta - caveat emptor
 This option is single threaded and slow, but useful to testing or quick
 exploratory analysis.
 
-A more reasonable way to run things fast is to use mpi. This involves running
-the fitter upto the MCMC stage to produce all the input files, and then
-skipping the stage in favor of running it over mpi.
+A more reasonable way to run things fast is to use mpi. 
 
+`mpirun -np 8 fit_WDmodel.py mpi --specfile=file.flm [--ignorephot]`  
+
+Note that `mpi` __MUST__ be the first option after `fit_WDmodel.py` and you
+must start the process with `mpirun`
+
+You can also run the MCMC again with different valies for `nburnin`, `nprod`
+and `nwalkers`. This involves running the fitter with the regular
+`fit_WDmodel.py`  at least upto the MCMC stage to produce all the input files,
+and then restoring the inputs to the MCMC stage and running with
+`mpifit_WDmodel.py`.
 
 `fit_WDmodel.py --specfile=file.flm [--ignorephot] --skipmcmc`  
 `mpirun -np 8 mpifit_WDmodel.py --specfile=file.flm [--ignorephot]`  
