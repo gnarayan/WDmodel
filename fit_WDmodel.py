@@ -67,6 +67,8 @@ def get_options(args=None):
             help="Specify file containing photometry lookup table for objects")
     phot.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
+    phot.add_argument('--excludepb', nargs='+',\
+            help="Specify passbands to exclude" )
     phot.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
             help="Ignores missing photometry and does the fit with just the spectrum")
 
@@ -182,6 +184,7 @@ def main(inargs=None, pool=None):
 
     photfile  = args.photfile
     rvmodel   = args.reddeningmodel
+    excludepb = args.excludepb
     ignorephot= args.ignorephot
     
     ascale    = args.ascale
@@ -196,6 +199,7 @@ def main(inargs=None, pool=None):
     balmer    = args.balmerlines
     ndraws    = args.ndraws
     savefig   = args.savefig
+
 
     ##### SETUP #####
 
@@ -264,13 +268,14 @@ def main(inargs=None, pool=None):
                         objname, outdir, specfile,\
                         rvmodel=rvmodel,\
                         ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo)
+                        redo=redo, excludepb=excludepb)
         else:
-            result = WDmodel.fit.mpi_fit_model(spec, phot, model, params,\
+            result = WDmodel.fit.mpi_fit_model(spec, phot, model, migrad_params,\
                         objname, outdir, specfile,\
                         rvmodel=rvmodel,\
                         ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo, pool=pool)
+                        redo=redo, excludepb=excludepb,\
+                        pool=pool)
 
         param_names, samples, samples_lnprob = result
         mcmc_params = migrad_params.copy()
