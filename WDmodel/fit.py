@@ -350,7 +350,7 @@ def fit_model(spec, phot, model, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1,\
-            redo=False):
+            redo=False, excludepb=None):
     """
     Models the spectrum using the white dwarf model and a gaussian process with
     an exponential squared kernel to account for any flux miscalibration
@@ -414,12 +414,17 @@ def fit_model(spec, phot, model, params,\
     if everyn != 1:
         spec = spec[::everyn]
 
+    # exclude passbands that we want excluded 
+    pbnames = np.unique(phot.pb) 
+    if excludepb is not None:
+        pbnames = list(set(pbnames) - set(excludepb))
+
     # TODO get the passbands
     pbmodel = None
 
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, phot model, rvmodel, pbmodel, lnprob)) 
+            a=ascale, args=(spec, phot, model, rvmodel, pbmodel, lnprob)) 
 
     # do a short burn-in
     if nburnin > 0:
@@ -498,7 +503,7 @@ def mpi_fit_model(spec, phot, model, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
-            redo=False):
+            redo=False, excludepb=None):
     """
     Models the spectrum using the white dwarf model and a gaussian process with
     an exponential squared kernel to account for any flux miscalibration
@@ -566,6 +571,11 @@ def mpi_fit_model(spec, phot, model, params,\
     # only use every n'th point - useful for testing since we want speedup
     if everyn != 1:
         spec = spec[::everyn]
+
+    # exclude passbands that we want excluded 
+    pbnames = np.unique(phot.pb) 
+    if excludepb is not None:
+        pbnames = list(set(pbnames) - set(excludepb))
 
     pbmodel = None
     # setup the sampler
