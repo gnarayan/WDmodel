@@ -100,7 +100,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
 
-    this_draw = result.copy()
+    this_draw = io.copy_params(result)
     draws  = samples[np.random.randint(0, len(samples), ndraws),:]
 
     # plot one draw of the sample, bundled into a dict
