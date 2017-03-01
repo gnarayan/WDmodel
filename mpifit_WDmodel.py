@@ -5,6 +5,7 @@ from __future__ import print_function
 import sys
 from emcee.utils import MPIPool
 from fit_WDmodel import get_options
+from numpy import unique
 import WDmodel
 import WDmodel.fit
 import WDmodel.viz
@@ -51,7 +52,7 @@ def main(pool):
 
     # exclude passbands that we want excluded 
     if phot is not None:
-        pbnames = np.unique(phot.pb) 
+        pbnames = unique(phot.pb) 
         if excludepb is not None:
             pbnames = list(set(pbnames) - set(excludepb))
     else:
