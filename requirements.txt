@@ -8,5 +8,6 @@ h5py==2.6.0
 iminuit==1.2
 matplotlib==2.0.0
 numpy==1.12.0
+pysynphot==0.9.8.6
 scipy==0.18.1
 specutils==0.2.2
