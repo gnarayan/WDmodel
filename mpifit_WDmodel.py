@@ -55,7 +55,7 @@ def main(pool):
                 redo=redo, pool=pool)
 
     param_names, samples, samples_lnprob = result
-    mcmc_params = params.copy()
+    mcmc_params = WDmodel.io.copy_params(params)
     result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                     nwalkers=nwalkers, nprod=nprod, discard=discard)
     mcmc_params, in_samp, in_lnprob = result

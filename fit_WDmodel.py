@@ -67,6 +67,8 @@ def get_options(args=None):
             help="Specify file containing photometry lookup table for objects")
     phot.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
+    phot.add_argument('--excludepb', nargs='+',\
+            help="Specify passbands to exclude" )
     phot.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
             help="Ignores missing photometry and does the fit with just the spectrum")
 
@@ -182,6 +184,7 @@ def main(inargs=None, pool=None):
 
     photfile  = args.photfile
     rvmodel   = args.reddeningmodel
+    excludepb = args.excludepb
     ignorephot= args.ignorephot
     
     ascale    = args.ascale
@@ -196,6 +199,7 @@ def main(inargs=None, pool=None):
     balmer    = args.balmerlines
     ndraws    = args.ndraws
     savefig   = args.savefig
+
 
     ##### SETUP #####
 
@@ -221,7 +225,10 @@ def main(inargs=None, pool=None):
     spec, cont_model, linedata, continuumdata = out
 
     # get photometry 
-    phot = WDmodel.io.get_phot_for_obj(objname, photfile, ignore=ignorephot)
+    if not ignorephot:
+        phot = WDmodel.io.get_phot_for_obj(objname, photfile)
+    else:
+        phot = None
 
     # save the inputs to the fitter
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5')
@@ -245,7 +252,7 @@ def main(inargs=None, pool=None):
             model, migrad_params, rvmodel=rvmodel, save=True)
     else:
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
-        migrad_params = params.copy()
+        migrad_params = WDmodel.io.copy_params(params)
 
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
@@ -264,16 +271,17 @@ def main(inargs=None, pool=None):
                         objname, outdir, specfile,\
                         rvmodel=rvmodel,\
                         ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo)
+                        redo=redo, excludepb=excludepb)
         else:
-            result = WDmodel.fit.mpi_fit_model(spec, phot, model, params,\
+            result = WDmodel.fit.mpi_fit_model(spec, phot, model, migrad_params,\
                         objname, outdir, specfile,\
                         rvmodel=rvmodel,\
                         ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo, pool=pool)
+                        redo=redo, excludepb=excludepb,\
+                        pool=pool)
 
         param_names, samples, samples_lnprob = result
-        mcmc_params = migrad_params.copy()
+        mcmc_params = WDmodel.io.copy_params(migrad_params)
 
         # parse the samples in the chain and get the result 
         result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\

@@ -1,11 +1,19 @@
 import os
 import warnings
+from copy import deepcopy
 import numpy as np
 import pkg_resources
 from collections import OrderedDict
 import json
 import h5py
 from . import likelihood
+
+def copy_params(params):
+    """
+    Returns a deep copy of a dictionary
+    """
+    return deepcopy(params)
+
 
 def write_params(params, outfile):
     """
@@ -198,7 +206,7 @@ def read_spec(filename, **kwargs):
     return spec
 
 
-def get_phot_for_obj(objname, filename, ignore=False):
+def get_phot_for_obj(objname, filename):
     """
     Accepts an object name, objname, and a lookup table filename
 
@@ -215,14 +223,15 @@ def get_phot_for_obj(objname, filename, ignore=False):
     phot = read_phot(filename)
     mask = (phot.obj == objname)
 
-    if len(phot[mask]) != 1:
-        message = 'Got no or multiple matches for object %s in file %s'%(objname, filename)
-        if ignore:
-            message += '\nSkipping photometry.'
-            warnings.warn(message, RuntimeWarning)
-            return None
-        else:
-            raise RuntimeError(message)
+    nmatch = len(phot[mask])
+    if nmatch == 0:
+        message = 'Got no matches for object %s in file %s. Did you want --ignorephot?'%(objname, filename)
+        raise RuntimeError(message)
+    elif nmatch > 1:
+        message = 'Got multiple matches for object %s in file %s'%(objname, filename)
+        raise RuntimeError(message)
+    else:
+        pass
 
     this_phot =  phot[mask][0]
     colnames  = this_phot.dtype.names
