@@ -4,15 +4,54 @@ from copy import deepcopy
 import numpy as np
 import pkg_resources
 from collections import OrderedDict
+import pysynphot as S
 import json
 import h5py
 from . import likelihood
+
 
 def copy_params(params):
     """
     Returns a deep copy of a dictionary
     """
     return deepcopy(params)
+
+
+def get_pbmodel(pbnames, pbfile=None):
+    """
+    Parses the passband names into a synphot/pysynphot obsmode string based on
+    pbfile
+
+    pbfile must have columns with 
+        pb      : passband name
+        obsmode : pysynphot observation mode string
+    
+    If there is no entry in pbfile for a passband, then we attempt to use the
+    passband name as obsmode string as is. Loads the bandpasses corresponding
+    to each obsmode.  Raises RuntimeError if a bandpass cannot be loaded. 
+
+    Returns a dictionary with pbname -> Bandpass mapping
+    """
+    if pbfile is None:
+        pbfile = pkg_resources.resource_filename('WDmodel','WDmodel_pb_obsmode_map.txt')
+
+    if not os.path.exists(pbfile):
+        message = 'Could not find passband mapping file {}'.format(pbfile)
+        raise IOError(message)
+
+    pbdata = read_pbmap(pbfile)
+    pbmap  = dict(zip(pbdata.pb, pbdata.obsmode))
+
+    out = {}
+    for pb in pbnames:
+        obsmode = pbmap.get(pb, pb)
+        try:
+            bp = S.ObsBandpass(obsmode)
+        except ValueError:
+            message = 'Could not load passband {} from pysynphot, obsmode {}'.format(pb, obsmode)
+            raise RuntimeError(message)
+        out[pb] = bp
+    return out
 
 
 def write_params(params, outfile):
@@ -163,6 +202,7 @@ def _read_ascii(filename, **kwargs):
 # with different formats if necessary for different sorts of data
 read_phot      = _read_ascii
 read_spectable = _read_ascii
+read_pbmap     = _read_ascii 
 
 
 def get_spectrum_resolution(specfile, fwhm=None):
