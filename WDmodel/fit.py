@@ -347,11 +347,11 @@ def fix_pos(pos, free_param_names, params):
     return pos
 
 
-def fit_model(spec, phot, model, params,\
+def fit_model(spec, phot, model, pbmodel, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1,\
-            redo=False, excludepb=None):
+            redo=False):
     """
     Models the spectrum using the white dwarf model and a gaussian process with
     an exponential squared kernel to account for any flux miscalibration
@@ -362,7 +362,8 @@ def fit_model(spec, phot, model, params,\
         spec: recarray spectrum with wave, flux, flux_err
         phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
         model: WDmodel.WDmodel instance
-        params: dict of parameters with keywords value, fixed, bounds for each
+        pbmodel: dict of pysynphot throughput models for each passband with passband name as key
+        params: dict of parameters with keywords value, fixed, bounds, scale for each
 
     Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
     posterior. Does a short burn-in around the initial guess model parameters -
@@ -414,17 +415,6 @@ def fit_model(spec, phot, model, params,\
 
     if everyn != 1:
         spec = spec[::everyn]
-
-    # exclude passbands that we want excluded 
-    if phot is not None:
-        pbnames = np.unique(phot.pb) 
-        if excludepb is not None:
-            pbnames = list(set(pbnames) - set(excludepb))
-    else:
-        pbnames = []
-
-    # TODO get the passbands
-    pbmodel = None
 
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
@@ -503,11 +493,11 @@ def fit_model(spec, phot, model, params,\
     return  free_param_names, samples, samples_lnprob
 
 
-def mpi_fit_model(spec, phot, model, params,\
+def mpi_fit_model(spec, phot, model, pbmodel, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
-            redo=False, excludepb=None):
+            redo=False):
     """
     Models the spectrum using the white dwarf model and a gaussian process with
     an exponential squared kernel to account for any flux miscalibration
@@ -518,7 +508,8 @@ def mpi_fit_model(spec, phot, model, params,\
         spec: recarray spectrum with wave, flux, flux_err
         phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
         model: WDmodel.WDmodel instance
-        params: dict of parameters with keywords value, fixed, bounds for each
+        pbmodel: dict of pysynphot throughput models for each passband with passband name as key
+        params: dict of parameters with keywords value, fixed, bounds, scale for each
 
     Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
     posterior. Does a short burn-in around the initial guess model parameters -
@@ -576,15 +567,6 @@ def mpi_fit_model(spec, phot, model, params,\
     if everyn != 1:
         spec = spec[::everyn]
 
-    # exclude passbands that we want excluded 
-    if phot is not None:
-        pbnames = np.unique(phot.pb) 
-        if excludepb is not None:
-            pbnames = list(set(pbnames) - set(excludepb))
-    else:
-        pbnames = []
-
-    pbmodel = None
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
             a=ascale, args=(spec, phot, model, rvmodel, pbmodel, lnprob), pool=pool) 
