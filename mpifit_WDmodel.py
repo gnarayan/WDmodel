@@ -32,6 +32,7 @@ def main(pool):
     balmer    = args.balmerlines
     ndraws    = args.ndraws
     savefig   = args.savefig
+    excludepb = args.excludepb
 
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
@@ -48,7 +49,18 @@ def main(pool):
     # init model
     model = WDmodel.WDmodel()
 
-    result = WDmodel.fit.mpi_fit_model(spec, phot, model, params,\
+    # exclude passbands that we want excluded 
+    if phot is not None:
+        pbnames = np.unique(phot.pb) 
+        if excludepb is not None:
+            pbnames = list(set(pbnames) - set(excludepb))
+    else:
+        pbnames = []
+
+    # get the throughput model 
+    pbmodel = WDmodel.io.get_pbmodel(pbnames)
+
+    result = WDmodel.fit.mpi_fit_model(spec, phot, model, pbmodel, params,\
                 objname, outdir, specfile,\
                 rvmodel=rvmodel,\
                 ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
