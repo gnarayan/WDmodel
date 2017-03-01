@@ -445,3 +445,23 @@ def read_fit_inputs(input_file):
             warnings.warn(message, RuntimeWarning)
             phot = None
     return spec, cont_model, linedata, continuumdata, phot
+
+
+def read_mcmc(input_file):
+    """
+    Read the saved HDF5 cahin_file and return samples, sample probabilities and param names
+
+    Returns a tuple of arrays
+        param_names, samples, samples_lnprob
+    """
+    d = h5py.File(input_file, mode='r')
+
+    try:
+        samples = d['chain']['position'].value
+        samples_lnprob = d['chain']['lnprob'].value
+        param_names = d['chain']['names'].value
+    except KeyError as e:
+        message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
+        raise IOError(message)
+
+    return param_names, samples, samples_lnprob
