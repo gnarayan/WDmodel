@@ -225,7 +225,10 @@ def main(inargs=None, pool=None):
     spec, cont_model, linedata, continuumdata = out
 
     # get photometry 
-    phot = WDmodel.io.get_phot_for_obj(objname, photfile, ignore=ignorephot)
+    if not ignorephot:
+        phot = WDmodel.io.get_phot_for_obj(objname, photfile)
+    else:
+        phot = None
 
     # save the inputs to the fitter
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5')
@@ -249,7 +252,7 @@ def main(inargs=None, pool=None):
             model, migrad_params, rvmodel=rvmodel, save=True)
     else:
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
-        migrad_params = params.copy()
+        migrad_params = WDmodel.io.copy_params(params)
 
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
@@ -278,7 +281,7 @@ def main(inargs=None, pool=None):
                         pool=pool)
 
         param_names, samples, samples_lnprob = result
-        mcmc_params = migrad_params.copy()
+        mcmc_params = WDmodel.io.copy_params(migrad_params)
 
         # parse the samples in the chain and get the result 
         result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
