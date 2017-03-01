@@ -10,6 +10,7 @@ from iminuit import Minuit
 import emcee
 import h5py
 from clint.textui import progress
+import corner
 from .WDmodel import WDmodel
 from . import io
 from . import likelihood
@@ -301,7 +302,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     result = m.values
     errors = m.errors
     # duplicate the input dicrionary and update
-    migrad_params = params.copy()
+    migrad_params = io.copy_params(params)
     for param in result:
         migrad_params[param]['value'] = result[param]
         migrad_params[param]['scale'] = errors[param]
@@ -415,9 +416,12 @@ def fit_model(spec, phot, model, params,\
         spec = spec[::everyn]
 
     # exclude passbands that we want excluded 
-    pbnames = np.unique(phot.pb) 
-    if excludepb is not None:
-        pbnames = list(set(pbnames) - set(excludepb))
+    if phot is not None:
+        pbnames = np.unique(phot.pb) 
+        if excludepb is not None:
+            pbnames = list(set(pbnames) - set(excludepb))
+    else:
+        pbnames = []
 
     # TODO get the passbands
     pbmodel = None
@@ -439,7 +443,7 @@ def fit_model(spec, phot, model, params,\
         # init a new set of walkers around the maximum likelihood position from the burn-in
         burnin_p0 = pos[np.argmax(prob)]
         pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
-        burnin_params = params.copy()
+        burnin_params = io.copy_params(params)
         for i, key in enumerate(free_param_names):
             burnin_params[key]['value'] = burnin_p0[i]
         pos = fix_pos(pos, free_param_names, burnin_params)
@@ -573,9 +577,12 @@ def mpi_fit_model(spec, phot, model, params,\
         spec = spec[::everyn]
 
     # exclude passbands that we want excluded 
-    pbnames = np.unique(phot.pb) 
-    if excludepb is not None:
-        pbnames = list(set(pbnames) - set(excludepb))
+    if phot is not None:
+        pbnames = np.unique(phot.pb) 
+        if excludepb is not None:
+            pbnames = list(set(pbnames) - set(excludepb))
+    else:
+        pbnames = []
 
     pbmodel = None
     # setup the sampler
@@ -595,7 +602,7 @@ def mpi_fit_model(spec, phot, model, params,\
         # init a new set of walkers around the maximum likelihood position from the burn-in
         burnin_p0 = pos[np.argmax(prob)]
         pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
-        burnin_params = params.copy()
+        burnin_params = io.copy_params(params)
         for i, key in enumerate(free_param_names):
             burnin_params[key]['value'] = burnin_p0[i]
         pos = fix_pos(pos, free_param_names, burnin_params)
@@ -696,13 +703,14 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
         
     mask = np.isfinite(in_lnprob)
 
-    result = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]), zip(*np.percentile(in_samp[mask,:], [16, 50, 84], axis=0)))
     for i, param in enumerate(param_names):
-        params[param]['value']  = result[i][0]
-        params[param]['bounds'] = (result[i][0] - result[i][2], result[i][1] + result[i][0])
-        params[param]['errors_pm'] = (result[i][1], result[i][2])
-        scale = float(np.std(in_samp[mask,i]))
-        params[param]['scale']  = scale
+        x = in_samp[mask,i]
+        q_16, q_50, q_84 = corner.quantile(x, [0.16, 0.5, 0.84])
+        params[param]['value']  = q_50
+        params[param]['bounds'] = (q_16, q_84)
+        params[param]['errors_pm'] = (q_84 - q_50, q_50 - q_16)
+        params[param]['scale']  = float(np.std(x))
+
     fixed_params = set(params.keys()) - set(param_names)
     for param in fixed_params:
         if params[param]['fixed']:
@@ -711,4 +719,5 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
         else:
             # this should never happen, unless we did something stupid between fit_WDmodel and mpifit_WDmodel
             print "Huh.... {} not marked as fixed but was not fit for...".format(param)
+
     return params, in_samp[mask,:], in_lnprob[mask]
