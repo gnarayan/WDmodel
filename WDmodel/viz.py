@@ -194,7 +194,7 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_resid.plot(spec.wave, spec.flux - smoothedmod, color='black', linestyle='-', marker='None')
 
-    bestfit, bestres = draw[-1]
+    bestfit, bestres = draws[-1]
     def plot_draw(draw, color='red', alpha=1.0, label=None):
         smoothedmod, wres = draw
         ax_resid.plot(spec.wave, wres+smoothedmod - bestfit,  linestyle='-', marker=None,  color=color, alpha=alpha)
