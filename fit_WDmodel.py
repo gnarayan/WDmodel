@@ -76,7 +76,7 @@ def get_options(args=None):
     model = parser.add_argument_group('model',\
             'Model options. Modify using --param_file or CL. CL overrides. Caveat emptor.')
     for param in params:
-        if param in ('fwhm','dl'):
+        if param in ('fwhm','dl','mu'):
             dtype = 'NoneOrFloat'
         else:
             dtype = float
@@ -160,7 +160,9 @@ def get_options(args=None):
 
     return args
 
+
 #**************************************************************************************************************
+
 
 def main(inargs=None, pool=None):
 
@@ -316,6 +318,7 @@ def main(inargs=None, pool=None):
 
 
 #**************************************************************************************************************
+
 
 if __name__=='__main__':
     mpi = False
