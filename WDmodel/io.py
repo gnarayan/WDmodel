@@ -4,15 +4,54 @@ from copy import deepcopy
 import numpy as np
 import pkg_resources
 from collections import OrderedDict
+import pysynphot as S
 import json
 import h5py
 from . import likelihood
+
 
 def copy_params(params):
     """
     Returns a deep copy of a dictionary
     """
     return deepcopy(params)
+
+
+def get_pbmodel(pbnames, pbfile=None):
+    """
+    Parses the passband names into a synphot/pysynphot obsmode string based on
+    pbfile
+
+    pbfile must have columns with 
+        pb      : passband name
+        obsmode : pysynphot observation mode string
+    
+    If there is no entry in pbfile for a passband, then we attempt to use the
+    passband name as obsmode string as is. Loads the bandpasses corresponding
+    to each obsmode.  Raises RuntimeError if a bandpass cannot be loaded. 
+
+    Returns a dictionary with pbname -> Bandpass mapping
+    """
+    if pbfile is None:
+        pbfile = pkg_resources.resource_filename('WDmodel','WDmodel_pb_obsmode_map.txt')
+
+    if not os.path.exists(pbfile):
+        message = 'Could not find passband mapping file {}'.format(pbfile)
+        raise IOError(message)
+
+    pbdata = read_pbmap(pbfile)
+    pbmap  = dict(zip(pbdata.pb, pbdata.obsmode))
+
+    out = {}
+    for pb in pbnames:
+        obsmode = pbmap.get(pb, pb)
+        try:
+            bp = S.ObsBandpass(obsmode)
+        except ValueError:
+            message = 'Could not load passband {} from pysynphot, obsmode {}'.format(pb, obsmode)
+            raise RuntimeError(message)
+        out[pb] = bp
+    return out
 
 
 def write_params(params, outfile):
@@ -163,6 +202,7 @@ def _read_ascii(filename, **kwargs):
 # with different formats if necessary for different sorts of data
 read_phot      = _read_ascii
 read_spectable = _read_ascii
+read_pbmap     = _read_ascii 
 
 
 def get_spectrum_resolution(specfile, fwhm=None):
@@ -405,3 +445,23 @@ def read_fit_inputs(input_file):
             warnings.warn(message, RuntimeWarning)
             phot = None
     return spec, cont_model, linedata, continuumdata, phot
+
+
+def read_mcmc(input_file):
+    """
+    Read the saved HDF5 cahin_file and return samples, sample probabilities and param names
+
+    Returns a tuple of arrays
+        param_names, samples, samples_lnprob
+    """
+    d = h5py.File(input_file, mode='r')
+
+    try:
+        samples = d['chain']['position'].value
+        samples_lnprob = d['chain']['lnprob'].value
+        param_names = d['chain']['names'].value
+    except KeyError as e:
+        message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
+        raise IOError(message)
+
+    return param_names, samples, samples_lnprob

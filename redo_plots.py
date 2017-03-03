@@ -3,7 +3,6 @@
 from __future__ import print_function
 
 import sys
-from emcee.utils import MPIPool
 from fit_WDmodel import get_options
 from numpy import unique
 import WDmodel
@@ -12,24 +11,16 @@ import WDmodel.viz
 import WDmodel.io
 
 
-def main(pool):
-    if not pool.is_master():
-        # Wait for instructions from the master process.
-        pool.wait()
-        sys.exit(0)
-
+def main():
     args = get_options(sys.argv[1:])
 
     specfile  = args.specfile
     outdir    = args.outdir
     rvmodel   = args.reddeningmodel
-    ascale    = args.ascale
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
     discard   = args.discard
-    everyn    = args.everyn
-    redo      = args.redo
     balmer    = args.balmerlines
     ndraws    = args.ndraws
     savefig   = args.savefig
@@ -43,9 +34,6 @@ def main(pool):
     res = WDmodel.io.read_fit_inputs(input_file)
     spec, cont_model, linedata, continuumdata, phot = res
 
-    # restore params
-    param_file = WDmodel.io.get_outfile(outdir, specfile, '_params.json')
-    params = WDmodel.io.read_params(param_file)
 
     # init model
     model = WDmodel.WDmodel()
@@ -61,19 +49,18 @@ def main(pool):
     # get the throughput model 
     pbmodel = WDmodel.io.get_pbmodel(pbnames)
 
-    result = WDmodel.fit.mpi_fit_model(spec, phot, model, pbmodel, params,\
-                objname, outdir, specfile,\
-                rvmodel=rvmodel,\
-                ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                redo=redo, pool=pool)
+    # restore params
+    param_file = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
+    mcmc_params = WDmodel.io.read_params(param_file)
 
-    param_names, samples, samples_lnprob = result
-    mcmc_params = WDmodel.io.copy_params(params)
+    # restore samples and prob
+    chain_file = WDmodel.io.get_outfile(outdir, specfile, '_mcmc.hdf5')
+    param_names, samples, samples_lnprob = WDmodel.io.read_mcmc(chain_file)
+
+    # parse chain 
     result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                     nwalkers=nwalkers, nprod=nprod, discard=discard)
     mcmc_params, in_samp, in_lnprob = result
-    outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
-    WDmodel.io.write_params(mcmc_params, outfile)
 
     # plot the MCMC output
     WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
@@ -85,13 +72,8 @@ def main(pool):
     return
 
 if __name__ =='__main__':
-    # Initialize the MPI-based pool used for parallelization.
-    pool = MPIPool()
+    main()
 
-    main(pool)
-
-    # Close the processes.
-    pool.close()
 
 
 

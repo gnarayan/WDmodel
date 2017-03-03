@@ -76,7 +76,7 @@ def get_options(args=None):
     model = parser.add_argument_group('model',\
             'Model options. Modify using --param_file or CL. CL overrides. Caveat emptor.')
     for param in params:
-        if param in ('fwhm','dl'):
+        if param in ('fwhm','dl','mu'):
             dtype = 'NoneOrFloat'
         else:
             dtype = float
@@ -160,7 +160,9 @@ def get_options(args=None):
 
     return args
 
+
 #**************************************************************************************************************
+
 
 def main(inargs=None, pool=None):
 
@@ -225,6 +227,7 @@ def main(inargs=None, pool=None):
     spec, cont_model, linedata, continuumdata = out
 
     # get photometry 
+    # TODO - something to fix photometry normalization if we get None
     if not ignorephot:
         phot = WDmodel.io.get_phot_for_obj(objname, photfile)
     else:
@@ -265,19 +268,31 @@ def main(inargs=None, pool=None):
 
     # skipmcmc can be run to just prepare the inputs 
     if not args.skipmcmc:
+
+        # exclude passbands that we want excluded 
+        if phot is not None:
+            pbnames = np.unique(phot.pb) 
+            if excludepb is not None:
+                pbnames = list(set(pbnames) - set(excludepb))
+        else:
+            pbnames = []
+
+        # get the throughput model 
+        pbmodel = WDmodel.io.get_pbmodel(pbnames)
+
         # fit the spectrum
         if pool is None:
-            result = WDmodel.fit.fit_model(spec, phot, model, migrad_params,\
+            result = WDmodel.fit.fit_model(spec, phot, model, pbmodel, migrad_params,\
                         objname, outdir, specfile,\
                         rvmodel=rvmodel,\
                         ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo, excludepb=excludepb)
+                        redo=redo)
         else:
-            result = WDmodel.fit.mpi_fit_model(spec, phot, model, migrad_params,\
+            result = WDmodel.fit.mpi_fit_model(spec, phot, model, pbmodel, migrad_params,\
                         objname, outdir, specfile,\
                         rvmodel=rvmodel,\
                         ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo, excludepb=excludepb,\
+                        redo=redo,\
                         pool=pool)
 
         param_names, samples, samples_lnprob = result
@@ -303,6 +318,7 @@ def main(inargs=None, pool=None):
 
 
 #**************************************************************************************************************
+
 
 if __name__=='__main__':
     mpi = False

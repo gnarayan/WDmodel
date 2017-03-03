@@ -150,6 +150,9 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod-wres+spec.flux_err, spec.flux-smoothedmod-wres-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_resid.plot(spec.wave, spec.flux-smoothedmod-wres,  linestyle='-', marker=None,  color='black')
+    for draw in out[:-1]:
+        ax_resid.plot(spec.wave, draw[0]+draw[1]-smoothedmod-wres, linestyle='-',\
+                marker=None, alpha=0.3, color='orange')
     ax_resid.axhline(0., color='red', linestyle='--')
     
     # label the axes
@@ -177,21 +180,27 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     ax_spec  = fig.add_subplot(gs[0])
     ax_resid = fig.add_subplot(gs[1])
 
+    # plot the spectrum
     ax_spec.fill_between(spec.wave, spec.flux+spec.flux_err, spec.flux-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
+
+    # plot the continuum model
     ax_spec.plot(cont_model.wave, cont_model.flux, color='blue', linestyle='--', marker='None', label='Continuum')
 
+    # plot the residual without the covariance term
     smoothedmod, wres = draws[-1]
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod+spec.flux_err, spec.flux-smoothedmod-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_resid.plot(spec.wave, spec.flux - smoothedmod, color='black', linestyle='-', marker='None')
 
+    bestfit, bestres = draws[-1]
     def plot_draw(draw, color='red', alpha=1.0, label=None):
-        smoothed_mod, wres = draw
-        ax_resid.plot(spec.wave, wres,  linestyle='-', marker=None,  color=color, alpha=alpha)
+        smoothedmod, wres = draw
+        ax_resid.plot(spec.wave, wres+smoothedmod - bestfit,  linestyle='-', marker=None,  color=color, alpha=alpha)
         ax_spec.plot(spec.wave, smoothedmod, color=color, linestyle='-', marker='None', alpha=alpha, label=label)
 
+    # plot each of the draws - we want to get a sense of the range of the covariance to plot wres
     for draw in draws[:-1]:
         plot_draw(draw, color='orange', alpha=0.3)
     plot_draw(draws[-1], color='red', alpha=1.0, label='Model - no Covariance')
@@ -206,7 +215,6 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
 
     return fig
-
 
 
 def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
@@ -326,8 +334,6 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     gs2.tight_layout(fig2, rect=[0, 0.03, 1, 0.95])
 
     return fig, fig2
-
-
 
 
 def plot_mcmc_model(spec, phot, linedata,\
