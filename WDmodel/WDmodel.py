@@ -3,6 +3,7 @@ warnings.simplefilter('once')
 import numpy as np
 from . import io
 import scipy.interpolate as spinterp
+import pysynphot as S
 from astropy import units as u                                                                                          
 from specutils.extinction import reddening
 from scipy.ndimage.filters import gaussian_filter
@@ -95,6 +96,31 @@ class WDmodel(object):
         return mod
 
 
+    def get_model_mags(self, teff, logg, av, pbnames, pbmodel, mu=0. rv=3.1, rvmodel='od94'):
+        """
+        Returns a set of model magnitudes at teff, logg, av, rv, for rvmodel
+        through passbands pbnames with models pbmodels and zeropoint mu
+
+        Accepts:
+            teff: temp
+            logg: surface gravity
+            av: extinction
+            pbnames: iterable with names of passbands
+            pbmodel: dictionary with pysynphot ObsBandpass models for passbands in pbnames
+                If a passband is missing, will raise KeyError
+            mu: model mag zeropoint 
+            rv: reddening law slope (default=3.1)
+            rvmodel: model for reddening law (default='od94')
+
+        Returns a numpy array with model mags
+        """
+        mod = self._get_red_model(teff, logg, av, self._wave, rv=rv, log=False, rvmodel=rvmodel)
+        mod = S.ArraySpectrum(self._wave, mod, waveunits='angstrom', fluxunits='Flam')
+        out = [S.Observation(mod, pbmodel[pb]).effstim('vegamag') for pb in pbnames]
+        out = np.array(out) + mu
+        return out
+
+
     @classmethod
     def _wave_test(cls, wave):
         """
@@ -122,8 +148,9 @@ class WDmodel(object):
         Returns the model (wavelength and flux) for some teff, logg at wavelengths wave
         If not specified, wavelengths are from 3000-9000A
 
-        Checks inputs for consistency and calls _get_xi(), _get_model()
-        If you need the model repeatedly for slightly different parameters, use those functions directly
+        Checks inputs for consistency and calls _get_xi(), _get_model() If you
+        need the model repeatedly for slightly different parameters, use those
+        functions directly
         """
         if wave is None:
             wave = self._wave
