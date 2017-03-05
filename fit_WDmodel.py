@@ -227,10 +227,11 @@ def main(inargs=None, pool=None):
     spec, cont_model, linedata, continuumdata = out
 
     # get photometry 
-    # TODO - something to fix photometry normalization if we get None
     if not ignorephot:
         phot = WDmodel.io.get_phot_for_obj(objname, photfile)
     else:
+        params['mu']['value'] = 0.
+        params['mu']['fixed'] = True
         phot = None
 
     # save the inputs to the fitter
@@ -240,6 +241,31 @@ def main(inargs=None, pool=None):
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()
+
+    # exclude passbands that we want excluded 
+    if phot is not None:
+        pbnames = np.unique(phot.pb) 
+        if excludepb is not None:
+            pbnames = list(set(pbnames) - set(excludepb))
+
+        # if we cut out out all the passbands, fix mu
+        if len(pbnames) == 0:
+            params['mu']['value'] = 0.
+            params['mu']['fixed'] = True
+            phot = None
+        else:
+            # filter the photometry recarray to use only the passbands we want
+            useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
+            useind = np.array(useind)
+            phot = phot.take(useind)
+
+            # set the pbnames from the trimmed photometry recarray to preserve order
+            pbnames = list(phot.pb)
+    else:
+        pbnames = []
+
+    # get the throughput model 
+    pbmodel = WDmodel.io.get_pbmodel(pbnames)
 
 
     ##### MINUIT #####
@@ -262,23 +288,13 @@ def main(inargs=None, pool=None):
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_params.json')
     WDmodel.io.write_params(migrad_params, outfile)
 
+    sys.exit(-1)
 
     ##### MCMC #####
 
 
     # skipmcmc can be run to just prepare the inputs 
     if not args.skipmcmc:
-
-        # exclude passbands that we want excluded 
-        if phot is not None:
-            pbnames = np.unique(phot.pb) 
-            if excludepb is not None:
-                pbnames = list(set(pbnames) - set(excludepb))
-        else:
-            pbnames = []
-
-        # get the throughput model 
-        pbmodel = WDmodel.io.get_pbmodel(pbnames)
 
         # fit the spectrum
         if pool is None:
