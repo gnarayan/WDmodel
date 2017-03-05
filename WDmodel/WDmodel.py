@@ -96,7 +96,7 @@ class WDmodel(object):
         return mod
 
 
-    def get_model_mags(self, teff, logg, av, pbnames, pbmodel, mu=0. rv=3.1, rvmodel='od94'):
+    def get_model_mags(self, teff, logg, av, pbnames, pbmodel, mu=0., rv=3.1, rvmodel='od94'):
         """
         Returns a set of model magnitudes at teff, logg, av, rv, for rvmodel
         through passbands pbnames with models pbmodels and zeropoint mu
