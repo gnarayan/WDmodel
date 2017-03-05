@@ -637,6 +637,12 @@ def mpi_fit_model(spec, phot, model, pbmodel, params,\
     dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
 
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+    print "Autocorrelation lengths"
+    try:
+        print sampler.acor
+    except emcee.autocorr.AutocorrError:
+        message = "Chain too short apparently."
+        warnings.warn(message, RuntimeWarning)
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
