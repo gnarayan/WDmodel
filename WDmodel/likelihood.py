@@ -5,7 +5,7 @@ from george import GP, HODLRSolver
 from george.kernels import ExpSquaredKernel
 
 # Declare this tuple to init the likelihood model, and to preserve order of parameters
-_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "sigf", "tau")
+_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "sigf", "tau", "mu")
 
 class WDmodel_Likelihood(Model):
     """
