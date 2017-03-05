@@ -22,7 +22,7 @@
         "fixed": false,
         "scale": 0.05,
         "bounds": [
-            0.0, 
+            -1e-25, 
             2.0
         ]
     }, 
@@ -76,7 +76,7 @@
         "fixed": false,
         "scale": 1.0,
         "bounds": [
-            0.0, 
+            -1e-25, 
             1e5
         ]
     }
