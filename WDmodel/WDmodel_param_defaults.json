@@ -70,5 +70,14 @@
             200.0, 
             10000.0
         ]
+    },
+    "mu": {
+        "value": null, 
+        "fixed": false,
+        "scale": 1.0,
+        "bounds": [
+            0.0, 
+            1e5
+        ]
     }
 }
