@@ -338,10 +338,10 @@ def fix_pos(pos, free_param_names, params):
         std    = params[name]['scale']
         # take a 5 sigma range 
         lr, ur = (p0-5.*std, p0+5.*std)
-        ll = max(lb, lr)
+        ll = max(lb, lr, 0.)
         ul = min(ub, ur)
-        ind = np.where((pos[:,i] <= ll) & (pos[:,i] >= ul))
-        nreplace = len(pos[:i][ind])
+        ind = np.where((pos[:,i] <= ll) | (pos[:,i] >= ul))
+        nreplace = len(pos[:,i][ind])
         pos[:,i][ind] = np.random.rand(nreplace)*(ul - ll) + ll
 
     return pos
