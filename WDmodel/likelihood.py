@@ -60,7 +60,12 @@ class WDmodel_Likelihood(Model):
         TODO: Allow the user to specify a custom filename with a function for the prior
         """
         lp = self.log_prior()
+        theta = self.get_parameter_vector()
         if not np.isfinite(lp):
+            return -np.inf
+            # even if the user passes bounds that are physically unrealistic, we
+            # need to keep all the quantities strictly >= 0.
+        elif np.any((theta < 0.)):
             return -np.inf
         else:
             # this is from the Schalfly et al analysis from PS1
