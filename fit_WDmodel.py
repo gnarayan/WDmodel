@@ -98,11 +98,11 @@ def get_options(args=None):
             help="Skip MCMC - if you skip both minuit and MCMC, simply prepares files")
     mcmc.add_argument('--ascale', required=False, type=float, default=2.0,\
             help="Specify proposal scale for MCMC") 
-    mcmc.add_argument('--nwalkers',  required=False, type=int, default=200,\
+    mcmc.add_argument('--nwalkers',  required=False, type=int, default=300,\
             help="Specify number of walkers to use (0 disables MCMC)")
-    mcmc.add_argument('--nburnin',  required=False, type=int, default=50,\
+    mcmc.add_argument('--nburnin',  required=False, type=int, default=200,\
             help="Specify number of steps for burn-in")
-    mcmc.add_argument('--nprod',  required=False, type=int, default=1000,\
+    mcmc.add_argument('--nprod',  required=False, type=int, default=2000,\
             help="Specify number of steps for production")
     mcmc.add_argument('--everyn',  required=False, type=int, default=1,\
             help="Use only every nth point in data for computing likelihood - useful for testing.")
@@ -283,12 +283,24 @@ def main(inargs=None, pool=None):
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
         migrad_params = WDmodel.io.copy_params(params)
 
+    # make this a function
+    #teff = migrad_params['teff']['value']
+    #logg = migrad_params['logg']['value']
+    #av   = migrad_params['av']['value']
+    #rv   = migrad_params['rv']['value']
+    #model_mags  = model.get_model_mags(teff, logg, av, phot.pb, pbmodel, rv=rv, rvmodel=rvmodel)
+    #mu0_guess = np.median(phot.mag - model_mags)
+    #if not migrad_params['mu']['fixed']:
+    #    migrad_params['mu']['value'] = mu0_guess
+    #else:
+    #    migrad_params['mu']['value'] = 0.
+    migrad_params['mu']['value']=0.
+
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_params.json')
     WDmodel.io.write_params(migrad_params, outfile)
 
-    sys.exit(-1)
 
     ##### MCMC #####
 
