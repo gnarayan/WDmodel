@@ -105,7 +105,7 @@ def read_params(param_file=None):
     with open(param_file, 'r') as f:
         params = json.load(f)
 
-    # JSON does't preserve ordering at all, but I'd like to keep it consistent
+    # JSON doesn't preserve ordering at all, but I'd like to keep it consistent
     out = OrderedDict()
     for param in likelihood._PARAMETER_NAMES:
         # note that we're only checking if we have the right keys here, not if the values are reasonable
@@ -166,13 +166,13 @@ def read_model_grid(grid_file=None, grid_name=None):
     with h5py.File(grid_file, 'r') as grids:
         # the original IDL SAV file Tlusty grids were annoyingly broken up by wavelength
         # this was because the authors had different wavelength spacings
-        # since they didn't feel that the contiuum needed much spacing anyway
+        # since they didn't feel that the continuum needed much spacing anyway
         # and "wanted to save disk space"
         # and then their old IDL interpolation routine couldn't handle the variable spacing
         # so they broke up the grids
         # So really, the original IDL SAV files were annoyingly broken up by wavelength because reasons...
         # We have concatenated these "large" arrays because we don't care about disk space
-        # This grid is called "default", but the orignals also exist 
+        # This grid is called "default", but the originals also exist 
         # and you can pass grid_name to use them if you choose to
         try:
             grid = grids[grid_name]
@@ -449,7 +449,7 @@ def read_fit_inputs(input_file):
 
 def read_mcmc(input_file):
     """
-    Read the saved HDF5 cahin_file and return samples, sample probabilities and param names
+    Read the saved HDF5 chain_file and return samples, sample probabilities and param names
 
     Returns a tuple of arrays
         param_names, samples, samples_lnprob

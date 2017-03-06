@@ -23,7 +23,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     Quick plot to show the output from the limited Minuit fit of the spectrum.
     This fit doesn't try to account for the covariance in the data, and is not
     expected to be great - just fast, and capable of setting a reasonable
-    initial guess. If this fit is very far off, refine the intial guess.
+    initial guess. If this fit is very far off, refine the initial guess.
 
     Accepts:
         spec: the recarray spectrum
@@ -381,5 +381,3 @@ def plot_mcmc_model(spec, phot, linedata,\
             fig.savefig(outfile)
         pdf.savefig(fig)
         #endwith
-    
-
