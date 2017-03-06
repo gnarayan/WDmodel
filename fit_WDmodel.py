@@ -308,20 +308,13 @@ def main(inargs=None, pool=None):
     # skipmcmc can be run to just prepare the inputs 
     if not args.skipmcmc:
 
-        # fit the spectrum
-        if pool is None:
-            result = WDmodel.fit.fit_model(spec, phot, model, pbmodel, migrad_params,\
-                        objname, outdir, specfile,\
-                        rvmodel=rvmodel,\
-                        ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo)
-        else:
-            result = WDmodel.fit.mpi_fit_model(spec, phot, model, pbmodel, migrad_params,\
-                        objname, outdir, specfile,\
-                        rvmodel=rvmodel,\
-                        ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo,\
-                        pool=pool)
+        # do the fit
+        result = WDmodel.fit.fit_model(spec, phot, model, pbmodel, migrad_params,\
+                    objname, outdir, specfile,\
+                    rvmodel=rvmodel,\
+                    ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
+                    redo=redo,\
+                    pool=pool)
 
         param_names, samples, samples_lnprob = result
         mcmc_params = WDmodel.io.copy_params(migrad_params)
