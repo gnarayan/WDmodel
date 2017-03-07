@@ -375,7 +375,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
     bounds     = []
     scales     = {}
     fixed      = {}
-    for param in likelihood._PARAMETER_NAMES:
+    for param in io._PARAMETER_NAMES:
         setup_args[param] = params[param]['value']
         bounds.append(params[param]['bounds'])
         scales[param] = params[param]['scale']

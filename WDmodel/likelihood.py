@@ -3,9 +3,7 @@ from celerite.modeling import Model
 from scipy.stats import norm
 from george import GP, HODLRSolver
 from george.kernels import ExpSquaredKernel
-
-# Declare this tuple to init the likelihood model, and to preserve order of parameters
-_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "sigf", "tau", "mu")
+from . import io
 
 class WDmodel_Likelihood(Model):
     """
@@ -31,7 +29,7 @@ class WDmodel_Likelihood(Model):
     function that wraps get_value() and lnprior() and sample the posterior
     however you like. 
     """
-    parameter_names = _PARAMETER_NAMES
+    parameter_names = io._PARAMETER_NAMES
 
     def get_value(self, spec, phot, model, rvmodel, pbmodel):
         """

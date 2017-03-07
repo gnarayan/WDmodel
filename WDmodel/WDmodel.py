@@ -1,5 +1,4 @@
 import warnings
-warnings.simplefilter('once')
 import numpy as np
 from . import io
 import scipy.interpolate as spinterp

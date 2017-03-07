@@ -7,7 +7,9 @@ from collections import OrderedDict
 import pysynphot as S
 import json
 import h5py
-from . import likelihood
+
+# Declare this tuple to init the likelihood model, and to preserve order of parameters
+_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "sigf", "tau", "mu")
 
 
 def copy_params(params):
@@ -58,7 +60,7 @@ def write_params(params, outfile):
     """
     Dumps the parameter dictionary params to a JSON file
 
-    params is a dict the parameter names, as defined in WDmodel.likelihood.PARAMETER_NAMES as keys
+    params is a dict the parameter names, as defined with _PARAMETER_NAMES as keys
     Each key must have a dictionary with keys 
         "default" : default value - make sure this is a floating point
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
@@ -81,7 +83,7 @@ def read_params(param_file=None):
     """
     Read a JSON file that configures the default guesses and bounds for the
     parameters, as well as if they should be fixed.  The JSON keys are the
-    parameter names, as defined in WDmodel.likelihood.PARAMETER_NAMES.
+    parameter names, as defined in _PARAMETER_NAMES.
     Each key must have a dictionary with keys 
         "default" : default value - make sure this is a floating point
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
@@ -107,7 +109,7 @@ def read_params(param_file=None):
 
     # JSON doesn't preserve ordering at all, but I'd like to keep it consistent
     out = OrderedDict()
-    for param in likelihood._PARAMETER_NAMES:
+    for param in _PARAMETER_NAMES:
         # note that we're only checking if we have the right keys here, not if the values are reasonable
         if not param in params:
             message = "Parameter {} not found in JSON param file {}".format(param, param_file)
@@ -133,7 +135,7 @@ def get_params_from_argparse(args):
     """
     kwargs = vars(args)
     out = OrderedDict()
-    for param in likelihood._PARAMETER_NAMES:
+    for param in _PARAMETER_NAMES:
         keys = (param, "{}_fix".format(param),"{}_scale".format(param), "{}_bounds".format(param))
         if not all (key in kwargs for key in keys):
             message = "Parameter {} does not have value|fixed|scale|bounds specified in argparse args".format(param)
