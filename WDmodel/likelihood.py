@@ -15,7 +15,7 @@ class WDmodel_Likelihood(Model):
     on cmdline args/a param file
 
     Implements the likelihood by constructing the model at the parameter
-    values, and modeling the residuals with a Rational Quadratic kernel 
+    values, and modeling the residuals with a Rational Quadratic kernel
 
     Implements a lnprior function, in addition to Model's log_prior function
     This imposes a prior on Rv, and on Av.  The prior on Av is the glos prior.
@@ -27,7 +27,7 @@ class WDmodel_Likelihood(Model):
     To use it, construct an object from the class with the kwargs dictionary
     and an initial guess, and freeze/thaw parameters as needed. Then write a
     function that wraps get_value() and lnprior() and sample the posterior
-    however you like. 
+    however you like.
     """
     parameter_names = io._PARAMETER_NAMES
 
@@ -35,7 +35,8 @@ class WDmodel_Likelihood(Model):
         """
         Returns the log likelihood of the data given the model
         """
-        mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm, spec.wave, rv=self.rv, rvmodel=rvmodel)
+        mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
+                spec.wave, rv=self.rv, rvmodel=rvmodel)
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
@@ -45,7 +46,7 @@ class WDmodel_Likelihood(Model):
         except ValueError:
             return -np.inf
         #TODO - add the photometry here
-        return gp.lnlikelihood(res, quiet=True) 
+        return gp.lnlikelihood(res, quiet=True)
 
 
     def lnprior(self):
@@ -122,4 +123,4 @@ class WDmodel_Posterior(object):
     def lnprior(self, theta):
         self.lnlike.set_parameter_vector(theta)
         out = self.lnlike.lnprior()
-        return out 
+        return out
