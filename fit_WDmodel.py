@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 import sys
-import warnings
-warnings.simplefilter('once')
 import argparse
 from emcee.utils import MPIPool
 import numpy as np

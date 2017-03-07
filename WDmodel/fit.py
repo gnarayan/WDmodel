@@ -1,6 +1,5 @@
 import time
 import warnings
-warnings.simplefilter('once')
 import numpy as np
 import numpy.polynomial.polynomial as poly
 import scipy.signal as scisig
