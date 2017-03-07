@@ -13,7 +13,7 @@ class WDmodel_Likelihood(Model):
     "bounds" to set the bounds on the parameters
 
     Subclasses celerite.modeling.Model to implement a likelihood model for the
-    WD atmoshere This allows parameters to be frozen/thawed dynamically based
+    WD atmosphere This allows parameters to be frozen/thawed dynamically based
     on cmdline args/a param file
 
     Implements the likelihood by constructing the model at the parameter
@@ -27,7 +27,7 @@ class WDmodel_Likelihood(Model):
     the different filter set.
 
     To use it, construct an object from the class with the kwargs dictionary
-    and an intial guess, and freeze/thaw parameters as needed. Then write a
+    and an initial guess, and freeze/thaw parameters as needed. Then write a
     function that wraps get_value() and lnprior() and sample the posterior
     however you like. 
     """
@@ -85,10 +85,33 @@ class WDmodel_Likelihood(Model):
             return out
 
 
-def loglikelihood(theta, spec, phot, model, rvmodel, pbmodel, lnprob):
-    lnprob.set_parameter_vector(theta)
-    out = lnprob.lnprior()
-    if not np.isfinite(out):
-        return -np.inf
-    out += lnprob.get_value(spec, phot, model, rvmodel, pbmodel)
-    return out
+class WDmodel_Posterior(object):
+    """
+    Class to compute the posterior, given the data, and model
+    The class contains the data
+        spec: the recarray spectrum (wave, flux, flux_err)
+        phot: the recarray photometry (pb, mag, mag_err)
+    and the model
+        model: a WDmodel() instance to get the model spectrum in the presence
+        of reddening and through some instrument
+        rvmodel: The form of the reddening law to be used to redden the spectrum
+        pbmodel: a model of the throughput of the different passbands
+        lnlike: a WDmodel_Likelihood instance that can return the log prior and log likelihood
+
+    Call returns the log posterior
+    """
+    def __init__(self, spec, phot, model, rvmodel, pbmodel, lnlike):
+        self.spec    = spec
+        self.phot    = phot
+        self.model   = model
+        self.rvmodel = rvmodel
+        self.pbmodel = pbmodel
+        self.lnlike  = lnlike
+
+    def __call__(self, theta):
+        self.lnlike.set_parameter_vector(theta)
+        out = self.lnlike.lnprior()
+        if not np.isfinite(out):
+            return -np.inf
+        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbmodel)
+        return out
