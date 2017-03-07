@@ -10,7 +10,6 @@ from iminuit import Minuit
 import emcee
 import h5py
 from clint.textui import progress
-import corner
 from .WDmodel import WDmodel
 from . import io
 from . import likelihood
@@ -552,7 +551,7 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
 
     for i, param in enumerate(param_names):
         x = in_samp[mask,i]
-        q_16, q_50, q_84 = corner.quantile(x, [0.16, 0.5, 0.84])
+        q_16, q_50, q_84 = np.percentile(x, [16., 50., 84.])
         params[param]['value']  = q_50
         params[param]['bounds'] = (q_16, q_84)
         params[param]['errors_pm'] = (q_84 - q_50, q_50 - q_16)

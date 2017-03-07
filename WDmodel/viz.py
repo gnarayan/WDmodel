@@ -1,7 +1,6 @@
 """
 Routines to visualize the DA White Dwarf model atmosphere fit
 """
-import os
 import numpy as np
 import george
 from itertools import cycle
@@ -345,7 +344,7 @@ def plot_mcmc_model(spec, phot, linedata,\
     Plot the full fit of the DA White Dwarf 
     """
 
-    outfilename = os.path.join(outdir, os.path.basename(specfile.replace('.flm','_mcmc.pdf')))
+    outfilename = io.get_outfile(outdir, specfile, '_mcmc.pdf')
     with PdfPages(outfilename) as pdf:
         # plot spectrum and model
         fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, model, params, param_names, samples,\
