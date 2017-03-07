@@ -310,13 +310,6 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     return migrad_params
 
 
-#**************************************************************************************************************
-
-# make a local copy of the loglikelihood function
-loglikelihood = likelihood.loglikelihood
-
-#**************************************************************************************************************
-
 def fix_pos(pos, free_param_names, params):
     """
     emcee.utils.sample_ball doesn't care about bounds but is really convenient to init the walker positions
@@ -353,14 +346,14 @@ def fit_model(spec, phot, model, pbmodel, params,\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
             redo=False):
     """
-    Models the spectrum using the white dwarf model and a gaussian process with
+    Models the spectrum using the white dwarf model and a Gaussian process with
     an exponential squared kernel to account for any flux miscalibration
 
     TODO: add modeling the phot
 
     Accepts
         spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
+        phot: recarray of photometry ith passband pb, magnitude mag, magnitude err mag_err
         model: WDmodel.WDmodel instance
         pbmodel: dict of pysynphot throughput models for each passband with passband name as key
         params: dict of parameters with keywords value, fixed, bounds, scale for each
@@ -374,7 +367,11 @@ def fit_model(spec, phot, model, pbmodel, params,\
     range. The WDmodel.likelihood class can implement additional priors on
     parameters.
 
-    Incrementally saves the chain. 
+    pool controls if the process is run with MPI or single threaded.  If pool
+    is an MPIPool object and the process is started with mpirun, the tasks are
+    divided amongst the MPI processes.
+
+    Incrementally saves the chain if run single-threaded
     """
 
     # parse the params to create a dictionary and init the WDmodel.likelihood.WDmodel_Likelihood instance
@@ -389,18 +386,20 @@ def fit_model(spec, phot, model, pbmodel, params,\
         fixed[param] = params[param]['fixed']
 
     setup_args['bounds'] = bounds
-    lnprob = likelihood.WDmodel_Likelihood(**setup_args)
+
+    # configure the likelihood function 
+    lnlike = likelihood.WDmodel_Likelihood(**setup_args)
 
     # freeze any parameters that we want fixed
     for param, val in fixed.items():
         if val:
             print "Freezing {}".format(param)
-            lnprob.freeze_parameter(param)
+            lnlike.freeze_parameter(param)
 
-    nparam   = lnprob.vector_size
+    nparam   = lnlike.vector_size
 
     # get the starting position and the scales for each parameter
-    init_p0  = lnprob.get_parameter_dict()
+    init_p0  = lnlike.get_parameter_dict()
     p0       = init_p0.values()
     free_param_names = init_p0.keys()
     std = [scales[x] for x in free_param_names]
@@ -414,20 +413,25 @@ def fit_model(spec, phot, model, pbmodel, params,\
     pos = fix_pos(pos, free_param_names, params)
 
     if everyn != 1:
-        spec = spec[::everyn]
+        inspec = spec[::everyn]
+    else:
+        inspec = spec
+
+    # configure the posterior function 
+    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbmodel, lnlike)
 
     # setup the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, phot, model, rvmodel, pbmodel, lnprob), pool=pool) 
+    sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
+            a=ascale,  pool=pool) 
 
     # do a short burn-in
     if nburnin > 0:
         print "Burn-in"
         pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
         sampler.reset()
-        lnprob.set_parameter_vector(pos[np.argmax(prob)])
+        lnlike.set_parameter_vector(pos[np.argmax(prob)])
         print "\nParameters after Burn-in"
-        for k, v in lnprob.get_parameter_dict().items():
+        for k, v in lnlike.get_parameter_dict().items():
             print "{} = {:f}".format(k,v)
 
         # init a new set of walkers around the maximum likelihood position from the burn-in
@@ -460,7 +464,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
     chain.create_dataset("names",data=free_param_names, dtype=dt)
     
     # save the parameter configuration as well
-    names = lnprob.get_parameter_names(include_frozen=True)
+    names = lnlike.get_parameter_names(include_frozen=True)
     names = np.array(names)
     dt = names.dtype.str.lstrip('|')
     par_grp = outf.create_group("params")
@@ -474,6 +478,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
 
     # production
     if pool is None:
+        # run single threaded - create an incrementally saved chain and progress bar
         dset_chain  = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
         dset_lnprob = chain.create_dataset("lnprob",(nwalkers*nprod,),maxshape=(None,))
         with progress.Bar(label="Production", expected_size=nprod) as bar:
@@ -485,6 +490,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
                 outf.flush()
                 bar.show(i+1)
     else:
+        # run with MPI
         start = time.clock()
         print "Started at : {:f}".format(start)
         pos, prob, state = sampler.run_mcmc(pos, nprod)
@@ -492,22 +498,21 @@ def fit_model(spec, phot, model, pbmodel, params,\
         print "Stopped at : {:f}".format(end)
         print "Done in {:f} minutes".format((end-start)/60.)
 
-        # save the chain and 
+        # save the chain
         dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
         dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
-
-    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
     outf.close()
+    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     return  free_param_names, samples, samples_lnprob
 
 
 def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nwalkers=300, nprod=1000, discard=5): 
     """
-    Get the margnialized parameters from the sample chain
+    Get the marginalized parameters from the sample chain
 
     Accepts
         param_names: ordered vector of parameter names, corresponding to each of the dimensions of sample
