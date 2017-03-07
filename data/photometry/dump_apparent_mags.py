@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+"""
+This script converts the instrumental magnitudes in the WD_cycle22.phot from A.
+Calamida to apparent magnitudes, mapping out the differences in the names
+between photometry and spectroscopy using name_map.dat
+"""
+
 import sys
 import numpy as np
 from matplotlib.mlab import rec2txt
@@ -12,7 +18,7 @@ def main():
     zp = a[ind_zp][0]
     
     map = None
-    with open('name_map','r') as f:
+    with open('name_map.dat','r') as f:
         lines = f.readlines()
         map = {line.strip().split()[0]:line.strip().split()[1] for line in lines}
 

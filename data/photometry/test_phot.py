@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+"""
+This script tests the consistency between pysynphot effstim, and simply doing
+trapezoidal rule with computed zeropoints for the three primary standards.
+Differences are < 1E-5. trapz is an order of magnitude+ faster, and the we
+don't run into pickling issues with pysynphot by using it.
+"""
 import sys
 import os
 import numpy as np
