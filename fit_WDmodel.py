@@ -235,9 +235,8 @@ def main(inargs=None, pool=None):
         phot = None
 
     # save the inputs to the fitter
-    outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5')
-    WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-            outfile, redo=redo)
+    outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
+    WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile)
 
     # init the model, and determine the coarse normalization to match the spectrum
     model = WDmodel.WDmodel()

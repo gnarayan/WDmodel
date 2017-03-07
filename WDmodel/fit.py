@@ -1,7 +1,6 @@
 import time
 import warnings
 warnings.simplefilter('once')
-import os
 import numpy as np
 import numpy.polynomial.polynomial as poly
 import scipy.stats as scistat
@@ -442,10 +441,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
         pos = fix_pos(pos, free_param_names, burnin_params)
 
     # create a HDF5 file to hold the chain data
-    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5')
-    if os.path.exists(outfile) and (not redo):
-        message = "Output file %s already exists. Specify --redo to clobber."%outfile
-        raise IOError(message)
+    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5',check=True, redo=redo)
 
     # setup incremental chain saving
     outf = h5py.File(outfile, 'w')

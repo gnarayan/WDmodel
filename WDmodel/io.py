@@ -321,7 +321,7 @@ def set_objname_outdir_for_specfile(specfile, outdir=None):
     return objname, dirname
 
 
-def get_outfile(outdir, specfile, ext):
+def get_outfile(outdir, specfile, ext, check=False, redo=False):
     """
     Returns the full path to a file given outdir, specfile
     Replaces .flm at the end of specfile with extension ext (i.e. you need to include the period)
@@ -329,10 +329,14 @@ def get_outfile(outdir, specfile, ext):
     If outdir is configured by get_objname_outdir_for_specfile, it'll take care of the objname
     """
     outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm', ext)))
+    if check:
+        if os.path.exists(outfile) and (not redo):
+            message = "Output file %s already exists. Specify --redo to clobber."%outfile
+            raise IOError(message)
     return outfile
 
 
-def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile, redo=False):
+def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
@@ -352,10 +356,6 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile, r
     recarray continuum line data (continuumdata) as well as outfile to
     control where the output is written.
     """
-
-    if os.path.exists(outfile) and (not redo):
-        message = "Output file %s already exists. Specify --redo to clobber."%outfile
-        raise IOError(message)
 
     outf = h5py.File(outfile, 'w')
     dset_spec = outf.create_group("spec")
