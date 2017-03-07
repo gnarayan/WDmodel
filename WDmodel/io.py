@@ -4,7 +4,6 @@ from copy import deepcopy
 import numpy as np
 import pkg_resources
 from collections import OrderedDict
-import pysynphot as S
 import json
 import h5py
 
@@ -19,52 +18,15 @@ def copy_params(params):
     return deepcopy(params)
 
 
-def get_pbmodel(pbnames, pbfile=None):
-    """
-    Parses the passband names into a synphot/pysynphot obsmode string based on
-    pbfile
-
-    pbfile must have columns with 
-        pb      : passband name
-        obsmode : pysynphot observation mode string
-    
-    If there is no entry in pbfile for a passband, then we attempt to use the
-    passband name as obsmode string as is. Loads the bandpasses corresponding
-    to each obsmode.  Raises RuntimeError if a bandpass cannot be loaded. 
-
-    Returns a dictionary with pbname -> Bandpass mapping
-    """
-    if pbfile is None:
-        pbfile = pkg_resources.resource_filename('WDmodel','WDmodel_pb_obsmode_map.txt')
-
-    if not os.path.exists(pbfile):
-        message = 'Could not find passband mapping file {}'.format(pbfile)
-        raise IOError(message)
-
-    pbdata = read_pbmap(pbfile)
-    pbmap  = dict(zip(pbdata.pb, pbdata.obsmode))
-
-    out = {}
-    for pb in pbnames:
-        obsmode = pbmap.get(pb, pb)
-        try:
-            bp = S.ObsBandpass(obsmode)
-        except ValueError:
-            message = 'Could not load passband {} from pysynphot, obsmode {}'.format(pb, obsmode)
-            raise RuntimeError(message)
-        out[pb] = bp
-    return out
-
-
 def write_params(params, outfile):
     """
     Dumps the parameter dictionary params to a JSON file
 
     params is a dict the parameter names, as defined with _PARAMETER_NAMES as keys
-    Each key must have a dictionary with keys 
+    Each key must have a dictionary with keys
         "default" : default value - make sure this is a floating point
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
-        "scale"   : a scale parameter used to set the step size in this dimension 
+        "scale"   : a scale parameter used to set the step size in this dimension
         "bounds"  : An upper and lower limit on parameter values. Use null for None.
     Any extra keys are simply written as-is
 
@@ -84,10 +46,10 @@ def read_params(param_file=None):
     Read a JSON file that configures the default guesses and bounds for the
     parameters, as well as if they should be fixed.  The JSON keys are the
     parameter names, as defined in _PARAMETER_NAMES.
-    Each key must have a dictionary with keys 
+    Each key must have a dictionary with keys
         "default" : default value - make sure this is a floating point
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
-        "scale"   : a scale parameter used to set the step size in this dimension 
+        "scale"   : a scale parameter used to set the step size in this dimension
         "bounds"  : An upper and lower limit on parameter values. Use null for None.
     And extra keys are simply loaded as-is
 
@@ -98,11 +60,8 @@ def read_params(param_file=None):
     Returns the dictionary with the parameter defaults.
     """
     if param_file is None:
-        param_file = pkg_resources.resource_filename('WDmodel','WDmodel_param_defaults.json')
-
-    if not os.path.exists(param_file):
-        message = 'Could not find param file {}'.format(param_file)
-        raise IOError(message)
+        param_file = 'WDmodel_param_defaults.json'
+    param_file = get_pkgfile(param_file)
 
     with open(param_file, 'r') as f:
         params = json.load(f)
@@ -118,7 +77,7 @@ def read_params(param_file=None):
             message = "Parameter {} does not have value|fixed|bounds specified in param file {}".format(param, param_file)
             raise KeyError(message)
         out[param] = params[param]
-    
+
     return out
 
 
@@ -127,8 +86,8 @@ def get_params_from_argparse(args):
     Converts the argparse args Namespace back into an ordered parameter
     dictionary. Assumes that the argument parser options were names
         param_value  = Value of the parameter (float or None)
-        param_fix    = Bool specifying if the parameter 
-        param_bounds = tuple with lower limit and upper limit 
+        param_fix    = Bool specifying if the parameter
+        param_bounds = tuple with lower limit and upper limit
 
     Accepts Namespace from argparse
     Returns OrderedDict of parameter keywords
@@ -156,11 +115,8 @@ def read_model_grid(grid_file=None, grid_name=None):
     J. Holberg is working on updating the models
     """
     if grid_file is None:
-        grid_file = pkg_resources.resource_filename('WDmodel','TlustyGrids.hdf5')
-
-    if not os.path.exists(grid_file):
-        message = 'Could not find grid file %s'%grid_file
-        raise IOError(message)
+        grid_file = 'TlustyGrids.hdf5'
+    grid_file = get_pkgfile(grid_file)
 
     if grid_name is None:
         grid_name = "default"
@@ -174,7 +130,7 @@ def read_model_grid(grid_file=None, grid_name=None):
         # so they broke up the grids
         # So really, the original IDL SAV files were annoyingly broken up by wavelength because reasons...
         # We have concatenated these "large" arrays because we don't care about disk space
-        # This grid is called "default", but the originals also exist 
+        # This grid is called "default", but the originals also exist
         # and you can pass grid_name to use them if you choose to
         try:
             grid = grids[grid_name]
@@ -182,12 +138,12 @@ def read_model_grid(grid_file=None, grid_name=None):
             message = '%s\nGrid %s not found in grid_file %s. Accepted values are (%s)'%(e, grid_name, grid_file,\
                     ','.join(grids.keys()))
             raise ValueError(message)
-    
+
         wave  = grid['wave'].value.astype('float64')
         ggrid = grid['ggrid'].value
         tgrid = grid['tgrid'].value
         flux  = grid['flux'].value.astype('float64')
-    
+
     return grid_file, grid_name, wave, ggrid, tgrid, flux
 
 
@@ -199,12 +155,12 @@ def _read_ascii(filename, **kwargs):
     return np.recfromtxt(filename, names=True, **kwargs)
 
 
-# create some aliases 
+# create some aliases
 # these exist so we can flesh out full functions later
 # with different formats if necessary for different sorts of data
 read_phot      = _read_ascii
 read_spectable = _read_ascii
-read_pbmap     = _read_ascii 
+read_pbmap     = _read_ascii
 
 
 def get_spectrum_resolution(specfile, fwhm=None):
@@ -212,25 +168,25 @@ def get_spectrum_resolution(specfile, fwhm=None):
     Accepts a spectrum filename, and reads a lookup table to get the resolution of the spectrum
     """
     _default_resolution = 8.0
-    if fwhm is None:                                                                                                  
-        spectable = read_spectable('data/spectable_resolution.dat')                                                     
-        shortfile = os.path.basename(specfile).replace('-total','')                                                     
-        if shortfile.startswith('test'):                                                                                
-            message = 'Spectrum filename indicates this is a test - using default resolution'                       
-            warnings.warn(message, RuntimeWarning)                                                                      
+    if fwhm is None:
+        spectable = read_spectable('data/spectable_resolution.dat')
+        shortfile = os.path.basename(specfile).replace('-total','')
+        if shortfile.startswith('test'):
+            message = 'Spectrum filename indicates this is a test - using default resolution'
+            warnings.warn(message, RuntimeWarning)
             fwhm = _default_resolution
-        else:                                                                                                           
-            mask = (spectable.specname == shortfile)                                                                    
-            if len(spectable[mask]) != 1:                                                                               
+        else:
+            mask = (spectable.specname == shortfile)
+            if len(spectable[mask]) != 1:
                 message = 'Could not find an entry for this spectrum in the spectable file - using default resolution'
-                warnings.warn(message, RuntimeWarning)                                                                  
+                warnings.warn(message, RuntimeWarning)
                 fwhm = _default_resolution
-            else:                                                                                                       
-                fwhm = spectable[mask].fwhm[0] 
-    else:                                                                                                               
-        message = 'Smoothing factor specified on command line - overriding spectable file'                               
-        warnings.warn(message, RuntimeWarning)                                                                          
-    print('Using smoothing instrumental FWHM {}'.format(fwhm)) 
+            else:
+                fwhm = spectable[mask].fwhm[0]
+    else:
+        message = 'Smoothing factor specified on command line - overriding spectable file'
+        warnings.warn(message, RuntimeWarning)
+    print('Using smoothing instrumental FWHM {}'.format(fwhm))
     return fwhm
 
 
@@ -242,8 +198,8 @@ def read_spec(filename, **kwargs):
     lines beginning with # are ignored
     Removes any NaN entries (any column)
     """
-    spec = _read_ascii(filename, **kwargs)                                                                                          
-    ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))                  
+    spec = _read_ascii(filename, **kwargs)
+    ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))
     spec = spec[ind]
     return spec
 
@@ -255,8 +211,8 @@ def get_phot_for_obj(objname, filename):
     The file is expected to be ascii with the first line defining column names.
     Columns names must be names of passbands (parseable by synphot) for
     magnitudes. Column names for errors in magnitudes in passband must be
-    'd'+passband_name. The first column is expected to be obj for objname. 
-    There must be only one line per objname 
+    'd'+passband_name. The first column is expected to be obj for objname.
+    There must be only one line per objname
     Lines beginning  with # are ignored
 
     Returns the photometry for objname, obj formatted as a recarray with pb, mag, mag_err
@@ -338,6 +294,18 @@ def get_outfile(outdir, specfile, ext, check=False, redo=False):
     return outfile
 
 
+def get_pkgfile(infile):
+    """
+    Returns the full path to file inside the WDmodel package
+    """
+    pkgfile = pkg_resources.resource_filename('WDmodel',infile)
+
+    if not os.path.exists(pkgfile):
+        message = 'Could not find package file {}'.format(pkgfile)
+        raise IOError(message)
+    return pkgfile
+
+
 def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
@@ -347,7 +315,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile):
     WDmodel.io.get_phot_for_obj()
 
     This file is enough to redo the fit with the same input and
-    different settings or redo the output for without redoing the fit. 
+    different settings or redo the output for without redoing the fit.
 
     Alternatively, this file together with the HDF5 file written by
     WDmodel.fit.fit_model() with the sample chain is enough to regenerate the
@@ -394,7 +362,7 @@ def read_fit_inputs(input_file):
     """
     Read the saved HDF5 input_file and return recarrays of the contents
     input files are expected to contain at least 4 groups, with the 5th optional
-    The groups, and the datasets they must have are 
+    The groups, and the datasets they must have are
         spec
             wave, flux, flux_err
         cont_model
@@ -406,7 +374,7 @@ def read_fit_inputs(input_file):
         [phot]
             pb, mag, mag_err
 
-    Returns a tuple of recarrays 
+    Returns a tuple of recarrays
         spec, cont_model, linedata, continuumdata, phot[=None if absent]
     """
     d = h5py.File(input_file, mode='r')
@@ -426,7 +394,7 @@ def read_fit_inputs(input_file):
         line_ferr = d['linedata']['flux_err'].value
         line_mask = d['linedata']['line_mask'].value
         linedata = np.rec.fromarrays([line_wave, line_flux, line_ferr,line_mask], names='wave,flux,flux_err,line_mask')
-    
+
         cont_wave = d['continuumdata']['wave'].value
         cont_flux = d['continuumdata']['flux'].value
         cont_ferr = d['continuumdata']['flux_err'].value
@@ -434,7 +402,7 @@ def read_fit_inputs(input_file):
     except KeyError as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
         raise IOError(message)
-    
+
     phot = None
     if 'phot' in d.keys():
         try:
