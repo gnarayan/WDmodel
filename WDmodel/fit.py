@@ -3,7 +3,6 @@ import warnings
 warnings.simplefilter('once')
 import numpy as np
 import numpy.polynomial.polynomial as poly
-import scipy.stats as scistat
 import scipy.signal as scisig
 from iminuit import Minuit
 import emcee
@@ -147,7 +146,7 @@ def blotch_spectrum(spec, linedata):
     sigma = scisig.medfilt(diff, kernel_size=window)
 
     # the sigma is really a median absolute deviation
-    scaling = scistat.norm.ppf(3/4.)
+    scaling = likelihood.norm.ppf(3/4.)
     sigma/=scaling
 
     mask = (diff > 5.*sigma)
