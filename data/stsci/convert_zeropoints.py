@@ -1,4 +1,14 @@
 #!/usr/bin/env python
+"""
+This script takes the MAST zeropoint and encircled energy curves and converts
+the zeropoints to values appropriate for the WDcal project (GO 13711)
+measurements done by A. Calamida, J. Claver & S. Deustua.
+
+We really use our own zeropoints from the three primary standards, determined
+by measuring them in the same way along with out standards, however the
+comparison with MAST is useful to identify and quantify systematic offsets.
+"""
+
 import sys
 import os
 import numpy as np
