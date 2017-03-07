@@ -34,12 +34,12 @@ def polyfit_continuum(continuumdata, wave):
     cdflux = continuumdata.flux_err
     w = 1./cdflux**2.
 
-    # divide the wavelengths into a blue and red side at 5500 Angstroms 
+    # divide the wavelengths into a blue and red side at 5500 Angstroms
     maskblue = (cwave <= 5500.)
     maskred  = (cwave  > 5500.)
     outblue  = ( wave <= 5500.)
     outred   = ( wave  > 5500.)
-    
+
     mublue = []
     mured  = []
     # fit a degree 9 polynomial to the blueside
@@ -55,7 +55,7 @@ def polyfit_continuum(continuumdata, wave):
     # splice the two fits together
     mu = np.hstack((mublue,mured))
 
-    # fit a degree 9 polynomial to the spliced continuum 
+    # fit a degree 9 polynomial to the spliced continuum
     coeff = poly.polyfit(cwave, mu, deg=9, w=w)
 
     # get the continuum model at the requested wavelengths
@@ -77,7 +77,7 @@ def orig_cut_lines(spec, model):
     (wave, flux, fluxerr, Balmer line number for use as a mask)
 
     and coarse continuum data - the part of the spectrum that's not masked as lines
-    (wave, flux, fluxerr) 
+    (wave, flux, fluxerr)
 
     """
     wave    = spec.wave
@@ -92,7 +92,7 @@ def orig_cut_lines(spec, model):
     for x in range(1,7):
         W0, ZE = model._get_line_indices(wave, x)
         # save the central wavelengths and spectrum specific indices for each line
-        # we don't need this for the fit, but we do need this for plotting 
+        # we don't need this for the fit, but we do need this for plotting
         x_wave, x_flux, x_fluxerr = model._extract_from_indices(wave, flux, ZE, df=fluxerr)
         balmerwaveindex[x] = W0, ZE
         line_wave    = np.hstack((line_wave, x_wave))
@@ -128,7 +128,7 @@ def blotch_spectrum(spec, linedata):
 
     YOU SHOULD PROBABLY PRE-PROCESS YOUR DATA YOURSELF BEFORE FITTING IT AND
     NOT BE LAZY!
-    
+
     Returns the blotched spectrum
     """
     message = 'You have requested the spectrum be blotched. You should probably do this by hand. Caveat emptor.'
@@ -138,7 +138,7 @@ def blotch_spectrum(spec, linedata):
     blueend = spec.flux[0:window]
     redend  = spec.flux[-window:]
 
-    # wiener filter the spectrum 
+    # wiener filter the spectrum
     med_filt = scisig.wiener(spec.flux, mysize=window)
     diff = np.abs(spec.flux - med_filt)
 
@@ -150,10 +150,10 @@ def blotch_spectrum(spec, linedata):
     sigma/=scaling
 
     mask = (diff > 5.*sigma)
-    
+
     # clip the bad outliers from the spectrum
     spec.flux[mask] = med_filt[mask]
-    
+
     # restore the original lines, so that they aren't clipped
     saveind = linedata[-1]
     spec.flux[saveind] = linedata[1]
@@ -178,7 +178,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     respect blue/red limits.
     """
 
-    # Test that the array is monotonic 
+    # Test that the array is monotonic
     WDmodel._wave_test(spec.wave)
     model = WDmodel()
 
@@ -190,18 +190,18 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     # get a coarse estimate of the full continuum
     # this isn't used for anything other than cosmetics
     cont_model = polyfit_continuum(continuumdata, spec.wave)
-    
+
     # clip the spectrum to whatever range is requested
     if bluelimit > 0:
         bluelimit = float(bluelimit)
     else:
         bluelimit = spec.wave.min()
-    
+
     if redlimit > 0:
         redlimit = float(redlimit)
     else:
         redlimit = spec.wave.max()
-    
+
     # trim the outputs to the requested length
     usemask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
     spec = spec[usemask]
@@ -229,7 +229,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
         params: dict of parameters with keywords value, fixed, bounds for each
 
     Uses iminuit to do a rough diagonal fit - i.e. ignores covariance
-    For simplicity, also fixed FWHM and Rv 
+    For simplicity, also fixed FWHM and Rv
     Therefore, only teff, logg, av, dl are fit for (at most)
 
     Returns best guess parameters and errors
@@ -282,9 +282,9 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
                 error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_dl=dl_scale,\
                 limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_dl=dl_bounds,\
                 print_level=1, pedantic=True, errordef=1)
-   
+
     outfnmin, outpar = m.migrad()
- 
+
     # there's some objects for which minuit will fail
     if outfnmin['is_valid']:
         try:
@@ -311,12 +311,12 @@ def fix_pos(pos, free_param_names, params):
     """
     emcee.utils.sample_ball doesn't care about bounds but is really convenient to init the walker positions
 
-    Accepts 
+    Accepts
         pos: list of starting positions for all walkers produced by emcee.utils.sample_ball
         free_param_names: list of the names of free parameters
         param: dict of parameters with keywords value, fixed, bounds for each
 
-    Assumes that the parameter values p0 was within bounds to begin with 
+    Assumes that the parameter values p0 was within bounds to begin with
     Takes p0 -/+ 5sigma or lower/upper bounds as the lower/upper limits whichever is higher/lower
 
     Returns pos with out of bounds positions fixed to be within bounds
@@ -326,7 +326,7 @@ def fix_pos(pos, free_param_names, params):
         lb, ub = params[name]['bounds']
         p0     = params[name]['value']
         std    = params[name]['scale']
-        # take a 5 sigma range 
+        # take a 5 sigma range
         lr, ur = (p0-5.*std, p0+5.*std)
         ll = max(lb, lr, 0.)
         ul = min(ub, ur)
@@ -384,7 +384,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
 
     setup_args['bounds'] = bounds
 
-    # configure the likelihood function 
+    # configure the likelihood function
     lnlike = likelihood.WDmodel_Likelihood(**setup_args)
 
     # freeze any parameters that we want fixed
@@ -405,7 +405,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
         print "nwalkers set to 0. Not running MCMC"
         return
 
-    # create a sample ball 
+    # create a sample ball
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
     pos = fix_pos(pos, free_param_names, params)
 
@@ -414,12 +414,12 @@ def fit_model(spec, phot, model, pbmodel, params,\
     else:
         inspec = spec
 
-    # configure the posterior function 
+    # configure the posterior function
     lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbmodel, lnlike)
 
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
-            a=ascale,  pool=pool) 
+            a=ascale,  pool=pool)
 
     # do a short burn-in
     if nburnin > 0:
@@ -452,11 +452,11 @@ def fit_model(spec, phot, model, pbmodel, params,\
     chain.create_dataset("nparam", data=nparam)
     chain.create_dataset("everyn",data=everyn)
 
-    # save the parameter names corresponding to the chain 
+    # save the parameter names corresponding to the chain
     free_param_names = np.array(free_param_names)
     dt = free_param_names.dtype.str.lstrip('|')
     chain.create_dataset("names",data=free_param_names, dtype=dt)
-    
+
     # save the parameter configuration as well
     names = lnlike.get_parameter_names(include_frozen=True)
     names = np.array(names)
@@ -504,7 +504,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
     return  free_param_names, samples, samples_lnprob
 
 
-def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nwalkers=300, nprod=1000, discard=5): 
+def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nwalkers=300, nprod=1000, discard=5):
     """
     Get the marginalized parameters from the sample chain
 
@@ -541,7 +541,7 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
 
     in_samp = in_samp.reshape((-1, ndim))
     in_lnprob = in_lnprob.reshape(in_samp.shape[0])
-        
+
     mask = np.isfinite(in_lnprob)
 
     for i, param in enumerate(param_names):

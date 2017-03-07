@@ -29,14 +29,14 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
         objname: object name - cosmetic only
         outdir: controls where the plot is written out if save=True
         specfile: Used in the title, and to set the name of the outfile if save=True
-        model: WDmodel.WDmodel instance 
+        model: WDmodel.WDmodel instance
         result: dict of parameters with keywords value, fixed, scale, bounds for each
         rvmodel: keyword allows a different model for the reddening law (default O'Donnell '94)
         save: if True, save the file
 
     Returns a matplotlib figure instance
     """
-    
+
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
     font_l  = FM(size='large')
@@ -72,18 +72,18 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
     fig.suptitle('Quick Fit: %s (%s)'%(objname, specfile), fontproperties=font_l)
-    
+
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     if save:
         outfile = io.get_outfile(outdir, specfile, '_minuit.pdf')
         fig.savefig(outfile)
-    return fig 
+    return fig
 
 
 def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, samples,\
         rvmodel='od94', ndraws=21):
     """
-    Plot the full spectrum of the DA White Dwarf 
+    Plot the full spectrum of the DA White Dwarf
     """
 
     font_s  = FM(size='small')
@@ -123,7 +123,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
         wres, cov = gp.predict(res, spec.wave)
         ax_spec.plot(spec.wave, smoothedmod+wres, color=color, linestyle='-',marker='None', alpha=alpha, label=label)
         return smoothedmod, wres, cov
-        
+
     # for each draw, update the dict, and plot it
     out = []
     for i in range(ndraws):
@@ -144,8 +144,8 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
     # finally, overplot the best result draw as solid
     smoothedmod, wres, cov = plot_one(result, color='red', alpha=1., label=outlabel)
     out.append((smoothedmod, wres))
-        
-    # plot the residuals     
+
+    # plot the residuals
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod-wres+spec.flux_err, spec.flux-smoothedmod-wres-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_resid.plot(spec.wave, spec.flux-smoothedmod-wres,  linestyle='-', marker=None,  color='black')
@@ -153,21 +153,21 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
         ax_resid.plot(spec.wave, draw[0]+draw[1]-smoothedmod-wres, linestyle='-',\
                 marker=None, alpha=0.3, color='orange')
     ax_resid.axhline(0., color='red', linestyle='--')
-    
+
     # label the axes
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font_m, ha='center')
     ax_spec.set_ylabel('Normalized Flux', fontproperties=font_m)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
     fig.suptitle('MCMC Fit: %s (%s)'%(objname, specfile), fontproperties=font_l)
-    
+
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     return fig, out
 
 
 def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     """
-    Plot the full spectrum of the DA White Dwarf 
+    Plot the full spectrum of the DA White Dwarf
     """
 
     font_s  = FM(size='small')
@@ -210,7 +210,7 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
     fig.suptitle('MCMC Fit - No Covariance: %s (%s)'%(objname, specfile), fontproperties=font_l)
-    
+
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
 
     return fig
@@ -218,7 +218,7 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
 
 def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     """
-    Plot the full spectrum of the DA White Dwarf 
+    Plot the full spectrum of the DA White Dwarf
     """
 
     font_xs = FM(size='x-small')
@@ -239,7 +239,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     nlines = len(uselines)
     Tot = nlines + 1
     Cols = 3
-    Rows = Tot // Cols 
+    Rows = Tot // Cols
     Rows += Tot % Cols
     fig2 = plt.figure(figsize=(10,8))
     gs2 = gridspec.GridSpec(Rows, Cols )
@@ -247,7 +247,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     # get the default color cycle
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     colors = cycle(colors)
-    
+
     # plot the distribution of residuals for the entire spectrum
     ax_resid  = fig2.add_subplot(gs2[0])
     smoothedmod, wres = draws[-1]
@@ -273,13 +273,13 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
         wave = linedata.wave[mask]
 
         # restore the line properties
-        linename, W0, D, eps = model._lines[line] 
+        linename, W0, D, eps = model._lines[line]
 
         # find the matching indices in the spectrum/continuum model that match the line
         ind  = np.searchsorted(cont_model.wave, wave)
         this_line_cont = cont_model.flux[ind]
 
-        # shift the wavelength so the centroids are 0 
+        # shift the wavelength so the centroids are 0
         shifted_wave = wave - W0
         shifted_flux = linedata.flux[mask]/this_line_cont
         shifted_ferr  = linedata.flux_err[mask]/this_line_cont
@@ -300,7 +300,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
             smoothedmod, wres = draw
             line_model = (smoothedmod + wres)[ind]
             line_model /= this_line_cont
-            line_model += voff 
+            line_model += voff
             ax_lines.plot(shifted_wave, line_model, linestyle='-', marker='None', color=color, alpha=alpha)
 
         # overplot the model
@@ -341,7 +341,7 @@ def plot_mcmc_model(spec, phot, linedata,\
         params, param_names, samples, samples_lnprob,\
         rvmodel='od94', balmer=None, save=True, ndraws=21, savefig=False):
     """
-    Plot the full fit of the DA White Dwarf 
+    Plot the full fit of the DA White Dwarf
     """
 
     outfilename = io.get_outfile(outdir, specfile, '_mcmc.pdf')
@@ -370,7 +370,7 @@ def plot_mcmc_model(spec, phot, linedata,\
             fig2.savefig(outfile)
         pdf.savefig(fig)
         pdf.savefig(fig2)
-        
+
         # add phot plot
 
         # plot corner plot
