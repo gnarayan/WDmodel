@@ -115,3 +115,13 @@ class WDmodel_Posterior(object):
             return -np.inf
         out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbmodel)
         return out
+
+    def lnlike(self, theta):
+        self.lnlike.set_parameter_vector(theta)
+        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbmodel)
+        return out
+
+    def lnprior(self, theta):
+        self.lnlike.set_parameter_vector(theta)
+        out = self.lnlike.lnprior()
+        return out 
