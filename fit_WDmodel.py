@@ -241,26 +241,25 @@ def main(inargs=None, pool=None):
     WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile)
 
     # exclude passbands that we want excluded 
+    pbnames = []
     if phot is not None:
         pbnames = np.unique(phot.pb) 
         if excludepb is not None:
             pbnames = list(set(pbnames) - set(excludepb))
 
-        # if we cut out out all the passbands, fix mu
-        if len(pbnames) == 0:
-            params['mu']['value'] = 0.
-            params['mu']['fixed'] = True
-            phot = None
-        else:
-            # filter the photometry recarray to use only the passbands we want
-            useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
-            useind = np.array(useind)
-            phot = phot.take(useind)
+        # filter the photometry recarray to use only the passbands we want
+        useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
+        useind = np.array(useind)
+        phot = phot.take(useind)
 
-            # set the pbnames from the trimmed photometry recarray to preserve order
-            pbnames = list(phot.pb)
-    else:
-        pbnames = []
+        # set the pbnames from the trimmed photometry recarray to preserve order
+        pbnames = list(phot.pb)
+
+    # if we cut out out all the passbands, fix mu
+    if len(pbnames) == 0:
+        params['mu']['value'] = 0.
+        params['mu']['fixed'] = True
+        phot = None
 
     # get the throughput model 
     pbmodel = WDmodel.pbmodel.get_pbmodel(pbnames, model)
