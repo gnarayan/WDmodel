@@ -7,6 +7,7 @@ import WDmodel
 import WDmodel.io
 import WDmodel.fit
 import WDmodel.viz
+import WDmodel.pbmodel
 
 
 def get_options(args=None):
@@ -220,8 +221,11 @@ def main(inargs=None, pool=None):
     # read spectrum
     spec = WDmodel.io.read_spec(specfile)
 
+    # init the model
+    model = WDmodel.WDmodel()
+
     # pre-process spectrum
-    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, blotch=blotch)
+    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, model, blotch=blotch)
     spec, cont_model, linedata, continuumdata = out
 
     # get photometry 
@@ -235,9 +239,6 @@ def main(inargs=None, pool=None):
     # save the inputs to the fitter
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
     WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile)
-
-    # init the model, and determine the coarse normalization to match the spectrum
-    model = WDmodel.WDmodel()
 
     # exclude passbands that we want excluded 
     if phot is not None:
@@ -262,7 +263,7 @@ def main(inargs=None, pool=None):
         pbnames = []
 
     # get the throughput model 
-    pbmodel = WDmodel.io.get_pbmodel(pbnames)
+    pbmodel = WDmodel.pbmodel.get_pbmodel(pbnames, model)
 
 
     ##### MINUIT #####
