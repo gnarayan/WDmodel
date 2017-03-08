@@ -4,7 +4,7 @@ from . import io
 import scipy.interpolate as spinterp
 from astropy import units as u
 from specutils.extinction import reddening
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter1d
 
 
 class WDmodel(object):
@@ -100,7 +100,7 @@ class WDmodel(object):
             mod = 10.**mod
         mod/=bluening
         gsig = fwhm/self._fwhm_to_sigma * (1./np.median(np.gradient(wave)))
-        mod = gaussian_filter(mod, gsig, order=0, mode='nearest')
+        mod = gaussian_filter1d(mod, gsig, order=0, mode='nearest')
         if log:
             mod = np.log10(mod)
         return mod
@@ -119,7 +119,7 @@ class WDmodel(object):
         mod/=bluening
         omod = np.interp(wave, self._wave, mod)
         gsig = fwhm/self._fwhm_to_sigma * (1./np.median(np.gradient(wave)))
-        omod = gaussian_filter(omod, gsig, order=0, mode='nearest')
+        omod = gaussian_filter1d(omod, gsig, order=0, mode='nearest')
         if log:
             omod = np.log10(omod)
             mod  = np.log10(mod)
@@ -231,8 +231,8 @@ class WDmodel(object):
                 wave=wave, log=log, strict=strict)
         if log:
             modflux = 10.**modflux
-        gsig = fwhm/self._fwhm_to_sigma * (1./np.median(np.gradient(wave)))
-        modflux = gaussian_filter(modflux, gsig, order=0, mode='nearest')
+        gsig = fwhm/self._fwhm_to_sigma * (1./np.median(np.gradient(modwave)))
+        modflux = gaussian_filter1d(modflux, gsig, order=0, mode='nearest')
         if log:
             modflux = np.log10(modflux)
         return modwave, modflux
