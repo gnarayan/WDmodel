@@ -1,6 +1,7 @@
 import numpy as np
 import pysynphot as S
 from . import io
+from collections import OrderedDict
 
 def synflux(spec, ind, pb):
     """
@@ -101,7 +102,7 @@ def get_pbmodel(pbnames, model, pbfile=None):
     vega    = S.Vega
     mag_type= 'vegamag'
 
-    out = {}
+    out = OrderedDict()
 
     for pb in pbnames:
 
