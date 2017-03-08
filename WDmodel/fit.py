@@ -8,7 +8,6 @@ from iminuit import Minuit
 import emcee
 import h5py
 from clint.textui import progress
-from .WDmodel import WDmodel
 from . import io
 from . import likelihood
 
@@ -162,7 +161,7 @@ def blotch_spectrum(spec, linedata):
     return spec
 
 
-def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
+def pre_process_spectrum(spec, bluelimit, redlimit, model, blotch=False):
     """
     Accepts a recarray spectrum, spec, blue and red limits, and an optional
     keyword blotch
@@ -179,8 +178,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     """
 
     # Test that the array is monotonic
-    WDmodel._wave_test(spec.wave)
-    model = WDmodel()
+    model._wave_test(spec.wave)
 
     # get a coarse mask of line and continuum
     linedata, continuumdata  = orig_cut_lines(spec, model)
@@ -203,14 +201,14 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
         redlimit = spec.wave.max()
 
     # trim the outputs to the requested length
-    usemask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
+    _, usemask = model._get_indices_in_range(spec.wave, bluelimit, redlimit)
     spec = spec[usemask]
     cont_model = cont_model[usemask]
 
-    usemask = ((linedata.wave >= bluelimit) & (linedata.wave <= redlimit))
+    _, usemask = model._get_indices_in_range(linedata.wave, bluelimit, redlimit)
     linedata = linedata[usemask]
 
-    usemask = ((continuumdata.wave >= bluelimit) & (continuumdata.wave <= redlimit))
+    _, usemask = model._get_indices_in_range(continuumdata.wave, bluelimit, redlimit)
     continuumdata = continuumdata[usemask]
 
     return spec, cont_model, linedata, continuumdata
