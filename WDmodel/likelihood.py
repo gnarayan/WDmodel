@@ -31,12 +31,12 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, rvmodel, pbs):
+    def get_value(self, spec, phot, model, rvmodel, pbs, pixel_scale=1.):
         """
         Returns the log likelihood of the data given the model
         """
         mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
-                spec.wave, rv=self.rv, rvmodel=rvmodel)
+                spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
@@ -67,7 +67,7 @@ class WDmodel_Likelihood(Model):
         elif np.any((theta < 0.)):
             return -np.inf
         else:
-            # this is from the Schalfly et al analysis from PS1
+            # this is from the Schlafly et al analysis from PS1
             out = norm.logpdf(self.rv, 3.1, 0.18)
 
             # this implements the glos prior on Av
@@ -99,20 +99,21 @@ class WDmodel_Posterior(object):
 
     Call returns the log posterior
     """
-    def __init__(self, spec, phot, model, rvmodel, pbs, lnlike):
+    def __init__(self, spec, phot, model, rvmodel, pbs, lnlike, pixel_scale=1.):
         self.spec    = spec
         self.phot    = phot
         self.model   = model
         self.rvmodel = rvmodel
         self.pbs     = pbs
         self.lnlike  = lnlike
+        self.pixscale= pixel_scale
 
     def __call__(self, theta):
         self.lnlike.set_parameter_vector(theta)
         out = self.lnlike.lnprior()
         if not np.isfinite(out):
             return -np.inf
-        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs)
+        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs, self.pixscale)
         return out
 
     def lnlike(self, theta):
