@@ -113,7 +113,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
         sigf = this_draw['sigf']['value']
         tau  = this_draw['tau']['value']
 
-        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+        mod, full_mod = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
         smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
 
         res = spec.flux - smoothedmod
@@ -122,15 +122,16 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
         gp.compute(spec.wave, spec.flux_err)
         wres, cov = gp.predict(res, spec.wave)
         ax_spec.plot(spec.wave, smoothedmod+wres, color=color, linestyle='-',marker='None', alpha=alpha, label=label)
-        return smoothedmod, wres, cov
+        out_draw = io.copy_params(this_draw)
+        return smoothedmod, wres, cov, full_mod, out_draw
 
     # for each draw, update the dict, and plot it
     out = []
     for i in range(ndraws):
         for j, param in enumerate(param_names):
             this_draw[param]['value'] = draws[i,j]
-        smoothedmod, wres, cov = plot_one(this_draw, color='orange', alpha=0.3)
-        out.append((smoothedmod, wres))
+        smoothedmod, wres, cov, full_mod, out_draw = plot_one(this_draw, color='orange', alpha=0.3)
+        out.append((smoothedmod, wres, full_mod, out_draw))
 
     outlabel = 'Model\n'
     for param in result:
@@ -142,8 +143,8 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
             outlabel += '{} = {:.2f} +{:.2f}/-{:.2f}\n'.format(param, val, errp, errm)
 
     # finally, overplot the best result draw as solid
-    smoothedmod, wres, cov = plot_one(result, color='red', alpha=1., label=outlabel)
-    out.append((smoothedmod, wres))
+    smoothedmod, wres, cov, full_mod, out_draw = plot_one(result, color='red', alpha=1., label=outlabel)
+    out.append((smoothedmod, wres, full_mod, out_draw))
 
     # plot the residuals
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod-wres+spec.flux_err, spec.flux-smoothedmod-wres-spec.flux_err,\
@@ -164,6 +165,10 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     return fig, out
 
+
+def plot_mcmc_photometry_res(phot, pbs, draws):
+    for draw in draws:
+        print draws[3]
 
 def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     """
@@ -188,14 +193,14 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     ax_spec.plot(cont_model.wave, cont_model.flux, color='blue', linestyle='--', marker='None', label='Continuum')
 
     # plot the residual without the covariance term
-    smoothedmod, wres = draws[-1]
+    smoothedmod, wres, _, _ = draws[-1]
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod+spec.flux_err, spec.flux-smoothedmod-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_resid.plot(spec.wave, spec.flux - smoothedmod, color='black', linestyle='-', marker='None')
 
-    bestfit, bestres = draws[-1]
+    bestfit, bestres, _, _ = draws[-1]
     def plot_draw(draw, color='red', alpha=1.0, label=None):
-        smoothedmod, wres = draw
+        smoothedmod, wres, _, _ = draw
         ax_resid.plot(spec.wave, wres+smoothedmod - bestfit,  linestyle='-', marker=None,  color=color, alpha=alpha)
         ax_spec.plot(spec.wave, smoothedmod, color=color, linestyle='-', marker='None', alpha=alpha, label=label)
 
@@ -250,7 +255,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
     # plot the distribution of residuals for the entire spectrum
     ax_resid  = fig2.add_subplot(gs2[0])
-    smoothedmod, wres = draws[-1]
+    smoothedmod, wres, _, _ = draws[-1]
     res = spec.flux - smoothedmod - wres
     hist(res, bins='knuth', normed=True, histtype='stepfilled', color='grey', alpha=0.5, label='Residuals',ax=ax_resid)
     ax_resid.axvline(0., color='red', linestyle='--')
@@ -297,7 +302,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
         # plot one of the draws
         def plot_draw(draw, color='red', alpha=1.0):
-            smoothedmod, wres = draw
+            smoothedmod, wres, _, _ = draw
             line_model = (smoothedmod + wres)[ind]
             line_model /= this_line_cont
             line_model += voff
