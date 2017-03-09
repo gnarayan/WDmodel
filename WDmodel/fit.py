@@ -251,10 +251,12 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
         message = "All of teff, logg, av, dl are marked as fixed - nothing to fit."
         raise RuntimeError(message)
 
+    pixel_scale = 1./np.median(np.gradient(spec.wave))
+
     if dl0 is None:
         # only dl and fwhm are allowed to have None as input values
         # fwhm will get set to a default fwhm if it's None
-        mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+        mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
         c0   = spec.flux.mean()/mod.mean()
         dl0 = (1./(4.*np.pi*c0))**0.5
 
@@ -270,7 +272,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
     # ignore the covariance and define a simple chi2 to minimize
     def chi2(teff, logg, av, dl):
-        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
         mod *= (1./(4.*np.pi*(dl)**2.))
         chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
         return chi2
@@ -436,8 +438,11 @@ def fit_model(spec, phot, model, pbs, params,\
     else:
         inspec = spec
 
+    # even if we only take every nth sample, the pixel scale is the same
+    pixel_scale = 1./np.median(np.gradient(spec.wave))
+
     # configure the posterior function
-    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbs, lnlike)
+    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbs, lnlike, pixel_scale)
 
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
