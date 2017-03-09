@@ -10,6 +10,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.font_manager import FontProperties as FM
 from astropy.visualization import hist
 from . import io
+from . import pbmodel
 import corner
 #from matplotlib import rc
 #rc('text', usetex=True)
@@ -166,9 +167,68 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
     return fig, out
 
 
-def plot_mcmc_photometry_res(phot, pbs, draws):
-    for draw in draws:
-        print draws[3]
+def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
+    font_s  = FM(size='small')
+    font_m  = FM(size='medium')
+    font_l  = FM(size='large')
+
+    fig = plt.figure(figsize=(10,8))
+    gs = gridspec.GridSpec(2, 1, height_ratios=[4,1])
+    ax_phot   = fig.add_subplot(gs[0])
+    ax_resid  = fig.add_subplot(gs[1])
+
+    refwave = np.array([x[4] for x in pbs.values()])
+    npb = len(pbs)
+    pbind   = np.arange(npb)
+
+
+    def plot_draw(draw, color='red', alpha=1.0, label=None, linestyle='None'):
+        _, _, model_flux, params = draw
+        model_spec = np.rec.fromarrays((model._wave, model_flux),names='wave,flux')
+        mu = params['mu']['value']
+        model_mags = pbmodel.get_model_synmags(model_spec, pbs, mu=mu)
+        ax_phot.plot(refwave, model_mags.mag, color=color, alpha=alpha, marker='o', label=label, linestyle=linestyle)
+        res = phot.mag - model_mags.mag
+        return res
+
+    out = []
+    # plot the draws
+    for draw in draws[:-1]:
+        res = plot_draw(draw, color='orange', alpha=0.3)
+        out.append(res)
+    # plot the magnitudes
+    ax_phot.errorbar(refwave, phot.mag, yerr=phot.mag_err, color='k', marker='o',\
+            linestyle='None', label='Observed Magnitudes')
+    res = plot_draw(draws[-1], color='red', alpha=1.0, label='Model Magnitudes', linestyle='--')
+
+    # the draws are already samples from the posterior distribution - just take the median 
+    out = np.array(out)
+    errs = np.median(np.abs(out), axis=0)
+
+    # plot the residuals
+    ax_resid.fill_between(pbind, -errs, errs, interpolate=True, facecolor='orange', alpha=0.3)
+    ax_resid.errorbar(pbind, res, yerr=phot.mag_err, color='black',  marker='o')
+    ax_resid.axhline(0., color='red', linestyle='--')
+
+    # flip the y axis since mags
+    ax_phot.invert_yaxis()
+    ax_resid.invert_yaxis()
+
+    # label the axes
+    ax_resid.set_xlim(-0.5,npb-0.5)
+    ax_resid.set_xticks(pbind)
+    ax_resid.set_xticklabels(pbs.keys())
+    ax_resid.set_xlabel('Passband',fontproperties=font_m, ha='center')
+    ax_phot.set_xlabel('Wavelength',fontproperties=font_m, ha='center')
+    ax_phot.set_ylabel('Magnitude', fontproperties=font_m)
+    ax_resid.set_ylabel('Residual (mag)', fontproperties=font_m)
+    ax_phot.legend(frameon=False, prop=font_s)
+    fig.suptitle('Photometry for {}'.format(objname), fontproperties=font_l)
+
+    gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
+
+    return fig
+
 
 def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     """
@@ -342,7 +402,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
 def plot_mcmc_model(spec, phot, linedata,\
         objname, outdir, specfile,\
-        model, cont_model,\
+        model, cont_model, pbs,\
         params, param_names, samples, samples_lnprob,\
         rvmodel='od94', balmer=None, save=True, ndraws=21, savefig=False):
     """
@@ -358,6 +418,16 @@ def plot_mcmc_model(spec, phot, linedata,\
             outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum.pdf')
             fig.savefig(outfile)
         pdf.savefig(fig)
+
+        # TODO - extinction law plot?
+        # TODO - save magnitudes and residuals for each draw
+        # plot the photometry and residuals if we actually fit it, else skip
+        if phot is not None:
+            fig = plot_mcmc_photometry_res(objname, phot, model, pbs, draws)
+            if savefig:
+                outfile = io.get_outfile(outdir, specfile, '_mcmc_phot.pdf')
+                fig.savefig(outfile)
+            pdf.savefig(fig)
 
         # plot continuum, model and draws without gp
         fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws)
@@ -376,8 +446,6 @@ def plot_mcmc_model(spec, phot, linedata,\
         pdf.savefig(fig)
         pdf.savefig(fig2)
 
-        # add phot plot
-
         # plot corner plot
         fig = corner.corner(samples, bins=51, labels=param_names, show_titles=True,quantiles=(0.16,0.84), smooth=1.)
         if savefig:
@@ -385,3 +453,4 @@ def plot_mcmc_model(spec, phot, linedata,\
             fig.savefig(outfile)
         pdf.savefig(fig)
         #endwith
+        #TODO return draws so we write some model output files
