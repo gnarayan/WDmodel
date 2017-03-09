@@ -47,12 +47,13 @@ def get_model_synmags(model_spec, pbs, mu=0.):
         model_spec: model recarray spectrum (wave, flux) - assumed to be Flam
         pbs: dictionary with pbname as key containing as a tuple:
             passband: recarray of non-zero passband transmission (wave,
-            throughput)
+            throughput) - not used
             transmission: the non-zero passband transmission interpolated onto
             overlapping model wavelengths
             ind: indices of model_spec wavelength that overlap with this passband
             zp: zeropoint of this passband
             (this structure can be created by get_pbmodel)
+            avgwave: the average/reference wavelength of the passband - not used
         mu: offset to apply to the photometry (default=0)
     Returns
         recarray of synthetic magnitudes (pb, mag)
@@ -60,7 +61,7 @@ def get_model_synmags(model_spec, pbs, mu=0.):
     outpb  = []
     outmag = []
     for pbname, pbdata in pbs.items():
-        _, transmission, ind, zp = pbdata
+        _, transmission, ind, zp, _ = pbdata
         pbsynmag = synphot(model_spec, ind, transmission, zp) + mu
         outmag.append(pbsynmag)
         outpb.append(pbname)
@@ -138,6 +139,7 @@ def get_pbmodel(pbnames, model, pbfile=None):
         overlapping model wavelengths
         ind: indices of model wavelength that overlap with this passband
         zp: Vegamag zeropoint of this passband
+        avgwave: passband average/reference wavelength
     """
 
     # figure out the mapping from passband to observation mode
@@ -163,6 +165,8 @@ def get_pbmodel(pbnames, model, pbfile=None):
             message = 'Could not load passband {} from pysynphot, obsmode {}'.format(pb, obsmode)
             raise RuntimeError(message)
 
+        avgwave = bp.avgwave()
+
         # get the pysynphot Vega magnitude (should be 0. on the Vega magnitude system!)
         ob = S.Observation(vega, bp)
         synphot_mag = ob.effstim(mag_type)
@@ -174,6 +178,6 @@ def get_pbmodel(pbnames, model, pbfile=None):
         transmission, ind = interp_passband(model._wave, outpb, model)
 
         # save everything we need for this passband
-        out[pb] = (outpb, transmission, ind, outzp)
+        out[pb] = (outpb, transmission, ind, outzp, avgwave)
 
     return out
