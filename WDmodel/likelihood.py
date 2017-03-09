@@ -31,7 +31,7 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, rvmodel, pbmodel):
+    def get_value(self, spec, phot, model, rvmodel, pbs):
         """
         Returns the log likelihood of the data given the model
         """
@@ -94,17 +94,17 @@ class WDmodel_Posterior(object):
         model: a WDmodel() instance to get the model spectrum in the presence
         of reddening and through some instrument
         rvmodel: The form of the reddening law to be used to redden the spectrum
-        pbmodel: a model of the throughput of the different passbands
+        pbs: a model of the throughput of the different passbands
         lnlike: a WDmodel_Likelihood instance that can return the log prior and log likelihood
 
     Call returns the log posterior
     """
-    def __init__(self, spec, phot, model, rvmodel, pbmodel, lnlike):
+    def __init__(self, spec, phot, model, rvmodel, pbs, lnlike):
         self.spec    = spec
         self.phot    = phot
         self.model   = model
         self.rvmodel = rvmodel
-        self.pbmodel = pbmodel
+        self.pbs     = pbs
         self.lnlike  = lnlike
 
     def __call__(self, theta):
@@ -112,12 +112,12 @@ class WDmodel_Posterior(object):
         out = self.lnlike.lnprior()
         if not np.isfinite(out):
             return -np.inf
-        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbmodel)
+        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs)
         return out
 
     def lnlike(self, theta):
         self.lnlike.set_parameter_vector(theta)
-        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbmodel)
+        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs)
         return out
 
     def lnprior(self, theta):
