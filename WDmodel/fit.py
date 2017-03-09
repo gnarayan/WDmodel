@@ -9,6 +9,7 @@ import emcee
 import h5py
 from clint.textui import progress
 from . import io
+from . import pbmodel
 from . import likelihood
 
 
@@ -335,7 +336,30 @@ def fix_pos(pos, free_param_names, params):
     return pos
 
 
-def fit_model(spec, phot, model, pbmodel, params,\
+def mu_guess(phot, model, pbs, params, rvmodel='od94'):
+    """
+    Makes a (not very robust) guess for mu after the initial minuit fit
+
+    Accepts
+        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
+        model: WDmodel.WDmodel instance
+        pbs: dict of throughput models for each passband with passband name as key
+        params: dict of parameters with keywords value, fixed, bounds, scale for each
+    """
+    teff = params['teff']['value']
+    logg = params['logg']['value']
+    av   = params['av']['value']
+    rv   = params['rv']['value']
+    model_flux = model._get_red_model(teff, logg, av, model._wave, rv=rv, rvmodel=rvmodel)
+    model_spec = np.rec.fromarrays((model._wave, model_flux), names='wave,flux')
+    model_mags = pbmodel.get_model_synmags(model_spec, pbs)
+    mu0_guess  = np.median(phot.mag - model_mags.mag)
+    out_params = io.copy_params(params)
+    out_params['mu']['value'] = mu0_guess
+    return out_params
+
+
+def fit_model(spec, phot, model, pbs, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
@@ -348,9 +372,9 @@ def fit_model(spec, phot, model, pbmodel, params,\
 
     Accepts
         spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry ith passband pb, magnitude mag, magnitude err mag_err
+        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
         model: WDmodel.WDmodel instance
-        pbmodel: dict of pysynphot throughput models for each passband with passband name as key
+        pbs: dict of throughput models for each passband with passband name as key
         params: dict of parameters with keywords value, fixed, bounds, scale for each
 
     Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
@@ -413,7 +437,7 @@ def fit_model(spec, phot, model, pbmodel, params,\
         inspec = spec
 
     # configure the posterior function
-    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbmodel, lnlike)
+    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbs, lnlike)
 
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
