@@ -102,6 +102,9 @@ def get_params_from_argparse(args):
         out[param]={}
         out[param]['value']  = kwargs[param]
         out[param]['fixed']  = kwargs['{}_fix'.format(param)]
+        if (out[param]['fixed'] is True) and (out[param]['value'] is None):
+            message = "Parameter {} fixed but value is None - must be specified".format(param)
+            raise RuntimeError(message)
         out[param]['scale']  = kwargs['{}_scale'.format(param)]
         out[param]['bounds'] = kwargs['{}_bounds'.format(param)]
 
