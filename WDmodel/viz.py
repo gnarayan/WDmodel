@@ -58,7 +58,9 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     rv   = result['rv']['value']
     fwhm = result['fwhm']['value']
 
-    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+    pixel_scale = 1./np.median(np.gradient(spec.wave))
+
+    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
     smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
     outlabel = 'Model\nTeff = {:.1f} K\nlog(g) = {:.2f}\nAv = {:.2f} mag\ndl = {:.2f}'.format(teff, logg, av, dl)
 
@@ -103,6 +105,8 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
     this_draw = io.copy_params(result)
     draws  = samples[np.random.randint(0, len(samples), ndraws),:]
 
+    pixel_scale = 1./np.median(np.gradient(spec.wave))
+
     # plot one draw of the sample, bundled into a dict
     def plot_one(this_draw, color='red', alpha=1., label=None):
         teff = this_draw['teff']['value']
@@ -114,7 +118,8 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
         sigf = this_draw['sigf']['value']
         tau  = this_draw['tau']['value']
 
-        mod, full_mod = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+        mod, full_mod = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
+                rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
         smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
 
         res = spec.flux - smoothedmod
