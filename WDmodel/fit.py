@@ -286,24 +286,33 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
     outfnmin, outpar = m.migrad()
 
-    # there's some objects for which minuit will fail
-    if outfnmin['is_valid']:
-        try:
-            m.hesse()
-        except RuntimeError:
-            message = "Something seems to have gone wrong with Hessian matrix computation. You should probably stop."
-            warnings.warn(message, RuntimeWarning)
-    else:
-        message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
-        warnings.warn(message, RuntimeWarning)
-
     result = m.values
     errors = m.errors
-    # duplicate the input dicrionary and update
+    # duplicate the input dictionary and update
     migrad_params = io.copy_params(params)
     for param in result:
         migrad_params[param]['value'] = result[param]
         migrad_params[param]['scale'] = errors[param]
+
+    if outfnmin['is_valid']:
+        # if minuit works, then try computing the Hessian
+        try:
+            m.hesse()
+            # if we sucessfully computed the Hessian, then update the parameters
+            #
+            result = m.values
+            errors = m.errors
+            for param in result:
+                migrad_params[param]['value'] = result[param]
+                migrad_params[param]['scale'] = errors[param]
+        except RuntimeError:
+            message = "Something seems to have gone wrong with Hessian matrix computation. You should probably stop."
+            warnings.warn(message, RuntimeWarning)
+    else:
+        # there's some objects for which minuit will fail - just return the original params then
+        migrad_params = io.copy_params(params)
+        message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
+        warnings.warn(message, RuntimeWarning)
 
     return migrad_params
 
