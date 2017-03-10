@@ -113,6 +113,7 @@ class WDmodel(object):
         if log:
             omod = np.log10(omod)
             mod  = np.log10(mod)
+        mod = np.rec.fromarrays((self._wave, mod), names='wave,flux')
         return omod, mod
 
 
