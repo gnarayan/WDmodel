@@ -188,8 +188,7 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
 
 
     def plot_draw(draw, color='red', alpha=1.0, label=None, linestyle='None'):
-        _, _, model_flux, params = draw
-        model_spec = np.rec.fromarrays((model._wave, model_flux),names='wave,flux')
+        _, _, model_spec, params = draw
         mu = params['mu']['value']
         model_mags = pbmodel.get_model_synmags(model_spec, pbs, mu=mu)
         ax_phot.plot(refwave, model_mags.mag, color=color, alpha=alpha, marker='o', label=label, linestyle=linestyle)
