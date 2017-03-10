@@ -316,10 +316,6 @@ def main(inargs=None, pool=None):
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
         WDmodel.io.write_params(mcmc_params, outfile)
 
-        # HACK HACK HACK
-        if phot is not None:
-            mcmc_params = WDmodel.fit.mu_guess(phot, model, pbs, mcmc_params, rvmodel=rvmodel)
-
         # plot the MCMC output
         WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                     objname, outdir, specfile,\
