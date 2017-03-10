@@ -317,7 +317,8 @@ def main(inargs=None, pool=None):
         WDmodel.io.write_params(mcmc_params, outfile)
 
         # HACK HACK HACK
-        mcmc_params = WDmodel.fit.mu_guess(phot, model, pbs, mcmc_params, rvmodel=rvmodel)
+        if phot is not None:
+            mcmc_params = WDmodel.fit.mu_guess(phot, model, pbs, mcmc_params, rvmodel=rvmodel)
 
         # plot the MCMC output
         WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
