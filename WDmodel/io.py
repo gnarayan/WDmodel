@@ -61,7 +61,7 @@ def read_params(param_file=None):
     """
     if param_file is None:
         param_file = 'WDmodel_param_defaults.json'
-    param_file = get_pkgfile(param_file)
+        param_file = get_pkgfile(param_file)
 
     with open(param_file, 'r') as f:
         params = json.load(f)
