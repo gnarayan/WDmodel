@@ -4,9 +4,10 @@ from __future__ import print_function
 
 import sys
 from fit_WDmodel import get_options
-from numpy import unique
+import numpy as np
 import WDmodel
 import WDmodel.fit
+import WDmodel.pbmodel
 import WDmodel.viz
 import WDmodel.io
 
@@ -38,16 +39,29 @@ def main():
     # init model
     model = WDmodel.WDmodel()
 
-    # exclude passbands that we want excluded 
+    # exclude passbands that we want excluded
+    pbnames = []
     if phot is not None:
-        pbnames = unique(phot.pb) 
+        pbnames = np.unique(phot.pb)
         if excludepb is not None:
             pbnames = list(set(pbnames) - set(excludepb))
-    else:
-        pbnames = []
 
-    # get the throughput model 
-    pbmodel = WDmodel.io.get_pbmodel(pbnames)
+        # filter the photometry recarray to use only the passbands we want
+        useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
+        useind = np.array(useind)
+        phot = phot.take(useind)
+
+        # set the pbnames from the trimmed photometry recarray to preserve order
+        pbnames = list(phot.pb)
+
+    # if we cut out out all the passbands, force mu to be fixed
+    if len(pbnames) == 0:
+        params['mu']['value'] = 0.
+        params['mu']['fixed'] = True
+        phot = None
+
+    # get the throughput model
+    pbs = WDmodel.pbmodel.get_pbmodel(pbnames, model)
 
     # restore params
     param_file = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
@@ -65,7 +79,7 @@ def main():
     # plot the MCMC output
     WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                 objname, outdir, specfile,\
-                model, cont_model,\
+                model, cont_model, pbs,\
                 mcmc_params, param_names, in_samp, in_lnprob,\
                 rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
 
