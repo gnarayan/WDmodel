@@ -4,6 +4,7 @@ from scipy.stats import norm
 from george import GP, HODLRSolver
 from george.kernels import ExpSquaredKernel
 from . import io
+from .pbmodel import get_model_synmags
 
 class WDmodel_Likelihood(Model):
     """
@@ -35,18 +36,29 @@ class WDmodel_Likelihood(Model):
         """
         Returns the log likelihood of the data given the model
         """
-        mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
-                spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+        if phot is None:
+            phot_chi = 0.
+            mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm,\
+                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+        else:
+            mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
+                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+            mod_mags = get_model_synmags(full, pbs, mu=self.mu)
+            phot_res = phot.mag - mod_mags.mag
+            phot_chi = np.sum(phot_res**2./phot.mag_err**2.)
+
+
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
+
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
         gp = GP(kernel, mean=0., solver=HODLRSolver)
         try:
             gp.compute(spec.wave, spec.flux_err)
         except ValueError:
             return -np.inf
-        #TODO - add the photometry here
-        return gp.lnlikelihood(res, quiet=True)
+
+        return gp.lnlikelihood(res, quiet=True) - (phot_chi/2.)
 
 
     def lnprior(self):
