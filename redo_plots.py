@@ -86,7 +86,7 @@ def main():
     spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')
     WDmodel.io.write_spectrum_model(spec, model_spec, spec_model_file)
 
-    full_model_file = WDmodel.io.get_outfile(outdir, specfile, '_full_model.dat')
+    full_model_file = WDmodel.io.get_outfile(outdir, specfile, '_full_model.hdf5')
     WDmodel.io.write_full_model(full_mod, mcmc_params['mu']['value'], full_model_file)
 
     if phot is not None:
