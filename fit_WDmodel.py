@@ -317,7 +317,7 @@ def main(inargs=None, pool=None):
         WDmodel.io.write_params(mcmc_params, outfile)
 
         # plot the MCMC output
-        WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+        draws, mag_draws = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                     objname, outdir, specfile,\
                     model, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
