@@ -71,17 +71,27 @@ def main():
     chain_file = WDmodel.io.get_outfile(outdir, specfile, '_mcmc.hdf5')
     param_names, samples, samples_lnprob = WDmodel.io.read_mcmc(chain_file)
 
-    # parse chain 
+    # parse chain
     result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                     nwalkers=nwalkers, nprod=nprod, discard=discard)
     mcmc_params, in_samp, in_lnprob = result
 
     # plot the MCMC output
-    WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+    model_spec, full_mod, model_mags = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                 objname, outdir, specfile,\
                 model, cont_model, pbs,\
                 mcmc_params, param_names, in_samp, in_lnprob,\
                 rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
+
+    spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')
+    WDmodel.io.write_spectrum_model(spec, model_spec, spec_model_file)
+
+    full_model_file = WDmodel.io.get_outfile(outdir, specfile, '_full_model.dat')
+    WDmodel.io.write_full_model(full_mod, mcmc_params['mu']['value'], full_model_file)
+
+    if phot is not None:
+        phot_model_file = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
+        WDmodel.io.write_phot_model(phot, model_mags, phot_model_file)
 
     return
 
