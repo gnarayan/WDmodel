@@ -479,7 +479,7 @@ def write_full_model(full_model, mu, outfile):
         mu: Model normalization from photometry
         outfile: output filename
     """
-    full_model.flux*=(10**(0.4*mu))
+    full_model.flux*=(10**(-0.4*mu))
     with open(outfile, 'w') as f:
         f.write(rec2txt(full_model, precision=8)+'\n')
     print "Write full model file {}".format(outfile)
