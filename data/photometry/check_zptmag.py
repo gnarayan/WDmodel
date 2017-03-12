@@ -108,7 +108,7 @@ def main():
     final = np.rec.fromrecords(final, names=names)
     print rec2txt(final, precision=6)
     with open('zeropoint_check.txt','w') as f:
-        f.write(rec2txt(final)+'\n')
+        f.write(rec2txt(final, precision=6)+'\n')
 
 
 if __name__=='__main__':
