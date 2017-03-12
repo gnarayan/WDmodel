@@ -16,7 +16,7 @@ def main():
     pb = pb.split(',')
     ind_zp = (a.ID == 'ZP')
     zp = a[ind_zp][0]
-    
+
     map = None
     with open('name_map.dat','r') as f:
         lines = f.readlines()
@@ -41,7 +41,7 @@ def main():
             this_out.append(mag.n)
             this_out.append(mag.s)
         out.append(this_out)
-    names = ['obj'] 
+    names = ['obj']
     for p in pb:
         names.append(p)
         names.append('d'+p)
