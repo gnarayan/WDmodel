@@ -4,6 +4,7 @@ from copy import deepcopy
 import numpy as np
 import pkg_resources
 from collections import OrderedDict
+from matplotlib.mlab import rec2txt
 import json
 import h5py
 
@@ -438,3 +439,47 @@ def read_mcmc(input_file):
         raise IOError(message)
 
     return param_names, samples, samples_lnprob
+
+
+def write_spectrum_model(spec, model_spec, outfile):
+    """
+    Write the spectrum and the model spectrum and residuals to outfile
+    Accepts
+        spec: recarray spectrum (wave, flux, flux_err)
+        model_spec: recarray spectrum (wave, flux)
+        outfile: output filename
+    """
+    out = (spec.wave, spec.flux, spec.flux_err, model_spec.flux, spec.flux-model_spec.flux)
+    out = np.rec.fromarrays(out, names='wave,flux,flux_err,model_flux,res_flux')
+    with open(outfile, 'w') as f:
+        f.write(rec2txt(out, precision=8)+'\n')
+    print "Write spec model file {}".format(outfile)
+
+
+def write_phot_model(phot, model_mags, outfile):
+    """
+    Write the photometry, model photometry and residuals to outfile
+    Accepts
+        phot: recarray photometry (pb, mag, mag_err)
+        model_mags: recarray model photometry (pb, mag)
+        outfile: output filename
+    """
+    out = (phot.pb, phot.mag, phot.mag_err, model_mags.mag, phot.mag-model_mags.mag)
+    out = np.rec.fromarrays(out, names='pb,mag,mag_err,model_mag,res_mag')
+    with open(outfile, 'w') as f:
+        f.write(rec2txt(out, precision=6)+'\n')
+    print "Write phot model file {}".format(outfile)
+
+
+def write_full_model(full_model, mu, outfile):
+    """
+    Write the full SED model to outfile
+    Accepts
+        full_model: recarray SED model (wave, flux)
+        mu: Model normalization from photometry
+        outfile: output filename
+    """
+    full_model.flux*=(10**(0.4*mu))
+    with open(outfile, 'w') as f:
+        f.write(rec2txt(full_model, precision=8)+'\n')
+    print "Write full model file {}".format(outfile)

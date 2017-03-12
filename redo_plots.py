@@ -77,7 +77,7 @@ def main():
     mcmc_params, in_samp, in_lnprob = result
 
     # plot the MCMC output
-    draws, mag_draws = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+    WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                 objname, outdir, specfile,\
                 model, cont_model, pbs,\
                 mcmc_params, param_names, in_samp, in_lnprob,\
