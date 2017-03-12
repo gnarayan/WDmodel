@@ -12,6 +12,10 @@ import pysynphot as S
 from matplotlib.mlab import rec2txt
 
 def synflux(spec, pb):
+    """
+    Trim the spectrum to the passband, interpolate the transmission onto the
+    spectrum wavelengths, and return the synthetic flux of the spectrum
+    """
     ind   = np.where((spec.wave >= pb.wave.min()) & (spec.wave <= pb.wave.max()))
     transmission = np.interp(spec.wave[ind], pb.wave, pb.transmission, left=0., right=0.)
     n = np.trapz(spec.flux[ind]*spec.wave[ind]*transmission, spec.wave[ind])
@@ -20,6 +24,9 @@ def synflux(spec, pb):
     return out
 
 def synphot(spec, pb, zp=0.):
+    """
+    Get the synthetic magnitude of spectrum spec through passband pb, and apply zeropoint zp
+    """
     flux = synflux(spec, pb)
     m = -2.5*np.log10(flux) + zp
     return m
@@ -43,22 +50,26 @@ def chop_syn_spec_pb(spec, pb):
 
 
 def main():
-    pbnames = 'F275W,F336W,F475W,F625W,F775W,F160W'
-    pbnames = pbnames.split(',')
+    # setup the three primary standards
     stars   = 'gd71,gd153,g191b2b'
     stars   = stars.split(',')
     ext     = '_mod_010.fits'
     indir   = os.environ.get('PYSYN_CDBS','/data/wdcalib/synphot')
     indir   = os.path.join(indir, 'calspec')
+
+    # setup the magnitude system and throughput model
     mag_type= 'vegamag'
     vega    = S.Vega
-
-    map = np.recfromtxt('WDmodel/WDmodel_pb_obsmode_map.txt',names=True)
+    pbnames = 'F275W,F336W,F475W,F625W,F775W,F160W'
+    pbnames = pbnames.split(',')
+    map = np.recfromtxt('../../WDmodel/WDmodel_pb_obsmode_map.txt',names=True)
     map = dict(zip(map.pb, map.obsmode))
 
     mag_vega     = []
     cutpbs       = {}
     pbs          = {}
+
+    # load the passbands
     for pb in pbnames:
         thisobsmode = map[pb]
         thispb = S.ObsBandpass(thisobsmode)
@@ -89,14 +100,18 @@ def main():
             this_syn_pb  =  pbs[pb]
             this_simp_pb, this_zp = cutpbs[pb]
             this_spec = np.rec.fromarrays((spec.wave, spec.flux), names='wave,flux')
+
+            # for each star, we get the pysynphot magnitude
             ob = S.Observation(spec, this_syn_pb)
             this_syn_mag = ob.effstim(mag_type)
             synphot_mag.append(this_syn_mag)
 
+            # and the simple synphot magnitude, using the zeropoint computed from Vega
             this_simp_mag = synphot(this_spec, this_simp_pb, zp=this_zp)
             simp_mag.append(this_simp_mag)
         print specfile
 
+        # print out the magnitudes from pysynphot, simple trapz synphot, and the residuals
         synphot_mag = np.array(synphot_mag)
         simp_mag    = np.array(simp_mag)
         res         = synphot_mag - simp_mag
