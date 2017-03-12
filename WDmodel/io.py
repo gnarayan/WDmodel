@@ -453,7 +453,7 @@ def write_spectrum_model(spec, model_spec, outfile):
     out = np.rec.fromarrays(out, names='wave,flux,flux_err,model_flux,res_flux')
     with open(outfile, 'w') as f:
         f.write(rec2txt(out, precision=8)+'\n')
-    print "Write spec model file {}".format(outfile)
+    print "Wrote spec model file {}".format(outfile)
 
 
 def write_phot_model(phot, model_mags, outfile):
@@ -468,7 +468,7 @@ def write_phot_model(phot, model_mags, outfile):
     out = np.rec.fromarrays(out, names='pb,mag,mag_err,model_mag,res_mag')
     with open(outfile, 'w') as f:
         f.write(rec2txt(out, precision=6)+'\n')
-    print "Write phot model file {}".format(outfile)
+    print "Wrote phot model file {}".format(outfile)
 
 
 def write_full_model(full_model, mu, outfile):
@@ -480,6 +480,9 @@ def write_full_model(full_model, mu, outfile):
         outfile: output filename
     """
     full_model.flux*=(10**(-0.4*mu))
-    with open(outfile, 'w') as f:
-        f.write(rec2txt(full_model, precision=8)+'\n')
-    print "Write full model file {}".format(outfile)
+    outf = h5py.File(outfile, 'w')
+    dset_model = outf.create_group("model")
+    dset_model.create_dataset("wave",data=full_model.wave)
+    dset_model.create_dataset("flux",data=full_model.flux)
+    outf.close()
+    print "Wrote full model file {}".format(outfile)
