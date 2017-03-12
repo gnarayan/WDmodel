@@ -464,4 +464,14 @@ def plot_mcmc_model(spec, phot, linedata,\
             fig.savefig(outfile)
         pdf.savefig(fig)
         #endwith
-    return draws, mag_draws
+
+    smoothedmod, wres, full_mod, _ = draws[-1]
+    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres), names='wave,flux')
+
+    if mag_draws is not None:
+        _, model_mags, mu = mag_draws[-1]
+        model_mags.mag += mu
+    else:
+        model_mags = None
+
+    return model_spec, full_mod, model_mags
