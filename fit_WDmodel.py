@@ -317,11 +317,21 @@ def main(inargs=None, pool=None):
         WDmodel.io.write_params(mcmc_params, outfile)
 
         # plot the MCMC output
-        draws, mag_draws = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+        model_spec, full_mod, model_mags = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                     objname, outdir, specfile,\
                     model, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
                     rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
+
+        spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')
+        WDmodel.io.write_spectrum_model(spec, model_spec, spec_model_file)
+
+        full_model_file = WDmodel.io.get_outfile(outdir, specfile, '_full_model.dat')
+        WDmodel.io.write_full_model(full_mod, mcmc_params['mu']['value'], full_model_file)
+
+        if phot is not None:
+            phot_model_file = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
+            WDmodel.io.write_phot_model(phot, model_mags, phot_model_file)
 
     return
 
