@@ -186,24 +186,29 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
     npb = len(pbs)
     pbind   = np.arange(npb)
 
-
+    # plot one draw of the sample
     def plot_draw(draw, color='red', alpha=1.0, label=None, linestyle='None'):
         _, _, model_spec, params = draw
         mu = params['mu']['value']
         model_mags = pbmodel.get_model_synmags(model_spec, pbs, mu=mu)
         ax_phot.plot(refwave, model_mags.mag, color=color, alpha=alpha, marker='o', label=label, linestyle=linestyle)
         res = phot.mag - model_mags.mag
-        return res
+        return res, model_mags, mu
 
     out = []
+    mag_draws = []
     # plot the draws
     for draw in draws[:-1]:
-        res = plot_draw(draw, color='orange', alpha=0.3)
+        res, model_mags, mu = plot_draw(draw, color='orange', alpha=0.3)
         out.append(res)
+        mag_draws.append((res, model_mags, mu))
+
     # plot the magnitudes
     ax_phot.errorbar(refwave, phot.mag, yerr=phot.mag_err, color='k', marker='o',\
             linestyle='None', label='Observed Magnitudes')
-    res = plot_draw(draws[-1], color='red', alpha=1.0, label='Model Magnitudes', linestyle='--')
+    res, model_mags, mu = plot_draw(draws[-1], color='red', alpha=1.0, label='Model Magnitudes', linestyle='--')
+
+    mag_draws.append((res, model_mags, mu))
 
     # the draws are already samples from the posterior distribution - just take the median 
     out = np.array(out)
@@ -231,7 +236,7 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
 
-    return fig
+    return fig, mag_draws
 
 
 def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
@@ -413,6 +418,9 @@ def plot_mcmc_model(spec, phot, linedata,\
     Plot the full fit of the DA White Dwarf
     """
 
+    draws     = None
+    mag_draws = None
+
     outfilename = io.get_outfile(outdir, specfile, '_mcmc.pdf')
     with PdfPages(outfilename) as pdf:
         # plot spectrum and model
@@ -424,10 +432,9 @@ def plot_mcmc_model(spec, phot, linedata,\
         pdf.savefig(fig)
 
         # TODO - extinction law plot?
-        # TODO - save magnitudes and residuals for each draw
         # plot the photometry and residuals if we actually fit it, else skip
         if phot is not None:
-            fig = plot_mcmc_photometry_res(objname, phot, model, pbs, draws)
+            fig, mag_draws = plot_mcmc_photometry_res(objname, phot, model, pbs, draws)
             if savefig:
                 outfile = io.get_outfile(outdir, specfile, '_mcmc_phot.pdf')
                 fig.savefig(outfile)
@@ -457,4 +464,4 @@ def plot_mcmc_model(spec, phot, linedata,\
             fig.savefig(outfile)
         pdf.savefig(fig)
         #endwith
-        #TODO return draws so we write some model output files
+    return draws, mag_draws
