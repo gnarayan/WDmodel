@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 """
 This script tests the consistency between pysynphot effstim, and simply doing
-trapezoidal rule with computed zeropoints for the three primary standards.
-Differences are < 1E-5. trapz is an order of magnitude+ faster, and the we
-don't run into pickling issues with pysynphot by using it.
+trapezoidal rule with computed zeropoints for the three primary standards -
+synphot.  Differences are < 1E-5. trapz is an order of magnitude+ faster, and
+the we don't run into pickling issues with pysynphot by using it.
 """
 import sys
 import os
 import numpy as np
 import pysynphot as S
-import WDmodel.io
 from matplotlib.mlab import rec2txt
 
 def synflux(spec, pb):
@@ -46,7 +45,6 @@ def chop_syn_spec_pb(spec, pb):
 def main():
     pbnames = 'F275W,F336W,F475W,F625W,F775W,F160W'
     pbnames = pbnames.split(',')
-    pbs = WDmodel.io.get_pbmodel(pbnames)
     stars   = 'gd71,gd153,g191b2b'
     stars   = stars.split(',')
     ext     = '_mod_010.fits'
@@ -55,10 +53,17 @@ def main():
     mag_type= 'vegamag'
     vega    = S.Vega
 
+    map = np.recfromtxt('WDmodel/WDmodel_pb_obsmode_map.txt',names=True)
+    map = dict(zip(map.pb, map.obsmode))
+
     mag_vega     = []
     cutpbs       = {}
+    pbs          = {}
     for pb in pbnames:
-        thispb = pbs[pb]
+        thisobsmode = map[pb]
+        thispb = S.ObsBandpass(thisobsmode)
+        pbs[pb] = thispb
+
         ob = S.Observation(vega, thispb)
 
         # get the pysynphot Vega magnitude (should be 0.)
@@ -102,7 +107,7 @@ def main():
         this_out = ['{}_{}'.format(star,'residual'),] + res.tolist()
         out.append(this_out)
     out = np.rec.fromrecords(out, names=['objphot',]+pbnames)
-    print rec2txt(out, precision=5)
+    print rec2txt(out, precision=6)
 
 
 if __name__=='__main__':
