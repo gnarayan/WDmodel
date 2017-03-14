@@ -5,6 +5,7 @@ import numpy.polynomial.polynomial as poly
 import scipy.signal as scisig
 from scipy.stats import norm
 from iminuit import Minuit
+from astropy.constants import c as _C
 import emcee
 import h5py
 from clint.textui import progress
@@ -162,10 +163,17 @@ def blotch_spectrum(spec, linedata):
     return spec
 
 
-def pre_process_spectrum(spec, bluelimit, redlimit, model, blotch=False):
+def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., blotch=False):
     """
     Accepts a recarray spectrum, spec, blue and red limits, and an optional
-    keyword blotch
+    keywords lamshift, vel and  blotch
+
+    Applies an offset lamshift to the spectrum wavelengths if non-zero. This is
+    useful to correct slit centering errors with wide slits, which result in
+    flat wavelength calibration shifts
+
+    Applies any velocity shift to the spectrum wavelengths if non-zero.
+    Blueshifts are negative, redshifts are positive.
 
     Does a coarse extraction of Balmer lines in the optical, (optionally)
     blotches the data, builds a continuum model for visualization purposes, and
@@ -177,6 +185,12 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, blotch=False):
     Note that the continuum model and spectrum are the same length and both
     respect blue/red limits.
     """
+
+    # offset and blueshift/redshift the spectrum
+    if lamshift != 0.:
+        spec.wave += lamshift
+    if vel != 0.:
+        spec.wave *= (1. +(vel*1000./_C.value))
 
     # Test that the array is monotonic
     model._wave_test(spec.wave)
@@ -311,8 +325,16 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     else:
         # there's some objects for which minuit will fail - just return the original params then
         migrad_params = io.copy_params(params)
+
+        # if the minuit fill failed, and we didn't get an initial dl guess,
+        # just use the failed result value as a start this has the dubious
+        # value of being better than None
+        if migrad_params['dl']['value'] is None:
+            migrad_params['dl']['value'] = result['dl']
+
         message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
         warnings.warn(message, RuntimeWarning)
+
 
     return migrad_params
 
