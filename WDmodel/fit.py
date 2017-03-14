@@ -1,18 +1,15 @@
 import time
 import warnings
-warnings.simplefilter('once')
-import os
 import numpy as np
 import numpy.polynomial.polynomial as poly
-import scipy.stats as scistat
 import scipy.signal as scisig
+from scipy.stats import norm
 from iminuit import Minuit
 import emcee
 import h5py
 from clint.textui import progress
-import corner
-from .WDmodel import WDmodel
 from . import io
+from . import pbmodel
 from . import likelihood
 
 
@@ -37,12 +34,12 @@ def polyfit_continuum(continuumdata, wave):
     cdflux = continuumdata.flux_err
     w = 1./cdflux**2.
 
-    # divide the wavelengths into a blue and red side at 5500 Angstroms 
+    # divide the wavelengths into a blue and red side at 5500 Angstroms
     maskblue = (cwave <= 5500.)
     maskred  = (cwave  > 5500.)
     outblue  = ( wave <= 5500.)
     outred   = ( wave  > 5500.)
-    
+
     mublue = []
     mured  = []
     # fit a degree 9 polynomial to the blueside
@@ -58,7 +55,7 @@ def polyfit_continuum(continuumdata, wave):
     # splice the two fits together
     mu = np.hstack((mublue,mured))
 
-    # fit a degree 9 polynomial to the spliced continuum 
+    # fit a degree 9 polynomial to the spliced continuum
     coeff = poly.polyfit(cwave, mu, deg=9, w=w)
 
     # get the continuum model at the requested wavelengths
@@ -80,7 +77,7 @@ def orig_cut_lines(spec, model):
     (wave, flux, fluxerr, Balmer line number for use as a mask)
 
     and coarse continuum data - the part of the spectrum that's not masked as lines
-    (wave, flux, fluxerr) 
+    (wave, flux, fluxerr)
 
     """
     wave    = spec.wave
@@ -95,7 +92,7 @@ def orig_cut_lines(spec, model):
     for x in range(1,7):
         W0, ZE = model._get_line_indices(wave, x)
         # save the central wavelengths and spectrum specific indices for each line
-        # we don't need this for the fit, but we do need this for plotting 
+        # we don't need this for the fit, but we do need this for plotting
         x_wave, x_flux, x_fluxerr = model._extract_from_indices(wave, flux, ZE, df=fluxerr)
         balmerwaveindex[x] = W0, ZE
         line_wave    = np.hstack((line_wave, x_wave))
@@ -131,7 +128,7 @@ def blotch_spectrum(spec, linedata):
 
     YOU SHOULD PROBABLY PRE-PROCESS YOUR DATA YOURSELF BEFORE FITTING IT AND
     NOT BE LAZY!
-    
+
     Returns the blotched spectrum
     """
     message = 'You have requested the spectrum be blotched. You should probably do this by hand. Caveat emptor.'
@@ -141,7 +138,7 @@ def blotch_spectrum(spec, linedata):
     blueend = spec.flux[0:window]
     redend  = spec.flux[-window:]
 
-    # wiener filter the spectrum 
+    # wiener filter the spectrum
     med_filt = scisig.wiener(spec.flux, mysize=window)
     diff = np.abs(spec.flux - med_filt)
 
@@ -149,14 +146,14 @@ def blotch_spectrum(spec, linedata):
     sigma = scisig.medfilt(diff, kernel_size=window)
 
     # the sigma is really a median absolute deviation
-    scaling = scistat.norm.ppf(3/4.)
+    scaling = norm.ppf(3/4.)
     sigma/=scaling
 
     mask = (diff > 5.*sigma)
-    
+
     # clip the bad outliers from the spectrum
     spec.flux[mask] = med_filt[mask]
-    
+
     # restore the original lines, so that they aren't clipped
     saveind = linedata[-1]
     spec.flux[saveind] = linedata[1]
@@ -165,7 +162,7 @@ def blotch_spectrum(spec, linedata):
     return spec
 
 
-def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
+def pre_process_spectrum(spec, bluelimit, redlimit, model, blotch=False):
     """
     Accepts a recarray spectrum, spec, blue and red limits, and an optional
     keyword blotch
@@ -181,9 +178,8 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     respect blue/red limits.
     """
 
-    # Test that the array is monotonic 
-    WDmodel._wave_test(spec.wave)
-    model = WDmodel()
+    # Test that the array is monotonic
+    model._wave_test(spec.wave)
 
     # get a coarse mask of line and continuum
     linedata, continuumdata  = orig_cut_lines(spec, model)
@@ -193,27 +189,27 @@ def pre_process_spectrum(spec, bluelimit, redlimit, blotch=False):
     # get a coarse estimate of the full continuum
     # this isn't used for anything other than cosmetics
     cont_model = polyfit_continuum(continuumdata, spec.wave)
-    
+
     # clip the spectrum to whatever range is requested
     if bluelimit > 0:
         bluelimit = float(bluelimit)
     else:
         bluelimit = spec.wave.min()
-    
+
     if redlimit > 0:
         redlimit = float(redlimit)
     else:
         redlimit = spec.wave.max()
-    
+
     # trim the outputs to the requested length
-    usemask = ((spec.wave >= bluelimit) & (spec.wave <= redlimit))
+    _, usemask = model._get_indices_in_range(spec.wave, bluelimit, redlimit)
     spec = spec[usemask]
     cont_model = cont_model[usemask]
 
-    usemask = ((linedata.wave >= bluelimit) & (linedata.wave <= redlimit))
+    _, usemask = model._get_indices_in_range(linedata.wave, bluelimit, redlimit)
     linedata = linedata[usemask]
 
-    usemask = ((continuumdata.wave >= bluelimit) & (continuumdata.wave <= redlimit))
+    _, usemask = model._get_indices_in_range(continuumdata.wave, bluelimit, redlimit)
     continuumdata = continuumdata[usemask]
 
     return spec, cont_model, linedata, continuumdata
@@ -232,7 +228,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
         params: dict of parameters with keywords value, fixed, bounds for each
 
     Uses iminuit to do a rough diagonal fit - i.e. ignores covariance
-    For simplicity, also fixed FWHM and Rv 
+    For simplicity, also fixed FWHM and Rv
     Therefore, only teff, logg, av, dl are fit for (at most)
 
     Returns best guess parameters and errors
@@ -255,10 +251,12 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
         message = "All of teff, logg, av, dl are marked as fixed - nothing to fit."
         raise RuntimeError(message)
 
+    pixel_scale = 1./np.median(np.gradient(spec.wave))
+
     if dl0 is None:
         # only dl and fwhm are allowed to have None as input values
         # fwhm will get set to a default fwhm if it's None
-        mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+        mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
         c0   = spec.flux.mean()/mod.mean()
         dl0 = (1./(4.*np.pi*c0))**0.5
 
@@ -274,7 +272,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
     # ignore the covariance and define a simple chi2 to minimize
     def chi2(teff, logg, av, dl):
-        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel)
+        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
         mod *= (1./(4.*np.pi*(dl)**2.))
         chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
         return chi2
@@ -285,48 +283,50 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
                 error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_dl=dl_scale,\
                 limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_dl=dl_bounds,\
                 print_level=1, pedantic=True, errordef=1)
-   
+
     outfnmin, outpar = m.migrad()
- 
-    # there's some objects for which minuit will fail
-    if outfnmin['is_valid']:
-        try:
-            m.hesse()
-        except RuntimeError:
-            message = "Something seems to have gone wrong with Hessian matrix computation. You should probably stop."
-            warnings.warn(message, RuntimeWarning)
-    else:
-        message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
-        warnings.warn(message, RuntimeWarning)
 
     result = m.values
     errors = m.errors
-    # duplicate the input dicrionary and update
+    # duplicate the input dictionary and update
     migrad_params = io.copy_params(params)
     for param in result:
         migrad_params[param]['value'] = result[param]
         migrad_params[param]['scale'] = errors[param]
 
+    if outfnmin['is_valid']:
+        # if minuit works, then try computing the Hessian
+        try:
+            m.hesse()
+            # if we sucessfully computed the Hessian, then update the parameters
+            #
+            result = m.values
+            errors = m.errors
+            for param in result:
+                migrad_params[param]['value'] = result[param]
+                migrad_params[param]['scale'] = errors[param]
+        except RuntimeError:
+            message = "Something seems to have gone wrong with Hessian matrix computation. You should probably stop."
+            warnings.warn(message, RuntimeWarning)
+    else:
+        # there's some objects for which minuit will fail - just return the original params then
+        migrad_params = io.copy_params(params)
+        message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
+        warnings.warn(message, RuntimeWarning)
+
     return migrad_params
 
-
-#**************************************************************************************************************
-
-# make a local copy of the loglikelihood function
-loglikelihood = likelihood.loglikelihood
-
-#**************************************************************************************************************
 
 def fix_pos(pos, free_param_names, params):
     """
     emcee.utils.sample_ball doesn't care about bounds but is really convenient to init the walker positions
 
-    Accepts 
+    Accepts
         pos: list of starting positions for all walkers produced by emcee.utils.sample_ball
         free_param_names: list of the names of free parameters
         param: dict of parameters with keywords value, fixed, bounds for each
 
-    Assumes that the parameter values p0 was within bounds to begin with 
+    Assumes that the parameter values p0 was within bounds to begin with
     Takes p0 -/+ 5sigma or lower/upper bounds as the lower/upper limits whichever is higher/lower
 
     Returns pos with out of bounds positions fixed to be within bounds
@@ -336,179 +336,56 @@ def fix_pos(pos, free_param_names, params):
         lb, ub = params[name]['bounds']
         p0     = params[name]['value']
         std    = params[name]['scale']
-        # take a 5 sigma range 
+        # take a 5 sigma range
         lr, ur = (p0-5.*std, p0+5.*std)
-        ll = max(lb, lr)
+        ll = max(lb, lr, 0.)
         ul = min(ub, ur)
-        ind = np.where((pos[:,i] <= ll) & (pos[:,i] >= ul))
-        nreplace = len(pos[:i][ind])
+        ind = np.where((pos[:,i] <= ll) | (pos[:,i] >= ul))
+        nreplace = len(pos[:,i][ind])
         pos[:,i][ind] = np.random.rand(nreplace)*(ul - ll) + ll
 
     return pos
 
 
-def fit_model(spec, phot, model, pbmodel, params,\
-            objname, outdir, specfile,\
-            rvmodel='od94',\
-            ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1,\
-            redo=False):
+def mu_guess(phot, model, pbs, params, rvmodel='od94'):
     """
-    Models the spectrum using the white dwarf model and a gaussian process with
-    an exponential squared kernel to account for any flux miscalibration
-
-    TODO: add modeling the phot
+    Makes a (not very robust) guess for mu after the initial minuit fit
 
     Accepts
-        spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
+        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
         model: WDmodel.WDmodel instance
-        pbmodel: dict of pysynphot throughput models for each passband with passband name as key
+        pbs: dict of throughput models for each passband with passband name as key
         params: dict of parameters with keywords value, fixed, bounds, scale for each
-
-    Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
-    posterior. Does a short burn-in around the initial guess model parameters -
-    either minuit or user supplied values/defaults. Model parameters may be
-    frozen/fixed. Parameters can have bounds limiting their range.
-
-    The prior is a tophat on all parameters, preventing them from going out of
-    range. The WDmodel.likelihood class can implement additional priors on
-    parameters.
-
-    Incrementally saves the chain. 
     """
-
-    # parse the params to create a dictionary and init the WDmodel.likelihood.WDmodel_Likelihood instance
-    setup_args = {}
-    bounds     = []
-    scales     = {}
-    fixed      = {}
-    for param in likelihood._PARAMETER_NAMES:
-        setup_args[param] = params[param]['value']
-        bounds.append(params[param]['bounds'])
-        scales[param] = params[param]['scale']
-        fixed[param] = params[param]['fixed']
-
-    setup_args['bounds'] = bounds
-    lnprob = likelihood.WDmodel_Likelihood(**setup_args)
-
-    # freeze any parameters that we want fixed
-    for param, val in fixed.items():
-        if val:
-            print "Freezing {}".format(param)
-            lnprob.freeze_parameter(param)
-
-    nparam   = lnprob.vector_size
-
-    # get the starting position and the scales for each parameter
-    init_p0  = lnprob.get_parameter_dict()
-    p0       = init_p0.values()
-    free_param_names = init_p0.keys()
-    std = [scales[x] for x in free_param_names]
-
-    if nwalkers==0:
-        print "nwalkers set to 0. Not running MCMC"
-        return
-
-    # create a sample ball 
-    pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
-    pos = fix_pos(pos, free_param_names, params)
-
-    if everyn != 1:
-        spec = spec[::everyn]
-
-    # setup the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, phot, model, rvmodel, pbmodel, lnprob)) 
-
-    # do a short burn-in
-    if nburnin > 0:
-        print "Burn-in"
-        pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
-        sampler.reset()
-        lnprob.set_parameter_vector(pos[np.argmax(prob)])
-        print "\nParameters after Burn-in"
-        for k, v in lnprob.get_parameter_dict().items():
-            print "{} = {:f}".format(k,v)
-
-        # init a new set of walkers around the maximum likelihood position from the burn-in
-        burnin_p0 = pos[np.argmax(prob)]
-        pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
-        burnin_params = io.copy_params(params)
-        for i, key in enumerate(free_param_names):
-            burnin_params[key]['value'] = burnin_p0[i]
-        pos = fix_pos(pos, free_param_names, burnin_params)
-
-    # create a HDF5 file to hold the chain data
-    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5')
-    if os.path.exists(outfile) and (not redo):
-        message = "Output file %s already exists. Specify --redo to clobber."%outfile
-        raise IOError(message)
-
-    # setup incremental chain saving
-    outf = h5py.File(outfile, 'w')
-    chain = outf.create_group("chain")
-    dset_chain  = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
-    dset_lnprob = chain.create_dataset("lnprob",(nwalkers*nprod,),maxshape=(None,))
-
-    # save some other attributes about the chain
-    chain.create_dataset("nwalkers", data=nwalkers)
-    chain.create_dataset("nprod", data=nprod)
-    chain.create_dataset("nparam", data=nparam)
-    chain.create_dataset("everyn",data=everyn)
-
-    # save the parameter names corresponding to the chain 
-    free_param_names = np.array(free_param_names)
-    dt = free_param_names.dtype.str.lstrip('|')
-    chain.create_dataset("names",data=free_param_names, dtype=dt)
-    
-    # save the parameter configuration as well
-    names = lnprob.get_parameter_names(include_frozen=True)
-    names = np.array(names)
-    dt = names.dtype.str.lstrip('|')
-    par_grp = outf.create_group("params")
-    par_grp.create_dataset("names",data=names, dtype=dt)
-    for param in params:
-        this_par = par_grp.create_group(param)
-        this_par.create_dataset("value",data=params[param]["value"])
-        this_par.create_dataset("fixed",data=params[param]["fixed"])
-        this_par.create_dataset("scale",data=params[param]["scale"])
-        this_par.create_dataset("bounds",data=params[param]["bounds"])
-
-    # production
-    with progress.Bar(label="Production", expected_size=nprod) as bar:
-        for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
-            position = result[0]
-            lnpost   = result[1]
-            dset_chain[nwalkers*i:nwalkers*(i+1),:] = position
-            dset_lnprob[nwalkers*i:nwalkers*(i+1)] = lnpost
-            outf.flush()
-            bar.show(i+1)
-
-    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
-
-    samples         = np.array(dset_chain)
-    samples_lnprob  = np.array(dset_lnprob)
-    outf.close()
-
-    return  free_param_names, samples, samples_lnprob
+    teff = params['teff']['value']
+    logg = params['logg']['value']
+    av   = params['av']['value']
+    rv   = params['rv']['value']
+    model_flux = model._get_red_model(teff, logg, av, model._wave, rv=rv, rvmodel=rvmodel)
+    model_spec = np.rec.fromarrays((model._wave, model_flux), names='wave,flux')
+    model_mags = pbmodel.get_model_synmags(model_spec, pbs)
+    mu0_guess  = np.median(phot.mag - model_mags.mag)
+    out_params = io.copy_params(params)
+    out_params['mu']['value'] = mu0_guess
+    return out_params
 
 
-def mpi_fit_model(spec, phot, model, pbmodel, params,\
+def fit_model(spec, phot, model, pbs, params,\
             objname, outdir, specfile,\
             rvmodel='od94',\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
             redo=False):
     """
-    Models the spectrum using the white dwarf model and a gaussian process with
+    Models the spectrum using the white dwarf model and a Gaussian process with
     an exponential squared kernel to account for any flux miscalibration
 
     TODO: add modeling the phot
 
     Accepts
         spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry ith passband pb, magnitude mag, magintude err mag_err
+        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
         model: WDmodel.WDmodel instance
-        pbmodel: dict of pysynphot throughput models for each passband with passband name as key
+        pbs: dict of throughput models for each passband with passband name as key
         params: dict of parameters with keywords value, fixed, bounds, scale for each
 
     Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
@@ -520,11 +397,11 @@ def mpi_fit_model(spec, phot, model, pbmodel, params,\
     range. The WDmodel.likelihood class can implement additional priors on
     parameters.
 
-    This version is identical to the fit_model() routine except for the
-    incremental chain saving It's intended for use with mpifit_WDmodel.py since
-    with MPI, we do not want the pool sitting idle, while master is making
-    incremental writes to disk.
+    pool controls if the process is run with MPI or single threaded.  If pool
+    is an MPIPool object and the process is started with mpirun, the tasks are
+    divided amongst the MPI processes.
 
+    Incrementally saves the chain if run single-threaded
     """
 
     # parse the params to create a dictionary and init the WDmodel.likelihood.WDmodel_Likelihood instance
@@ -532,25 +409,27 @@ def mpi_fit_model(spec, phot, model, pbmodel, params,\
     bounds     = []
     scales     = {}
     fixed      = {}
-    for param in likelihood._PARAMETER_NAMES:
+    for param in io._PARAMETER_NAMES:
         setup_args[param] = params[param]['value']
         bounds.append(params[param]['bounds'])
         scales[param] = params[param]['scale']
         fixed[param] = params[param]['fixed']
 
     setup_args['bounds'] = bounds
-    lnprob = likelihood.WDmodel_Likelihood(**setup_args)
+
+    # configure the likelihood function
+    lnlike = likelihood.WDmodel_Likelihood(**setup_args)
 
     # freeze any parameters that we want fixed
     for param, val in fixed.items():
         if val:
             print "Freezing {}".format(param)
-            lnprob.freeze_parameter(param)
+            lnlike.freeze_parameter(param)
 
-    nparam   = lnprob.vector_size
+    nparam   = lnlike.vector_size
 
     # get the starting position and the scales for each parameter
-    init_p0  = lnprob.get_parameter_dict()
+    init_p0  = lnlike.get_parameter_dict()
     p0       = init_p0.values()
     free_param_names = init_p0.keys()
     std = [scales[x] for x in free_param_names]
@@ -559,26 +438,33 @@ def mpi_fit_model(spec, phot, model, pbmodel, params,\
         print "nwalkers set to 0. Not running MCMC"
         return
 
-    # create a sample ball 
+    # create a sample ball
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
     pos = fix_pos(pos, free_param_names, params)
 
-    # only use every n'th point - useful for testing since we want speedup
     if everyn != 1:
-        spec = spec[::everyn]
+        inspec = spec[::everyn]
+    else:
+        inspec = spec
+
+    # even if we only take every nth sample, the pixel scale is the same
+    pixel_scale = 1./np.median(np.gradient(spec.wave))
+
+    # configure the posterior function
+    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbs, lnlike, pixel_scale)
 
     # setup the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, nparam, loglikelihood,\
-            a=ascale, args=(spec, phot, model, rvmodel, pbmodel, lnprob), pool=pool) 
+    sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
+            a=ascale,  pool=pool)
 
     # do a short burn-in
     if nburnin > 0:
         print "Burn-in"
         pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
         sampler.reset()
-        lnprob.set_parameter_vector(pos[np.argmax(prob)])
+        lnlike.set_parameter_vector(pos[np.argmax(prob)])
         print "\nParameters after Burn-in"
-        for k, v in lnprob.get_parameter_dict().items():
+        for k, v in lnlike.get_parameter_dict().items():
             print "{} = {:f}".format(k,v)
 
         # init a new set of walkers around the maximum likelihood position from the burn-in
@@ -590,14 +476,9 @@ def mpi_fit_model(spec, phot, model, pbmodel, params,\
         pos = fix_pos(pos, free_param_names, burnin_params)
 
     # create a HDF5 file to hold the chain data
-    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5')
-    if os.path.exists(outfile) and (not redo):
-        message = "Output file %s already exists. Specify --redo to clobber."%outfile
-        raise IOError(message)
+    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5',check=True, redo=redo)
 
-    # setup chain saving
-    # NOTE THAT THIS IS NOT INCREMENTAL WITH MPI
-    # We don't want the entire pool sitting around while master is buys writing to disk
+    # setup incremental chain saving
     outf = h5py.File(outfile, 'w')
     chain = outf.create_group("chain")
 
@@ -607,12 +488,13 @@ def mpi_fit_model(spec, phot, model, pbmodel, params,\
     chain.create_dataset("nparam", data=nparam)
     chain.create_dataset("everyn",data=everyn)
 
+    # save the parameter names corresponding to the chain
     free_param_names = np.array(free_param_names)
     dt = free_param_names.dtype.str.lstrip('|')
     chain.create_dataset("names",data=free_param_names, dtype=dt)
-    
+
     # save the parameter configuration as well
-    names = lnprob.get_parameter_names(include_frozen=True)
+    names = lnlike.get_parameter_names(include_frozen=True)
     names = np.array(names)
     dt = names.dtype.str.lstrip('|')
     par_grp = outf.create_group("params")
@@ -625,29 +507,42 @@ def mpi_fit_model(spec, phot, model, pbmodel, params,\
         this_par.create_dataset("bounds",data=params[param]["bounds"])
 
     # production
-    start = time.clock()
-    print "Started at : {:f}".format(start)
-    pos, prob, state = sampler.run_mcmc(pos, nprod)
-    end = time.clock()
-    print "Stopped at : {:f}".format(end)
-    print "Done in {:f} minutes".format((end-start)/60.)
+    if pool is None:
+        # run single threaded - create an incrementally saved chain and progress bar
+        dset_chain  = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
+        dset_lnprob = chain.create_dataset("lnprob",(nwalkers*nprod,),maxshape=(None,))
+        with progress.Bar(label="Production", expected_size=nprod) as bar:
+            for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
+                position = result[0]
+                lnpost   = result[1]
+                dset_chain[nwalkers*i:nwalkers*(i+1),:] = position
+                dset_lnprob[nwalkers*i:nwalkers*(i+1)] = lnpost
+                outf.flush()
+                bar.show(i+1)
+    else:
+        # run with MPI
+        start = time.clock()
+        print "Started at : {:f}".format(start)
+        pos, prob, state = sampler.run_mcmc(pos, nprod)
+        end = time.clock()
+        print "Stopped at : {:f}".format(end)
+        print "Done in {:f} minutes".format((end-start)/60.)
 
-    # save the chain and 
-    dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
-    dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
-
-    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+        # save the chain
+        dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
+        dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
     outf.close()
+    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     return  free_param_names, samples, samples_lnprob
 
 
-def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nwalkers=300, nprod=1000, discard=5): 
+def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nwalkers=300, nprod=1000, discard=5):
     """
-    Get the margnialized parameters from the sample chain
+    Get the marginalized parameters from the sample chain
 
     Accepts
         param_names: ordered vector of parameter names, corresponding to each of the dimensions of sample
@@ -682,12 +577,12 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
 
     in_samp = in_samp.reshape((-1, ndim))
     in_lnprob = in_lnprob.reshape(in_samp.shape[0])
-        
+
     mask = np.isfinite(in_lnprob)
 
     for i, param in enumerate(param_names):
         x = in_samp[mask,i]
-        q_16, q_50, q_84 = corner.quantile(x, [0.16, 0.5, 0.84])
+        q_16, q_50, q_84 = np.percentile(x, [16., 50., 84.])
         params[param]['value']  = q_50
         params[param]['bounds'] = (q_16, q_84)
         params[param]['errors_pm'] = (q_84 - q_50, q_50 - q_16)

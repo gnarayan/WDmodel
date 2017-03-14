@@ -22,7 +22,7 @@
         "fixed": false,
         "scale": 0.05,
         "bounds": [
-            0.0, 
+            -1e-25, 
             2.0
         ]
     }, 
@@ -69,6 +69,15 @@
         "bounds": [
             200.0, 
             10000.0
+        ]
+    },
+    "mu": {
+        "value": null, 
+        "fixed": false,
+        "scale": 1.0,
+        "bounds": [
+            -1e-25, 
+            1e3
         ]
     }
 }

@@ -1,15 +1,25 @@
 #!/usr/bin/env python
+"""
+This script takes the MAST zeropoint and encircled energy curves and converts
+the zeropoints to values appropriate for the WDcal project (GO 13711)
+measurements done by A. Calamida, J. Claver & S. Deustua.
+
+We really use our own zeropoints from the three primary standards, determined
+by measuring them in the same way along with out standards, however the
+comparison with MAST is useful to identify and quantify systematic offsets.
+"""
+
 import sys
 import os
 import numpy as np
-import scipy.interpolate as scinterp 
+import scipy.interpolate as scinterp
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.mlab import rec2txt
 
 def main():
     #
-    # m_app = m_ins -2.5log10(EE_r10/EE_r) + zp 
+    # m_app = m_ins -2.5log10(EE_r10/EE_r) + zp
     #
 
     uvis_mag_sys = 'VEGAMAG'
@@ -21,7 +31,7 @@ def main():
 
     out = []
 
-    
+
     for pb in uvis_pb:
         ind_pb = (uvis_zp.pb == pb)
         ee = uvis_ee[pb]
@@ -42,7 +52,7 @@ def main():
         EE_r   = f(uvis_rap)
         corr   = 2.5*np.log10(EE_r10/EE_r)
         ZP_r10 = uvis_zp[uvis_mag_sys][ind_pb][0]
-        
+
         print pb, ZP_r10, corr, ZP_r10-corr
         out.append((pb, ZP_r10, corr, ZP_r10-corr))
 
@@ -78,7 +88,7 @@ def main():
 
     ir_wave = ir_zp['PHOTPLAM'][ind_pb][0]
     ir_wave /= 10000.
-    
+
     EE_r0p4 = f(ir_wave, 0.4)[0]
     EE_r    = f(ir_wave, ir_rap)[0]
     corr = 2.5*np.log10(EE_r0p4/EE_r)

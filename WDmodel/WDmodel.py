@@ -1,11 +1,10 @@
 import warnings
-warnings.simplefilter('once')
 import numpy as np
 from . import io
 import scipy.interpolate as spinterp
-from astropy import units as u                                                                                          
+from astropy import units as u
 from specutils.extinction import reddening
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter1d
 
 
 class WDmodel(object):
@@ -31,7 +30,7 @@ class WDmodel(object):
         D       = [ 130.0  ,  170.0  ,  125.0   ,  75.0   ,  50.0    ,  27.0   ]
         eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,   5.0    ,   3.0   ]
         self._lines = dict(zip(lno, zip(lines, H, D, eps)))
-        # we're passing grid_file so we know which model to init 
+        # we're passing grid_file so we know which model to init
         self._fwhm_to_sigma = np.sqrt(8.*np.log(2.))
         self.__init__tlusty(grid_file=grid_file)
 
@@ -44,34 +43,33 @@ class WDmodel(object):
 
         ingrid = io.read_model_grid(grid_file, grid_name)
         self._grid_file, self._grid_name, self._wave, self._ggrid, self._tgrid, self._flux = ingrid
-        
+
         # pre-init the interpolation and do it in log-space
         # note that we do the interpolation in log-log
         # this is because the profiles are linear, redward of the Balmer break in log-log
         # and the regular grid interpolator is just doing linear interpolation under the hood
-        self._model = spinterp.RegularGridInterpolator((np.log10(self._wave), self._ggrid, self._tgrid),\
-                np.log10(self._flux))        
+        self._model = spinterp.RegularGridInterpolator((self._tgrid, self._ggrid),\
+                np.log10(self._flux.T))
 
 
-    def _get_xi(self, teff, logg, wave):
+    def _get_model(self, teff, logg, wave, log=False):
         """
-        returns the formatted points for interpolation, xi
+        Returns the model flux given temperature and logg at wavelengths wave
         """
-        lwave = np.log10(wave)
-        nwave = len(lwave)
-        xi    = np.dstack((lwave, [logg]*nwave, [teff]*nwave))[0]
-        return xi
-
-
-    def _get_model(self, xi, log=False):
+        xi = (teff, logg)
+        mod = self._model(xi)
+        out = np.interp(wave, self._wave, mod)
         if log:
-            return self._model(xi)
-        return (10.**self._model(xi))
+            return out
+        return (10.**out)
 
 
     def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False, rvmodel='od94'):
-        xi = self._get_xi(teff, logg, wave)
-        mod = self._get_model(xi, log=log)
+        """
+        Returns the reddened model flux given teff, logg, av, rv, rvmodel, and
+        wavelengths
+        """
+        mod = self._get_model(teff, logg, wave, log=log)
         bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             mod = 10.**mod
@@ -81,18 +79,42 @@ class WDmodel(object):
         return mod
 
 
-    def _get_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, rvmodel='od94'):
-        xi = self._get_xi(teff, logg, wave)
-        mod = self._get_model(xi, log=log)
+    def _get_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, rvmodel='od94', pixel_scale=1.):
+        """
+        Returns the observed model flux given teff, logg, av, rv, rvmodel, fwhm
+        (for Gaussian instrumental broadening) and wavelengths
+        """
+        mod = self._get_model(teff, logg, wave, log=log)
         bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             mod = 10.**mod
         mod/=bluening
-        gsig = fwhm/self._fwhm_to_sigma
-        mod = gaussian_filter(mod, gsig, order=0, mode='nearest')
+        gsig = fwhm/self._fwhm_to_sigma * pixel_scale
+        mod = gaussian_filter1d(mod, gsig, order=0, mode='nearest')
         if log:
             mod = np.log10(mod)
         return mod
+
+
+    def _get_full_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, rvmodel='od94', pixel_scale=1.):
+        """
+        Convenience function that does the same thing as _get_obs_model, but
+        also returns the full SED without any instrumental broadening applied
+        """
+        xi = (teff, logg)
+        mod = self._model(xi)
+        mod = 10.**mod
+        bluening = reddening(self._wave*u.Angstrom, av, r_v=rv, model=rvmodel)
+        mod/=bluening
+        omod = np.interp(wave, self._wave, np.log10(mod))
+        omod = 10.**omod
+        gsig = fwhm/self._fwhm_to_sigma * pixel_scale
+        omod = gaussian_filter1d(omod, gsig, order=0, mode='nearest')
+        if log:
+            omod = np.log10(omod)
+            mod  = np.log10(mod)
+        mod = np.rec.fromarrays((self._wave, mod), names='wave,flux')
+        return omod, mod
 
 
     @classmethod
@@ -109,21 +131,22 @@ class WDmodel(object):
             raise ValueError(message)
 
         if len(wave) == 1:
-            return 
+            return
 
         dwave = np.diff(wave)
         if not(np.all(dwave > 0) or np.all(dwave < 0)):
             message = 'Wavelength array is not monotonic'
             raise ValueError(message)
 
-        
+
     def get_model(self, teff, logg, wave=None, log=False, strict=True):
         """
         Returns the model (wavelength and flux) for some teff, logg at wavelengths wave
         If not specified, wavelengths are from 3000-9000A
 
-        Checks inputs for consistency and calls _get_xi(), _get_model()
-        If you need the model repeatedly for slightly different parameters, use those functions directly
+        Checks inputs for consistency and calls _get_model() If you
+        need the model repeatedly for slightly different parameters, use those
+        functions directly
         """
         if wave is None:
             wave = self._wave
@@ -153,14 +176,13 @@ class WDmodel(object):
         outwave = wave[((wave >= self._wave.min()) & (wave <= self._wave.max()))]
 
         if len(outwave) > 0:
-            xi = self._get_xi(teff, logg, outwave)
-            outflux = self._get_model(xi,log=log)
+            outflux = self._get_model(teff, logg, wave, log=log)
             return outwave, outflux
         else:
             message = 'No valid wavelengths'
             raise ValueError(message)
-            
-            
+
+
     def get_red_model(self, teff, logg, av, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
@@ -168,7 +190,7 @@ class WDmodel(object):
         wavelengths are from 3000-9000A Applies reddening that is specified to
         the spectrum (the model has no reddening by default)
 
-        Checks inputs for consistency and calls _get_xi(), _get_model() If you
+        Checks inputs for consistency and calls get_model() If you
         need the model repeatedly for slightly different parameters, use
         _get_red_model directly.
         """
@@ -183,15 +205,16 @@ class WDmodel(object):
             modflux = np.log10(modflux)
         return modwave, modflux
 
-    
-    def get_obs_model(self, teff, logg, av, fwhm, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
+
+    def get_obs_model(self, teff, logg, av, fwhm, rv=3.1, rvmodel='od94', wave=None,\
+            log=False, strict=True, pixel_scale=1.):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
         reddening law "rvmodel" at wavelengths wave If not specified,
         wavelengths are from 3000-9000A Applies reddening that is specified to
         the spectrum (the model has no reddening by default)
 
-        Checks inputs for consistency and calls _get_xi(), _get_model() If you
+        Checks inputs for consistency and calls get_red_model() If you
         need the model repeatedly for slightly different parameters, use
         _get_obs_model directly
         """
@@ -199,8 +222,8 @@ class WDmodel(object):
                 wave=wave, log=log, strict=strict)
         if log:
             modflux = 10.**modflux
-        gsig     = fwhm/np.sqrt(8.*np.log(2.))
-        modflux = gaussian_filter(modflux, gsig, order=0, mode='nearest')
+        gsig = fwhm/self._fwhm_to_sigma * pixel_scale
+        modflux = gaussian_filter1d(modflux, gsig, order=0, mode='nearest')
         if log:
             modflux = np.log10(modflux)
         return modwave, modflux
@@ -216,9 +239,9 @@ class WDmodel(object):
         wave = spec.wave
         flux = spec.flux
         ind = np.where((self._wave >= wave.min()) & (self._wave <= wave.max()))[0]
-        modelmedian = np.median(self._model.values[ind,:,:])
+        modelmedian = np.median(self._model.values[:,:, ind])
         if not log:
-            modelmedian = 10.**modelmedian    
+            modelmedian = 10.**modelmedian
         datamedian  = np.median(flux)
         self._fluxnorm = modelmedian/datamedian
         return self._fluxnorm
@@ -226,6 +249,10 @@ class WDmodel(object):
 
     @classmethod
     def _get_indices_in_range(cls, w, WA, WB, W0=None):
+        """
+        Accepts a wavelength array, and blue and redlimits, and returns the
+        indices in the array that are between the limits
+        """
         if W0 is None:
             W0 = WA + (WB-WA)/2.
         ZE  = np.where((w >= WA) & (w <= WB))
@@ -234,14 +261,13 @@ class WDmodel(object):
 
     def _get_line_indices(self, w, line):
         """
-        Returns the central wavelength, and _indices_ of the line profile 
+        Returns the central wavelength, and _indices_ of the line profile
         The widths of the profile are predefined in the _lines attribute
         """
         _, W0, WID, DW = self._lines[line]
         WA  = W0 - WID - DW
         WB  = W0 + WID + DW
         return self._get_indices_in_range(w, WA, WB, W0=W0)
-
 
 
     def _extract_from_indices(self, w, f, ZE, df=None):
@@ -253,7 +279,6 @@ class WDmodel(object):
             return w[ZE], f[ZE]
         else:
             return w[ZE], f[ZE], df[ZE]
-        
 
 
     def extract_spectral_line(self, w, f, line, df=None):
@@ -266,7 +291,7 @@ class WDmodel(object):
         try:
             _, W0, WID, DW = self._lines[line]
         except KeyError:
-            message = 'Line name %s is not valid. Must be one of (%s)' %(str(line), ','.join(self._lines.keys())) 
+            message = 'Line name %s is not valid. Must be one of (%s)' %(str(line), ','.join(self._lines.keys()))
             raise ValueError(message)
 
         w  = np.atleast_1d(w)
@@ -289,7 +314,7 @@ class WDmodel(object):
     def _extract_spectral_line(self, w, f, line, df=None):
         """
         Same as extract_spectral_line() except no testing
-        Used internally to extract the spectral line for the model 
+        Used internally to extract the spectral line for the model
         """
         W0, ZE = self._get_line_indices(w,  line)
         return self._extract_from_indices(w, f, ZE, df=df)
@@ -306,5 +331,3 @@ class WDmodel(object):
 
 
     __call__ = get_model
-        
-

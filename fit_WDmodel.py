@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 import sys
-import warnings
-warnings.simplefilter('once')
 import argparse
 from emcee.utils import MPIPool
 import numpy as np
@@ -9,6 +7,7 @@ import WDmodel
 import WDmodel.io
 import WDmodel.fit
 import WDmodel.viz
+import WDmodel.pbmodel
 
 
 def get_options(args=None):
@@ -35,7 +34,7 @@ def get_options(args=None):
                     epilog="If running fit_WDmodel.py with MPI using mpirun,\
                     mpi must be the first argument, and -np must be at least 2.")
 
-    # create a couple of custom types to use with the parser 
+    # create a couple of custom types to use with the parser
     # this type exists to make a quasi bool type instead of store_false/store_true
     def str2bool(v):
         return v.lower() in ("yes", "true", "t", "1")
@@ -56,7 +55,7 @@ def get_options(args=None):
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
     spectrum.add_argument('--specfile', required=True, \
             help="Specify spectrum to fit")
-    spectrum.add_argument('--trimspec', required=False, nargs=2, default=(None,None), 
+    spectrum.add_argument('--trimspec', required=False, nargs=2, default=(None,None),
                 type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
     spectrum.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
@@ -87,7 +86,7 @@ def get_options(args=None):
                 help="Specify if param {} is fixed".format(param))
         model.add_argument('--{}_scale'.format(param), required=False, type=float, default=params[param]['scale'],\
                 help="Specify param {} scale/step size".format(param))
-        model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"], 
+        model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"],
                 type=float, metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
 
     # MCMC config options
@@ -97,12 +96,12 @@ def get_options(args=None):
     mcmc.add_argument('--skipmcmc',  required=False, action="store_true", default=False,\
             help="Skip MCMC - if you skip both minuit and MCMC, simply prepares files")
     mcmc.add_argument('--ascale', required=False, type=float, default=2.0,\
-            help="Specify proposal scale for MCMC") 
-    mcmc.add_argument('--nwalkers',  required=False, type=int, default=200,\
+            help="Specify proposal scale for MCMC")
+    mcmc.add_argument('--nwalkers',  required=False, type=int, default=300,\
             help="Specify number of walkers to use (0 disables MCMC)")
-    mcmc.add_argument('--nburnin',  required=False, type=int, default=50,\
+    mcmc.add_argument('--nburnin',  required=False, type=int, default=200,\
             help="Specify number of steps for burn-in")
-    mcmc.add_argument('--nprod',  required=False, type=int, default=1000,\
+    mcmc.add_argument('--nprod',  required=False, type=int, default=2000,\
             help="Specify number of steps for production")
     mcmc.add_argument('--everyn',  required=False, type=int, default=1,\
             help="Use only every nth point in data for computing likelihood - useful for testing.")
@@ -139,7 +138,7 @@ def get_options(args=None):
 
     reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
     if not args.reddeningmodel in reddeninglaws:
-        message = 'That reddening law is not known (%s)'%' '.join(reddeninglaws) 
+        message = 'That reddening law is not known (%s)'%' '.join(reddeninglaws)
         raise ValueError(message)
 
     if args.nwalkers < 0:
@@ -171,12 +170,12 @@ def main(inargs=None, pool=None):
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
-            
+
     if inargs is None:
         inargs = sys.argv[1:]
 
     # parse the arguments
-    args   = get_options(inargs) 
+    args   = get_options(inargs)
 
     specfile  = args.specfile
     bluelim, redlim   = args.trimspec
@@ -188,7 +187,7 @@ def main(inargs=None, pool=None):
     rvmodel   = args.reddeningmodel
     excludepb = args.excludepb
     ignorephot= args.ignorephot
-    
+
     ascale    = args.ascale
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
@@ -222,24 +221,48 @@ def main(inargs=None, pool=None):
     # read spectrum
     spec = WDmodel.io.read_spec(specfile)
 
+    # init the model
+    model = WDmodel.WDmodel()
+
     # pre-process spectrum
-    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, blotch=blotch)
+    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, model, blotch=blotch)
     spec, cont_model, linedata, continuumdata = out
 
-    # get photometry 
-    # TODO - something to fix photometry normalization if we get None
+    # get photometry
     if not ignorephot:
         phot = WDmodel.io.get_phot_for_obj(objname, photfile)
     else:
+        params['mu']['value'] = 0.
+        params['mu']['fixed'] = True
         phot = None
 
     # save the inputs to the fitter
-    outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5')
-    WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-            outfile, redo=redo)
+    outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
+    WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile)
 
-    # init the model, and determine the coarse normalization to match the spectrum
-    model = WDmodel.WDmodel()
+    # exclude passbands that we want excluded
+    pbnames = []
+    if phot is not None:
+        pbnames = np.unique(phot.pb)
+        if excludepb is not None:
+            pbnames = list(set(pbnames) - set(excludepb))
+
+        # filter the photometry recarray to use only the passbands we want
+        useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
+        useind = np.array(useind)
+        phot = phot.take(useind)
+
+        # set the pbnames from the trimmed photometry recarray to preserve order
+        pbnames = list(phot.pb)
+
+    # if we cut out out all the passbands, force mu to be fixed
+    if len(pbnames) == 0:
+        params['mu']['value'] = 0.
+        params['mu']['fixed'] = True
+        phot = None
+
+    # get the throughput model
+    pbs = WDmodel.pbmodel.get_pbmodel(pbnames, model)
 
 
     ##### MINUIT #####
@@ -257,6 +280,10 @@ def main(inargs=None, pool=None):
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
         migrad_params = WDmodel.io.copy_params(params)
 
+    # If we don't have a user supplied initial guess of mu, then get a guess
+    if params['mu']['value'] is None:
+        migrad_params = WDmodel.fit.mu_guess(phot, model, pbs, migrad_params, rvmodel=rvmodel)
+
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_params.json')
@@ -266,39 +293,21 @@ def main(inargs=None, pool=None):
     ##### MCMC #####
 
 
-    # skipmcmc can be run to just prepare the inputs 
+    # skipmcmc can be run to just prepare the inputs
     if not args.skipmcmc:
 
-        # exclude passbands that we want excluded 
-        if phot is not None:
-            pbnames = np.unique(phot.pb) 
-            if excludepb is not None:
-                pbnames = list(set(pbnames) - set(excludepb))
-        else:
-            pbnames = []
-
-        # get the throughput model 
-        pbmodel = WDmodel.io.get_pbmodel(pbnames)
-
-        # fit the spectrum
-        if pool is None:
-            result = WDmodel.fit.fit_model(spec, phot, model, pbmodel, migrad_params,\
-                        objname, outdir, specfile,\
-                        rvmodel=rvmodel,\
-                        ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo)
-        else:
-            result = WDmodel.fit.mpi_fit_model(spec, phot, model, pbmodel, migrad_params,\
-                        objname, outdir, specfile,\
-                        rvmodel=rvmodel,\
-                        ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
-                        redo=redo,\
-                        pool=pool)
+        # do the fit
+        result = WDmodel.fit.fit_model(spec, phot, model, pbs, migrad_params,\
+                    objname, outdir, specfile,\
+                    rvmodel=rvmodel,\
+                    ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
+                    redo=redo,\
+                    pool=pool)
 
         param_names, samples, samples_lnprob = result
         mcmc_params = WDmodel.io.copy_params(migrad_params)
 
-        # parse the samples in the chain and get the result 
+        # parse the samples in the chain and get the result
         result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
                         nwalkers=nwalkers, nprod=nprod, discard=discard)
         mcmc_params, in_samp, in_lnprob = result
@@ -308,11 +317,21 @@ def main(inargs=None, pool=None):
         WDmodel.io.write_params(mcmc_params, outfile)
 
         # plot the MCMC output
-        WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+        model_spec, full_mod, model_mags = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                     objname, outdir, specfile,\
-                    model, cont_model,\
+                    model, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
                     rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
+
+        spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')
+        WDmodel.io.write_spectrum_model(spec, model_spec, spec_model_file)
+
+        full_model_file = WDmodel.io.get_outfile(outdir, specfile, '_full_model.hdf5')
+        WDmodel.io.write_full_model(full_mod, mcmc_params['mu']['value'], full_model_file)
+
+        if phot is not None:
+            phot_model_file = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
+            WDmodel.io.write_phot_model(phot, model_mags, phot_model_file)
 
     return
 

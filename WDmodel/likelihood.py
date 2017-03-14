@@ -3,9 +3,8 @@ from celerite.modeling import Model
 from scipy.stats import norm
 from george import GP, HODLRSolver
 from george.kernels import ExpSquaredKernel
-
-# Declare this tuple to init the likelihood model, and to preserve order of parameters
-_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "sigf", "tau")
+from . import io
+from .pbmodel import get_model_synmags
 
 class WDmodel_Likelihood(Model):
     """
@@ -13,11 +12,11 @@ class WDmodel_Likelihood(Model):
     "bounds" to set the bounds on the parameters
 
     Subclasses celerite.modeling.Model to implement a likelihood model for the
-    WD atmoshere This allows parameters to be frozen/thawed dynamically based
+    WD atmosphere This allows parameters to be frozen/thawed dynamically based
     on cmdline args/a param file
 
     Implements the likelihood by constructing the model at the parameter
-    values, and modeling the residuals with a Rational Quadratic kernel 
+    values, and modeling the residuals with a Rational Quadratic kernel
 
     Implements a lnprior function, in addition to Model's log_prior function
     This imposes a prior on Rv, and on Av.  The prior on Av is the glos prior.
@@ -27,27 +26,39 @@ class WDmodel_Likelihood(Model):
     the different filter set.
 
     To use it, construct an object from the class with the kwargs dictionary
-    and an intial guess, and freeze/thaw parameters as needed. Then write a
+    and an initial guess, and freeze/thaw parameters as needed. Then write a
     function that wraps get_value() and lnprior() and sample the posterior
-    however you like. 
+    however you like.
     """
-    parameter_names = _PARAMETER_NAMES
+    parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, rvmodel, pbmodel):
+    def get_value(self, spec, phot, model, rvmodel, pbs, pixel_scale=1.):
         """
         Returns the log likelihood of the data given the model
         """
-        mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm, spec.wave, rv=self.rv, rvmodel=rvmodel)
+        if phot is None:
+            phot_chi = 0.
+            mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm,\
+                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+        else:
+            mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
+                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+            mod_mags = get_model_synmags(full, pbs, mu=self.mu)
+            phot_res = phot.mag - mod_mags.mag
+            phot_chi = np.sum(phot_res**2./phot.mag_err**2.)
+
+
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
+
         kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
         gp = GP(kernel, mean=0., solver=HODLRSolver)
         try:
             gp.compute(spec.wave, spec.flux_err)
         except ValueError:
             return -np.inf
-        #TODO - add the photometry here
-        return gp.lnlikelihood(res, quiet=True) 
+
+        return gp.lnlikelihood(res, quiet=True) - (phot_chi/2.)
 
 
     def lnprior(self):
@@ -60,10 +71,15 @@ class WDmodel_Likelihood(Model):
         TODO: Allow the user to specify a custom filename with a function for the prior
         """
         lp = self.log_prior()
+        theta = self.get_parameter_vector()
         if not np.isfinite(lp):
             return -np.inf
+            # even if the user passes bounds that are physically unrealistic, we
+            # need to keep all the quantities strictly >= 0.
+        elif np.any((theta < 0.)):
+            return -np.inf
         else:
-            # this is from the Schalfly et al analysis from PS1
+            # this is from the Schlafly et al analysis from PS1
             out = norm.logpdf(self.rv, 3.1, 0.18)
 
             # this implements the glos prior on Av
@@ -80,10 +96,44 @@ class WDmodel_Likelihood(Model):
             return out
 
 
-def loglikelihood(theta, spec, phot, model, rvmodel, pbmodel, lnprob):
-    lnprob.set_parameter_vector(theta)
-    out = lnprob.lnprior()
-    if not np.isfinite(out):
-        return -np.inf
-    out += lnprob.get_value(spec, phot, model, rvmodel, pbmodel)
-    return out
+class WDmodel_Posterior(object):
+    """
+    Class to compute the posterior, given the data, and model
+    The class contains the data
+        spec: the recarray spectrum (wave, flux, flux_err)
+        phot: the recarray photometry (pb, mag, mag_err)
+    and the model
+        model: a WDmodel() instance to get the model spectrum in the presence
+        of reddening and through some instrument
+        rvmodel: The form of the reddening law to be used to redden the spectrum
+        pbs: a model of the throughput of the different passbands
+        lnlike: a WDmodel_Likelihood instance that can return the log prior and log likelihood
+
+    Call returns the log posterior
+    """
+    def __init__(self, spec, phot, model, rvmodel, pbs, lnlike, pixel_scale=1.):
+        self.spec    = spec
+        self.phot    = phot
+        self.model   = model
+        self.rvmodel = rvmodel
+        self.pbs     = pbs
+        self.lnlike  = lnlike
+        self.pixscale= pixel_scale
+
+    def __call__(self, theta):
+        self.lnlike.set_parameter_vector(theta)
+        out = self.lnlike.lnprior()
+        if not np.isfinite(out):
+            return -np.inf
+        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs, self.pixscale)
+        return out
+
+    def lnlike(self, theta):
+        self.lnlike.set_parameter_vector(theta)
+        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs)
+        return out
+
+    def lnprior(self, theta):
+        self.lnlike.set_parameter_vector(theta)
+        out = self.lnlike.lnprior()
+        return out
