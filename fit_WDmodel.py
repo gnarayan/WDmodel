@@ -55,6 +55,10 @@ def get_options(args=None):
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
     spectrum.add_argument('--specfile', required=True, \
             help="Specify spectrum to fit")
+    spectrum.add_argument('--lamshift', required=False, type=float, default=0.,\
+            help="Specify a flat wavelength shift in Angstrom to fix  slit centering errors")
+    spectrum.add_argument('--vel', required=False, type=float, default=0.,\
+            help="Specify a velocity shift in kmps to apply to the spectrum")
     spectrum.add_argument('--trimspec', required=False, nargs=2, default=(None,None),
                 type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
     spectrum.add_argument('--blotch', required=False, action='store_true',\
@@ -178,6 +182,8 @@ def main(inargs=None, pool=None):
     args   = get_options(inargs)
 
     specfile  = args.specfile
+    lamshift  = args.lamshift
+    vel       = args.vel
     bluelim, redlim   = args.trimspec
     blotch    = args.blotch
 
@@ -225,7 +231,8 @@ def main(inargs=None, pool=None):
     model = WDmodel.WDmodel()
 
     # pre-process spectrum
-    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, model, blotch=blotch)
+    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, model,\
+            lamshift=lamshift, vel=vel, blotch=blotch)
     spec, cont_model, linedata, continuumdata = out
 
     # get photometry
