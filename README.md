@@ -19,20 +19,67 @@ pip install -r requirements.txt
 
 Very much in beta - caveat emptor
 
-## To run (minimally):
-`fit_WDmodel.py --specfile=file.flm [--ignorephot]`  
+______
+
+## Installation Instructions:
+
+### get the code:
+Clone this repository
+`git clone https://github.com/gnarayan/WDmodel.git`
+
+### install miniconda/anaconda/astroconda if you haven't already
+Follow instructions [here] (https://astroconda.readthedocs.io/en/latest/)
+`source activate astroconda`
+(Make sure you added the conda/bin dir to your path!)
+
+### install eigen3
+if it isn't on your system - for OS X do:
+`brew install eigen`
+
+or on a linux system with apt
+`apt-get install libeigen3-dev`
+
+or compile it from source
+
+### Get the latest HST CDBS files
+These are available over FTP from [ftp://archive.stsci.edu/pub/hst/pysynphot/]
+
+Untar them, and set the `PYSYN_CDBS` environment variable
+
+`export PYSYN_CDBS=<place you untarred the files>
+
+
+### cd to directory you git cloned:
+`cd WDmodel`
+
+### install other requirements:
+`pip install -r requirements.txt`
+
+### GET THE DATA
+Write your own HST proposal :-P
+
+### run a fit single threaded:
+`./fit_WDmodel.py --specfile data/spectroscopy/yourfavorite.flm`
 
 This option is single threaded and slow, but useful to testing or quick
 exploratory analysis.
 
-A more reasonable way to run things fast is to use mpi. 
+A more reasonable way to run things fast is to use mpi.
 
-`mpirun -np 8 fit_WDmodel.py mpi --specfile=file.flm [--ignorephot]`  
+### Install OpenMPI and mpi4py
+`apt-get install openmpi-bin`
+`pip install mpi4py`
+
+
+### Run as an MPI process
+`mpirun -np 8 fit_WDmodel.py mpi --specfile=file.flm [--ignorephot]`
 
 Note that `mpi` __MUST__ be the first option after `fit_WDmodel.py` and you
 must start the process with `mpirun`
 
-### Some useful options
+______
+
+## Some useful options
 
 The spectrum can be trimmed prior to fitting with the `--trimspec` option. You
 can also blotch over gaps and cosmic rays if your reduction was sloppy, and you
@@ -48,7 +95,7 @@ used, a dl guess __MUST__ be specified.
 
 All of the parameter files can be supplied via a JSON parameter file supplied
 via the `--param_file` option, or using individual parameter options. An example
-parameter file is available in the module directory. 
+parameter file is available in the module directory.
 
 You can change the number of walkers, burn in steps, production steps, and
 proposal scale for the MCMC. You can also choose to use only every nth point in
@@ -57,13 +104,12 @@ testing purposes, and should probably not be used for any final analysis. Note
 that the uncertainities increase as you'd expect with fewer points.
 
 You can get a summary of all available options with `--help`
-
+______
 
 ## TODO:
-* Add in inference from photometry
 * More testing with a full testing suite
 * Add Rauch model atmospheres for comparison with Tlusty
-* All of the documentation 
+* All of the documentation
 * setup.py
 * Push to PyPI
 
