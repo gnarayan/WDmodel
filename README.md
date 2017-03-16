@@ -26,21 +26,23 @@ ______
 ### get the code:
 Clone this repository
 
-`git clone https://github.com/gnarayan/WDmodel.git`
+* `git clone https://github.com/gnarayan/WDmodel.git`
 
 ### install miniconda/anaconda/astroconda if you haven't already
 Follow instructions [here] (https://astroconda.readthedocs.io/en/latest/)
-`source activate astroconda`
+
+* `source activate astroconda`
+
 (Make sure you added the conda/bin dir to your path!)
 
 ### install eigen3
 if it isn't on your system - for OS X do:
 
-`brew install eigen`
+* `brew install eigen`
 
 or on a linux system with apt:
 
-`apt-get install libeigen3-dev`
+* `apt-get install libeigen3-dev`
 
 or compile it from source
 
@@ -49,20 +51,20 @@ These are available over FTP from [ftp://archive.stsci.edu/pub/hst/pysynphot/]
 
 Untar them, and set the `PYSYN_CDBS` environment variable
 
-`export PYSYN_CDBS=place_you_untarred_the_files
+* `export PYSYN_CDBS=place_you_untarred_the_files
 
 
 ### cd to directory you git cloned:
-`cd WDmodel`
+* `cd WDmodel`
 
 ### install other requirements:
-`pip install -r requirements.txt`
+* `pip install -r requirements.txt`
 
 ### GET THE DATA
 Write your own HST proposal :-P
 
 ### run a fit single threaded:
-`./fit_WDmodel.py --specfile data/spectroscopy/yourfavorite.flm`
+* `./fit_WDmodel.py --specfile data/spectroscopy/yourfavorite.flm`
 
 This option is single threaded and slow, but useful to testing or quick
 exploratory analysis.
@@ -70,12 +72,13 @@ exploratory analysis.
 A more reasonable way to run things fast is to use mpi.
 
 ### Install OpenMPI and mpi4py
-`apt-get install openmpi-bin`
-`pip install mpi4py`
+* `apt-get install openmpi-bin`
+
+* `pip install mpi4py`
 
 
 ### Run as an MPI process
-`mpirun -np 8 fit_WDmodel.py mpi --specfile=file.flm [--ignorephot]`
+* `mpirun -np 8 fit_WDmodel.py mpi --specfile=file.flm [--ignorephot]`
 
 Note that `mpi` __MUST__ be the first option after `fit_WDmodel.py` and you
 must start the process with `mpirun`
