@@ -163,7 +163,48 @@ def blotch_spectrum(spec, linedata):
     return spec
 
 
-def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., blotch=False):
+def rebin_spec_by_int_factor(spec, f=1):
+    """
+    Rebins a spectrum by an integer factor f
+
+    Accepts
+        spec: recarray spectrum (wave, flux, flux_err)
+        f: an integer factor to rebin the spectrum by
+
+    If the spectrum is not divisible by f, the edges are trimmed by discarding
+    the remainder measurements from both ends. If the remainder itself is odd, the
+    extra measurement is discarded from the blue side.
+
+    Returns the rebinned recarray spectrum
+    """
+    f    = int(f)
+    if f <= 1:
+        return spec
+    nwave     = len(spec.wave)
+    rnwave    = nwave/f
+    # if the spectrum is not perfectly divisible by the f, cut the remainder out
+    # divide it evenly between blue and red
+    remainder = nwave%f
+    ncut      = remainder/2
+    icut_blue = ncut + (remainder%2)
+    icut_red  = nwave - ncut
+    ispec     = spec[icut_blue:icut_red]
+    rf        = [(np.mean(ispec.wave[f*x:f*x+f]),\
+                  np.average(ispec.flux[f*x:f*x+f],\
+                             weights=1./ispec.flux_err[f*x:f*x+f]**2.,\
+                             returned=True))\
+                 for x in range(rnwave)]
+    rwave, rf = zip(*rf)
+    rflux, rw = zip(*rf)
+    rw = np.array(rw)
+    rflux_err = 1./(rw**0.5)
+    rwave = np.array(rwave)
+    rflux  = np.array(rflux)
+    rspec = np.rec.fromarrays((rwave, rflux, rflux_err),names='wave,flux,flux_err')
+    return rspec
+
+
+def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., rebin=1, blotch=False):
     """
     Accepts a recarray spectrum, spec, blue and red limits, and an optional
     keywords lamshift, vel and  blotch
@@ -186,14 +227,18 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., 
     respect blue/red limits.
     """
 
+    # Test that the array is monotonic
+    model._wave_test(spec.wave)
+
     # offset and blueshift/redshift the spectrum
     if lamshift != 0.:
         spec.wave += lamshift
     if vel != 0.:
         spec.wave *= (1. +(vel*1000./_C.value))
 
-    # Test that the array is monotonic
-    model._wave_test(spec.wave)
+    # if requested, rebin the spectrum
+    if rebin != 1:
+        spec = rebin_spec_by_int_factor(spec, f=rebin)
 
     # get a coarse mask of line and continuum
     linedata, continuumdata  = orig_cut_lines(spec, model)
@@ -400,8 +445,6 @@ def fit_model(spec, phot, model, pbs, params,\
     """
     Models the spectrum using the white dwarf model and a Gaussian process with
     an exponential squared kernel to account for any flux miscalibration
-
-    TODO: add modeling the phot
 
     Accepts
         spec: recarray spectrum with wave, flux, flux_err
