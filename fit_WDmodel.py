@@ -61,6 +61,8 @@ def get_options(args=None):
             help="Specify a velocity shift in kmps to apply to the spectrum")
     spectrum.add_argument('--trimspec', required=False, nargs=2, default=(None,None),
                 type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
+    spectrum.add_argument('--rebin',  required=False, type=int, default=1,\
+            help="Rebin the spectrum by an integer factor. Output wavelengths remain uncorrelated.")
     spectrum.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
 
@@ -187,6 +189,7 @@ def main(inargs=None, pool=None):
     lamshift  = args.lamshift
     vel       = args.vel
     bluelim, redlim   = args.trimspec
+    rebin     = args.rebin
     blotch    = args.blotch
 
     outdir    = args.outdir
@@ -235,7 +238,7 @@ def main(inargs=None, pool=None):
 
     # pre-process spectrum
     out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, model,\
-            lamshift=lamshift, vel=vel, blotch=blotch)
+            rebin=rebin, lamshift=lamshift, vel=vel, blotch=blotch)
     spec, cont_model, linedata, continuumdata = out
 
     # get photometry
