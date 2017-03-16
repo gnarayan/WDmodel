@@ -25,6 +25,7 @@ ______
 
 ### get the code:
 Clone this repository
+
 `git clone https://github.com/gnarayan/WDmodel.git`
 
 ### install miniconda/anaconda/astroconda if you haven't already
@@ -34,9 +35,11 @@ Follow instructions [here] (https://astroconda.readthedocs.io/en/latest/)
 
 ### install eigen3
 if it isn't on your system - for OS X do:
+
 `brew install eigen`
 
-or on a linux system with apt
+or on a linux system with apt:
+
 `apt-get install libeigen3-dev`
 
 or compile it from source
@@ -46,7 +49,7 @@ These are available over FTP from [ftp://archive.stsci.edu/pub/hst/pysynphot/]
 
 Untar them, and set the `PYSYN_CDBS` environment variable
 
-`export PYSYN_CDBS=<place you untarred the files>
+`export PYSYN_CDBS=place_you_untarred_the_files
 
 
 ### cd to directory you git cloned:
