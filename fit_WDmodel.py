@@ -70,6 +70,8 @@ def get_options(args=None):
             help="Specify file containing photometry lookup table for objects")
     phot.add_argument('--reddeningmodel', required=False, default='od94',\
             help="Specify functional form of reddening law" )
+    phot.add_argument('--phot_dispersion', required=False, type=float, default=0.003,\
+            help="Specify a flat photometric dispersion error in mag to add in quadrature to the measurement errors")
     phot.add_argument('--excludepb', nargs='+',\
             help="Specify passbands to exclude" )
     phot.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
@@ -191,6 +193,7 @@ def main(inargs=None, pool=None):
 
     photfile  = args.photfile
     rvmodel   = args.reddeningmodel
+    phot_dispersion = args.phot_dispersion
     excludepb = args.excludepb
     ignorephot= args.ignorephot
 
@@ -306,7 +309,7 @@ def main(inargs=None, pool=None):
         # do the fit
         result = WDmodel.fit.fit_model(spec, phot, model, pbs, migrad_params,\
                     objname, outdir, specfile,\
-                    rvmodel=rvmodel,\
+                    rvmodel=rvmodel, phot_dispersion=phot_dispersion,\
                     ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
                     redo=redo,\
                     pool=pool)
