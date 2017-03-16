@@ -394,7 +394,7 @@ def mu_guess(phot, model, pbs, params, rvmodel='od94'):
 
 def fit_model(spec, phot, model, pbs, params,\
             objname, outdir, specfile,\
-            rvmodel='od94',\
+            rvmodel='od94', phot_dispersion=0.,\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
             redo=False):
     """
@@ -473,7 +473,8 @@ def fit_model(spec, phot, model, pbs, params,\
     pixel_scale = 1./np.median(np.gradient(spec.wave))
 
     # configure the posterior function
-    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbs, lnlike, pixel_scale)
+    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbs, lnlike,\
+            pixel_scale=pixel_scale, phot_dispersion=phot_dispersion)
 
     # setup the sampler
     sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
