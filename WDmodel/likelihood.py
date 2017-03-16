@@ -32,7 +32,7 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, rvmodel, pbs, pixel_scale=1.):
+    def get_value(self, spec, phot, model, rvmodel, pbs, pixel_scale=1., phot_dispersion=0.):
         """
         Returns the log likelihood of the data given the model
         """
@@ -45,8 +45,7 @@ class WDmodel_Likelihood(Model):
                     spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
             mod_mags = get_model_synmags(full, pbs, mu=self.mu)
             phot_res = phot.mag - mod_mags.mag
-            phot_chi = np.sum(phot_res**2./phot.mag_err**2.)
-
+            phot_chi = np.sum(phot_res**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
@@ -111,7 +110,7 @@ class WDmodel_Posterior(object):
 
     Call returns the log posterior
     """
-    def __init__(self, spec, phot, model, rvmodel, pbs, lnlike, pixel_scale=1.):
+    def __init__(self, spec, phot, model, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
         self.spec    = spec
         self.phot    = phot
         self.model   = model
@@ -119,18 +118,21 @@ class WDmodel_Posterior(object):
         self.pbs     = pbs
         self.lnlike  = lnlike
         self.pixscale= pixel_scale
+        self.phot_dispersion = phot_dispersion
 
     def __call__(self, theta):
         self.lnlike.set_parameter_vector(theta)
         out = self.lnlike.lnprior()
         if not np.isfinite(out):
             return -np.inf
-        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs, self.pixscale)
+        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs,\
+                pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 
     def lnlike(self, theta):
         self.lnlike.set_parameter_vector(theta)
-        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs)
+        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs,\
+                pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 
     def lnprior(self, theta):
