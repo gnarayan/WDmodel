@@ -29,7 +29,7 @@ Clone this repository
 * `git clone https://github.com/gnarayan/WDmodel.git`
 
 ### install miniconda/anaconda/astroconda if you haven't already:
-Follow instructions [here] (https://astroconda.readthedocs.io/en/latest/)
+Follow instructions [here](https://astroconda.readthedocs.io/en/latest/)
 
 * `source activate astroconda`
 
@@ -44,7 +44,7 @@ or on a linux system with apt:
 
 * `apt-get install libeigen3-dev`
 
-or compile it from source
+or compile it from [source](http://eigen.tuxfamily.org/index.php?title=Main_Page)
 
 ### Get the latest HST CDBS files:
 These are available over FTP from [ftp://archive.stsci.edu/pub/hst/pysynphot/]
@@ -123,7 +123,7 @@ ______
 
 
 You can read the first version of our analysis of four of the Cycle 20 objects
-[here] (http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:1603.03825)
+[here](http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:1603.03825)
 
 That analysis used custom IDL routines from Jay Holberg (U. Arizona) to infer
 DA intrinsic parameters and custom python code to fit the reddening parameters.
