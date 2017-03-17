@@ -83,7 +83,7 @@ def get_options(args=None):
     model = parser.add_argument_group('model',\
             'Model options. Modify using --param_file or CL. CL overrides. Caveat emptor.')
     for param in params:
-        if param in ('fwhm','dl','mu'):
+        if param in ('fwhm','dl','sigf','mu'):
             dtype = 'NoneOrFloat'
         else:
             dtype = float
@@ -293,9 +293,8 @@ def main(inargs=None, pool=None):
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
         migrad_params = WDmodel.io.copy_params(params)
 
-    # If we don't have a user supplied initial guess of mu, then get a guess
-    if params['mu']['value'] is None:
-        migrad_params = WDmodel.fit.mu_guess(phot, model, pbs, migrad_params, rvmodel=rvmodel)
+    # If we don't have a user supplied initial guess of mu and/or sigf then get a guess
+    migrad_params = WDmodel.fit.mu_sigf_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
 
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
