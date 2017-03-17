@@ -414,26 +414,57 @@ def fix_pos(pos, free_param_names, params):
     return pos
 
 
-def mu_guess(phot, model, pbs, params, rvmodel='od94'):
+def mu_sigf_guess(spec, phot, model, pbs, params, rvmodel='od94'):
     """
-    Makes a (not very robust) guess for mu after the initial minuit fit
+    Makes a (not very robust) guess for mu and sigf after the initial minuit fit
 
     Accepts
+        spec: recarray spectrum with wave, flux, flux_err
         phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
         model: WDmodel.WDmodel instance
         pbs: dict of throughput models for each passband with passband name as key
         params: dict of parameters with keywords value, fixed, bounds, scale for each
     """
+    out_params = io.copy_params(params)
+    # both parameters have user supplied guesses - do nothing
+    if (params['mu']['value'] is not None) and (params['sigf']['value'] is not None):
+        return out_params
+
+    # restore the minuit best fit model 
     teff = params['teff']['value']
     logg = params['logg']['value']
     av   = params['av']['value']
     rv   = params['rv']['value']
-    model_flux = model._get_red_model(teff, logg, av, model._wave, rv=rv, rvmodel=rvmodel)
-    model_spec = np.rec.fromarrays((model._wave, model_flux), names='wave,flux')
-    model_mags = pbmodel.get_model_synmags(model_spec, pbs)
-    mu0_guess  = np.median(phot.mag - model_mags.mag)
-    out_params = io.copy_params(params)
-    out_params['mu']['value'] = mu0_guess
+    fwhm = params['fwhm']['value']
+    dl   = params['dl']['value']
+    pixel_scale = 1./np.median(np.gradient(spec.wave))
+    spec_flux, model_spec = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
+            rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+    spec_flux *= (1./(4.*np.pi*(dl)**2.))
+
+    if params['mu']['value'] is None:
+        # for mu, simply get the median between observed and model mags for the
+        # minuit model
+        model_mags = pbmodel.get_model_synmags(model_spec, pbs)
+        mu0_guess  = np.median(phot.mag - model_mags.mag)
+        out_params['mu']['value'] = mu0_guess
+
+    if params['sigf']['value'] is None:
+        # for sigma, first set an error guess based on the spectrum noise, then
+        # based on the minuit residual. Only update the first guess if the
+        # second is within bounds. If neither is within bounds, set it in the
+        # middle of the range
+        sigf_lb , sigf_ub = out_params['sigf']['bounds']
+        sigf0_guess = 0.5*np.median(spec.flux_err)
+        sigf1_guess = np.std(spec.flux - spec_flux)
+        if not (sigf_lb < sigf0_guess < sigf_ub):
+            out_params['sigf']['value'] = sigf_lb + 0.5*(sigf_ub - sig_lb)
+            message = 'This spectrum seems to have really odd errors. You should stop.'
+            warnings.warn(message, RuntimeWarning)
+        else:
+            out_params['sigf']['value'] = sigf0_guess 
+        if (sigf_lb < sigf1_guess < sigf_ub):
+            out_params['sigf']['value'] = sigf1_guess 
     return out_params
 
 
