@@ -54,21 +54,21 @@
         ]
     }, 
     "sigf": {
-        "value": 0.01, 
+        "value": null, 
         "fixed": false,
-        "scale": 0.005,
+        "scale": 0.1,
         "bounds": [
-            1e-09, 
+            1e-3, 
             1e3
         ]
     }, 
     "tau": {
-        "value": 5000.0, 
+        "value": 10000.0, 
         "fixed": true,
         "scale": 100.0,
         "bounds": [
-            200.0, 
-            10000.0
+            2000.0, 
+            20000.0
         ]
     },
     "mu": {
