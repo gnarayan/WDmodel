@@ -16,7 +16,7 @@ def get_options(args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=__doc__)
 
     parser.add_argument('--specfiles', nargs='+', required=False, \
-            help="Specify spectrum to search for an ")
+            help="Specify spectrum to search for")
     parser.add_argument('-o', '--outdir', required=False,\
             help="Specify a custom output directory. Default is CWD+objname/ subdir")
     args = parser.parse_args(args=args)
@@ -66,7 +66,7 @@ def main(inargs=None):
         out.append(this_out)
     out = np.rec.fromrecords(out, names=colnames)
     out.sort()
-    precision = [None, None] + [2,2,2]*6 + [5,5,5] + [2,2,2]
+    precision = [None, None] + [2,2,2]*6 + [5,5,5] + [2,2,2] + [4,4,4]
     print rec2txt(out, precision=precision )
     
 
