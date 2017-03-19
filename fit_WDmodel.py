@@ -353,11 +353,18 @@ def main(inargs=None, pool=None):
 
 if __name__=='__main__':
     mpi = False
-    if str(sys.argv[1]).lower() == 'mpi':
-        pool = MPIPool()
+    startmpi =  str(sys.argv[1]).lower()
+    if startmpi.startswith('mpi'):
+        # if the first argument is "mpi" then start a pool
+        # if it is mpil, additionally enable load balancing
         mpi = True
+        loadbalance = False
+        if startmpi == 'mpil':
+            loadbalance = True
+        pool = MPIPool(loadbalance=loadbalance)
         inargs = sys.argv[2:]
     else:
+        # run single threaded
         pool = None
         inargs = sys.argv[1:]
 
@@ -366,5 +373,3 @@ if __name__=='__main__':
     if mpi:
         # Close the processes.
         pool.close()
-
-
