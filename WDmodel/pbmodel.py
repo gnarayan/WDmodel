@@ -179,5 +179,4 @@ def get_pbmodel(pbnames, model, pbfile=None):
 
         # save everything we need for this passband
         out[pb] = (outpb, transmission, ind, outzp, avgwave)
-
     return out

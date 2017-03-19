@@ -270,7 +270,6 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., 
 
     _, usemask = model._get_indices_in_range(continuumdata.wave, bluelimit, redlimit)
     continuumdata = continuumdata[usemask]
-
     return spec, cont_model, linedata, continuumdata
 
 
@@ -379,8 +378,6 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
         message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
         warnings.warn(message, RuntimeWarning)
-
-
     return migrad_params
 
 
@@ -398,7 +395,6 @@ def fix_pos(pos, free_param_names, params):
 
     Returns pos with out of bounds positions fixed to be within bounds
     """
-
     for i, name in enumerate(free_param_names):
         lb, ub = params[name]['bounds']
         p0     = params[name]['value']
@@ -410,7 +406,6 @@ def fix_pos(pos, free_param_names, params):
         ind = np.where((pos[:,i] <= ll) | (pos[:,i] >= ul))
         nreplace = len(pos[:,i][ind])
         pos[:,i][ind] = np.random.rand(nreplace)*(ul - ll) + ll
-
     return pos
 
 
@@ -430,7 +425,7 @@ def mu_sigf_guess(spec, phot, model, pbs, params, rvmodel='od94'):
     if (params['mu']['value'] is not None) and (params['sigf']['value'] is not None):
         return out_params
 
-    # restore the minuit best fit model 
+    # restore the minuit best fit model
     teff = params['teff']['value']
     logg = params['logg']['value']
     av   = params['av']['value']
@@ -458,17 +453,17 @@ def mu_sigf_guess(spec, phot, model, pbs, params, rvmodel='od94'):
         sigf0_guess = 0.5*np.median(spec.flux_err)
         sigf1_guess = np.std(spec.flux - spec_flux)
         if not (sigf_lb < sigf0_guess < sigf_ub):
-            out_params['sigf']['value'] = sigf_lb + 0.5*(sigf_ub - sig_lb)
+            out_params['sigf']['value'] = sigf_lb + 0.5*(sigf_ub - sigf_lb)
             message = 'This spectrum seems to have really odd errors. You should stop.'
             warnings.warn(message, RuntimeWarning)
         else:
-            out_params['sigf']['value'] = sigf0_guess 
+            out_params['sigf']['value'] = sigf0_guess
         if (sigf_lb < sigf1_guess < sigf_ub):
-            out_params['sigf']['value'] = sigf1_guess 
+            out_params['sigf']['value'] = sigf1_guess
     return out_params
 
 
-def fit_model(spec, phot, model, pbs, params,\
+def fit_model(spec, phot, model, covmodel, pbs, params,\
             objname, outdir, specfile,\
             rvmodel='od94', phot_dispersion=0.,\
             ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
@@ -481,6 +476,7 @@ def fit_model(spec, phot, model, pbs, params,\
         spec: recarray spectrum with wave, flux, flux_err
         phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
         model: WDmodel.WDmodel instance
+        covmodel: WDmodel.covmodel.WDmodel_CovModel instance
         pbs: dict of throughput models for each passband with passband name as key
         params: dict of parameters with keywords value, fixed, bounds, scale for each
 
@@ -547,7 +543,7 @@ def fit_model(spec, phot, model, pbs, params,\
     pixel_scale = 1./np.median(np.gradient(spec.wave))
 
     # configure the posterior function
-    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, rvmodel, pbs, lnlike,\
+    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, covmodel, rvmodel, pbs, lnlike,\
             pixel_scale=pixel_scale, phot_dispersion=phot_dispersion)
 
     # setup the sampler
@@ -633,7 +629,6 @@ def fit_model(spec, phot, model, pbs, params,\
     samples_lnprob  = np.array(dset_lnprob)
     outf.close()
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
-
     return  free_param_names, samples, samples_lnprob
 
 
@@ -661,7 +656,6 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
     likelihood corresponding to sampler position
 
     """
-
     ndim = len(param_names)
 
     in_samp   = samples.reshape(nwalkers, nprod, ndim)
@@ -693,5 +687,4 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
         else:
             # this should never happen, unless we did something stupid between fit_WDmodel and mpifit_WDmodel
             print "Huh.... {} not marked as fixed but was not fit for...".format(param)
-
     return params, in_samp[mask,:], in_lnprob[mask]

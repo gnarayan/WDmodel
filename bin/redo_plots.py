@@ -39,6 +39,14 @@ def main():
     # init model
     model = WDmodel.WDmodel()
 
+    # init a covariance model instance that's used to model the residuals
+    # between the systematic residuals between data and model
+    covmodel = WDmodel.covmodel.WDmodel_CovModel()
+
+    # restore params
+    param_file = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
+    mcmc_params = WDmodel.io.read_params(param_file)
+
     # exclude passbands that we want excluded
     pbnames = []
     if phot is not None:
@@ -56,16 +64,12 @@ def main():
 
     # if we cut out out all the passbands, force mu to be fixed
     if len(pbnames) == 0:
-        params['mu']['value'] = 0.
-        params['mu']['fixed'] = True
+        mcmc_params['mu']['value'] = 0.
+        mcmc_params['mu']['fixed'] = True
         phot = None
 
     # get the throughput model
     pbs = WDmodel.pbmodel.get_pbmodel(pbnames, model)
-
-    # restore params
-    param_file = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
-    mcmc_params = WDmodel.io.read_params(param_file)
 
     # restore samples and prob
     chain_file = WDmodel.io.get_outfile(outdir, specfile, '_mcmc.hdf5')
@@ -79,7 +83,7 @@ def main():
     # plot the MCMC output
     model_spec, full_mod, model_mags = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                 objname, outdir, specfile,\
-                model, cont_model, pbs,\
+                model, covmodel, cont_model, pbs,\
                 mcmc_params, param_names, in_samp, in_lnprob,\
                 rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
 

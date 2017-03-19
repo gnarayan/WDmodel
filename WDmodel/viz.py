@@ -2,7 +2,6 @@
 Routines to visualize the DA White Dwarf model atmosphere fit
 """
 import numpy as np
-import george
 from itertools import cycle
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -83,7 +82,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     return fig
 
 
-def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, samples,\
+def plot_mcmc_spectrum_fit(spec, objname, specfile, model, covmodel, result, param_names, samples,\
         rvmodel='od94', ndraws=21):
     """
     Plot the full spectrum of the DA White Dwarf
@@ -123,11 +122,9 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
         smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
 
         res = spec.flux - smoothedmod
-        kernel = (sigf**2.)*george.kernels.ExpSquaredKernel(tau)
-        gp = george.GP(kernel, mean=0.)
-        gp.compute(spec.wave, spec.flux_err)
-        wres, cov = gp.predict(res, spec.wave)
-        ax_spec.plot(spec.wave, smoothedmod+wres, color=color, linestyle='-',marker='None', alpha=alpha, label=label)
+        wres, cov = covmodel.predict(spec.wave, res, spec.flux_err, sigf, tau)
+        ax_spec.plot(spec.wave, smoothedmod+wres,\
+                color=color, linestyle='-',marker='None', alpha=alpha, label=label)
         out_draw = io.copy_params(this_draw)
         return smoothedmod, wres, cov, full_mod, out_draw
 
@@ -143,10 +140,14 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, result, param_names, 
     for param in result:
         val = result[param]['value']
         errp, errm = result[param]['errors_pm']
-        if param == 'sigf':
-            outlabel += '{} = {:.4f} +{:.4f}/-{:.4f}\n'.format(param, val, errp, errm)
+        fixed = result[param]['fixed']
+        thislabel = '{} = {:.3g} '.format(param, val)
+        if not fixed:
+            thislabel += ' +{:.3g}/-{:.3g}'.format(errp, errm)
         else:
-            outlabel += '{} = {:.2f} +{:.2f}/-{:.2f}\n'.format(param, val, errp, errm)
+            thislabel = '[{} FIXED]'.format(thislabel)
+        thislabel +='\n'
+        outlabel += thislabel
 
     # finally, overplot the best result draw as solid
     smoothedmod, wres, cov, full_mod, out_draw = plot_one(result, color='red', alpha=1., label=outlabel)
@@ -210,7 +211,7 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
 
     mag_draws.append((res, model_mags, mu))
 
-    # the draws are already samples from the posterior distribution - just take the median 
+    # the draws are already samples from the posterior distribution - just take the median
     out = np.array(out)
     errs = np.median(np.abs(out), axis=0)
 
@@ -235,7 +236,6 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
     fig.suptitle('Photometry for {}'.format(objname), fontproperties=font_l)
 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
-
     return fig, mag_draws
 
 
@@ -286,7 +286,6 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     fig.suptitle('MCMC Fit - No Covariance: %s (%s)'%(objname, specfile), fontproperties=font_l)
 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
-
     return fig
 
 
@@ -405,13 +404,12 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     gs2.tight_layout(fig2, rect=[0, 0.03, 1, 0.95])
-
     return fig, fig2
 
 
 def plot_mcmc_model(spec, phot, linedata,\
         objname, outdir, specfile,\
-        model, cont_model, pbs,\
+        model, covmodel, cont_model, pbs,\
         params, param_names, samples, samples_lnprob,\
         rvmodel='od94', balmer=None, save=True, ndraws=21, savefig=False):
     """
@@ -424,7 +422,7 @@ def plot_mcmc_model(spec, phot, linedata,\
     outfilename = io.get_outfile(outdir, specfile, '_mcmc.pdf')
     with PdfPages(outfilename) as pdf:
         # plot spectrum and model
-        fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, model, params, param_names, samples,\
+        fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, model, covmodel, params, param_names, samples,\
                 rvmodel=rvmodel, ndraws=ndraws)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum.pdf')
@@ -472,5 +470,4 @@ def plot_mcmc_model(spec, phot, linedata,\
         _, model_mags, _ = mag_draws[-1]
     else:
         model_mags = None
-
     return model_spec, full_mod, model_mags

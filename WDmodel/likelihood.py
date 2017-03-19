@@ -1,10 +1,9 @@
 import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm
-from george import GP, HODLRSolver
-from george.kernels import ExpSquaredKernel
 from . import io
 from .pbmodel import get_model_synmags
+
 
 class WDmodel_Likelihood(Model):
     """
@@ -32,7 +31,7 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, rvmodel, pbs, pixel_scale=1., phot_dispersion=0.):
+    def get_value(self, spec, phot, model, rvmodel, covmodel, pbs, pixel_scale=1., phot_dispersion=0.):
         """
         Returns the log likelihood of the data given the model
         """
@@ -49,15 +48,7 @@ class WDmodel_Likelihood(Model):
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
-
-        kernel = (self.sigf**2.)*ExpSquaredKernel(self.tau)
-        gp = GP(kernel, mean=0., solver=HODLRSolver)
-        try:
-            gp.compute(spec.wave, spec.flux_err)
-        except ValueError:
-            return -np.inf
-
-        return gp.lnlikelihood(res, quiet=True) - (phot_chi/2.)
+        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.sigf, self.tau) - (phot_chi/2.)
 
 
     def lnprior(self):
@@ -102,18 +93,20 @@ class WDmodel_Posterior(object):
         spec: the recarray spectrum (wave, flux, flux_err)
         phot: the recarray photometry (pb, mag, mag_err)
     and the model
-        model: a WDmodel() instance to get the model spectrum in the presence
+        model: a WDmodel instance to get the model spectrum in the presence
         of reddening and through some instrument
+        covmodel: a WDmodel_CovModel instance
         rvmodel: The form of the reddening law to be used to redden the spectrum
         pbs: a model of the throughput of the different passbands
         lnlike: a WDmodel_Likelihood instance that can return the log prior and log likelihood
 
     Call returns the log posterior
     """
-    def __init__(self, spec, phot, model, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
+    def __init__(self, spec, phot, model, covmodel, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
         self.spec    = spec
         self.phot    = phot
         self.model   = model
+        self.covmodel= covmodel
         self.rvmodel = rvmodel
         self.pbs     = pbs
         self.lnlike  = lnlike
@@ -125,13 +118,13 @@ class WDmodel_Posterior(object):
         out = self.lnlike.lnprior()
         if not np.isfinite(out):
             return -np.inf
-        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs,\
+        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 
     def lnlike(self, theta):
         self.lnlike.set_parameter_vector(theta)
-        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.pbs,\
+        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 

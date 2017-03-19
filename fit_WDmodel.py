@@ -8,6 +8,7 @@ import WDmodel.io
 import WDmodel.fit
 import WDmodel.viz
 import WDmodel.pbmodel
+import WDmodel.covmodel
 
 
 def get_options(args=None):
@@ -293,6 +294,10 @@ def main(inargs=None, pool=None):
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
         migrad_params = WDmodel.io.copy_params(params)
 
+    # init a covariance model instance that's used to model the residuals
+    # between the systematic residuals between data and model
+    covmodel = WDmodel.covmodel.WDmodel_CovModel()
+
     # If we don't have a user supplied initial guess of mu and/or sigf then get a guess
     migrad_params = WDmodel.fit.mu_sigf_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
 
@@ -309,7 +314,7 @@ def main(inargs=None, pool=None):
     if not args.skipmcmc:
 
         # do the fit
-        result = WDmodel.fit.fit_model(spec, phot, model, pbs, migrad_params,\
+        result = WDmodel.fit.fit_model(spec, phot, model, covmodel, pbs, migrad_params,\
                     objname, outdir, specfile,\
                     rvmodel=rvmodel, phot_dispersion=phot_dispersion,\
                     ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
@@ -331,7 +336,7 @@ def main(inargs=None, pool=None):
         # plot the MCMC output
         model_spec, full_mod, model_mags = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
                     objname, outdir, specfile,\
-                    model, cont_model, pbs,\
+                    model, covmodel, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
                     rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
 
