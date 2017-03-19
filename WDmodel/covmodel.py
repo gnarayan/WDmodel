@@ -1,5 +1,5 @@
 from george import GP, HODLRSolver
-from george.kernels import ExpSquaredKernel
+import george.kernels
 
 class WDmodel_CovModel(object):
     """
@@ -8,8 +8,28 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    @classmethod
-    def lnlikelihood(cls, wave, res, flux_err, sigf, tau):
+    def __init__(self, covtype='White'):
+
+        self.k1   = george.kernels.ConstantKernel
+        self.ndim = 2
+        if covtype == 'White':
+            self.k1 = george.kernels.WhiteKernel
+            self.k2 = None
+            self.ndim = 1
+        elif covtype == 'ExpSquared':
+            self.k2 = george.kernels.ExpSquaredKernel
+        elif covtype == 'Matern32':
+            self.k2 = george.kernels.Matern32Kernel
+        elif covtype == 'Matern52':
+            self.k2 = george.kernels.Matern52Kernel
+        elif covtype == 'Exp':
+            self.k2 = george.kernels.ExpKernel
+        else:
+            message = 'Do not understand kernel type {}'.format(covtype)
+            raise RuntimeError(message)
+
+
+    def lnlikelihood(self, wave, res, flux_err, sigf, tau):
         """
         Return the lnlikelihood given the data, model and hyperparameters
         Accepts
@@ -20,11 +40,10 @@ class WDmodel_CovModel(object):
             sigf, tau: the kernel hyperparameters defining the amplitude and
             scale of the stationary kernel
         """
-        gp = cls.getgp(wave, flux_err, sigf, tau)
+        gp = self.getgp(wave, flux_err, sigf, tau)
         return gp.lnlikelihood(res, quiet=True)
 
-    @classmethod
-    def predict(cls, wave, res, flux_err, sigf, tau):
+    def predict(self, wave, res, flux_err, sigf, tau):
         """
         Return the prediction for residuals given the data, model and hyperparameters
         Accepts
@@ -39,11 +58,10 @@ class WDmodel_CovModel(object):
             cov: the full covariance matrix of the observations
 
         """
-        gp = cls.getgp(wave, flux_err, sigf, tau)
+        gp = self.getgp(wave, flux_err, sigf, tau)
         return gp.predict(res, wave)
 
-    @staticmethod
-    def getgp(wave, flux_err, sigf, tau):
+    def getgp(self, wave, flux_err, sigf, tau):
         """
         Returns the GP object, given the locations of the model observation
         locations, uncertainties, and the hyperparameters
@@ -56,7 +74,10 @@ class WDmodel_CovModel(object):
         Returns
             gp: the george GP object
         """
-        kernel = (sigf**2.)*ExpSquaredKernel(tau)
+        if self.ndim == 1:
+            kernel = self.k1(sigf**2.)
+        else:
+            kernel = self.k1(sigf**2.)*self.k2(tau)
         gp = GP(kernel, mean=0., solver=HODLRSolver)
         gp.compute(wave, flux_err)
         return gp
