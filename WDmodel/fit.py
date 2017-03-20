@@ -411,7 +411,7 @@ def fix_pos(pos, free_param_names, params):
 
 def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
     """
-    Makes a (not very robust) guess for mu and sigf after the initial minuit fit
+    Makes a guess for mu after the initial minuit fit
 
     Accepts
         spec: recarray spectrum with wave, flux, flux_err
@@ -421,8 +421,8 @@ def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
         params: dict of parameters with keywords value, fixed, bounds, scale for each
     """
     out_params = io.copy_params(params)
-    # both parameters have user supplied guesses - do nothing
-    if (params['mu']['value'] is not None) and (params['sigf']['value'] is not None):
+    # mu has a user supplied guess - do nothing
+    if params['mu']['value'] is not None:
         return out_params
 
     # restore the minuit best fit model
@@ -431,15 +431,13 @@ def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
     av   = params['av']['value']
     rv   = params['rv']['value']
     fwhm = params['fwhm']['value']
-    dl   = params['dl']['value']
     pixel_scale = 1./np.median(np.gradient(spec.wave))
-    spec_flux, model_spec = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
+    _, model_spec = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
             rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
-    spec_flux *= (1./(4.*np.pi*(dl)**2.))
 
     # update the mu guess if we don't have one, or the parameter isn't fixed
     if params['mu']['value'] is None or (not params['mu']['fixed']):
-        # for mu, simply get the median between observed and model mags for the minuit model
+        # get the median between observed and model mags for the minuit model
         if phot is not None:
             model_mags = pbmodel.get_model_synmags(model_spec, pbs)
             mu0_guess  = np.median(phot.mag - model_mags.mag)
@@ -447,18 +445,6 @@ def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
             mu0_guess = 0.
         out_params['mu']['value'] = mu0_guess
 
-    # only update the guess if we don't have one - if the user supplied one,
-    # defer to them even if it's not fixed
-    if params['sigf']['value'] is None:
-        # for sigmf, set an error guess based on the spectrum noise
-        # if not within the parameter bounds, set it somewhere in the middle of the bounds
-        sigf_lb , sigf_ub = out_params['sigf']['bounds']
-        sigf0_guess = 0.5*np.median(spec.flux_err)
-        if not (sigf_lb < sigf0_guess < sigf_ub):
-            sigf0_guess = sigf_lb + 0.5*(sigf_ub - sigf_lb)
-            message = 'This spectrum seems to have really odd errors. You should stop.'
-            warnings.warn(message, RuntimeWarning)
-        out_params['sigf']['value'] = sigf0_guess
     return out_params
 
 
@@ -555,17 +541,17 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
         sampler.reset()
         lnlike.set_parameter_vector(pos[np.argmax(prob)])
-        print "\nParameters after Burn-in"
+        print "\nMAP Parameters after Burn-in"
         for k, v in lnlike.get_parameter_dict().items():
             print "{} = {:f}".format(k,v)
 
         # init a new set of walkers around the maximum likelihood position from the burn-in
-        burnin_p0 = pos[np.argmax(prob)]
-        pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
-        burnin_params = io.copy_params(params)
-        for i, key in enumerate(free_param_names):
-            burnin_params[key]['value'] = burnin_p0[i]
-        pos = fix_pos(pos, free_param_names, burnin_params)
+        # burnin_p0 = pos[np.argmax(prob)]
+        # pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
+        # burnin_params = io.copy_params(params)
+        # for i, key in enumerate(free_param_names):
+        #    burnin_params[key]['value'] = burnin_p0[i]
+        # pos = fix_pos(pos, free_param_names, burnin_params)
 
     # create a HDF5 file to hold the chain data
     outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5',check=True, redo=redo)
@@ -627,6 +613,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
     outf.close()
+
+    lnlike.set_parameter_vector(samples[np.argmax(samples_lnprob)])
+    print "\nMAP Parameters after Production"
+    for k, v in lnlike.get_parameter_dict().items():
+        print "{} = {:f}".format(k,v)
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
     return  free_param_names, samples, samples_lnprob
 
