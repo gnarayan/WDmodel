@@ -409,7 +409,7 @@ def fix_pos(pos, free_param_names, params):
     return pos
 
 
-def mu_sigf_guess(spec, phot, model, pbs, params, rvmodel='od94'):
+def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
     """
     Makes a (not very robust) guess for mu and sigf after the initial minuit fit
 
@@ -437,29 +437,28 @@ def mu_sigf_guess(spec, phot, model, pbs, params, rvmodel='od94'):
             rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
     spec_flux *= (1./(4.*np.pi*(dl)**2.))
 
-    if params['mu']['value'] is None:
-        # for mu, simply get the median between observed and model mags for the
-        # minuit model
-        model_mags = pbmodel.get_model_synmags(model_spec, pbs)
-        mu0_guess  = np.median(phot.mag - model_mags.mag)
+    # update the mu guess if we don't have one, or the parameter isn't fixed
+    if params['mu']['value'] is None or (not params['mu']['fixed']):
+        # for mu, simply get the median between observed and model mags for the minuit model
+        if phot is not None:
+            model_mags = pbmodel.get_model_synmags(model_spec, pbs)
+            mu0_guess  = np.median(phot.mag - model_mags.mag)
+        else:
+            mu0_guess = 0.
         out_params['mu']['value'] = mu0_guess
 
+    # only update the guess if we don't have one - if the user supplied one,
+    # defer to them even if it's not fixed
     if params['sigf']['value'] is None:
-        # for sigma, first set an error guess based on the spectrum noise, then
-        # based on the minuit residual. Only update the first guess if the
-        # second is within bounds. If neither is within bounds, set it in the
-        # middle of the range
+        # for sigmf, set an error guess based on the spectrum noise
+        # if not within the parameter bounds, set it somewhere in the middle of the bounds
         sigf_lb , sigf_ub = out_params['sigf']['bounds']
         sigf0_guess = 0.5*np.median(spec.flux_err)
-        sigf1_guess = np.std(spec.flux - spec_flux)
         if not (sigf_lb < sigf0_guess < sigf_ub):
-            out_params['sigf']['value'] = sigf_lb + 0.5*(sigf_ub - sigf_lb)
+            sigf0_guess = sigf_lb + 0.5*(sigf_ub - sigf_lb)
             message = 'This spectrum seems to have really odd errors. You should stop.'
             warnings.warn(message, RuntimeWarning)
-        else:
-            out_params['sigf']['value'] = sigf0_guess
-        if (sigf_lb < sigf1_guess < sigf_ub):
-            out_params['sigf']['value'] = sigf1_guess
+        out_params['sigf']['value'] = sigf0_guess
     return out_params
 
 

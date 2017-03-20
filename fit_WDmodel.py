@@ -56,6 +56,8 @@ def get_options(args=None):
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
     spectrum.add_argument('--specfile', required=True, \
             help="Specify spectrum to fit")
+    spectrum.add_argument('--spectable', required=False,  default="data/spectable_resolution.dat",\
+            help="Specify file containing a fwhm lookup table for specfile")
     spectrum.add_argument('--lamshift', required=False, type=float, default=0.,\
             help="Specify a flat wavelength shift in Angstrom to fix  slit centering errors")
     spectrum.add_argument('--vel', required=False, type=float, default=0.,\
@@ -85,6 +87,10 @@ def get_options(args=None):
     model = parser.add_argument_group('model',\
             'Model options. Modify using --param_file or CL. CL overrides. Caveat emptor.')
     for param in params:
+        # we can't reasonably expect a user supplied guess or a static value to
+        # work for some parameters. Allow None for these, and we'll determine a
+        # good starting guess from the data. Note that we can actually just get
+        # a starting guess for FWHM, but it's easier to use a lookup table.
         if param in ('fwhm','dl','sigf','mu'):
             dtype = 'NoneOrFloat'
         else:
@@ -185,6 +191,7 @@ def main(inargs=None, pool=None):
     args   = get_options(inargs)
 
     specfile  = args.specfile
+    spectable = args.spectable
     lamshift  = args.lamshift
     vel       = args.vel
     bluelim, redlim   = args.trimspec
@@ -227,7 +234,7 @@ def main(inargs=None, pool=None):
     # we can look it up from a lookup table provided by Tom Matheson for our spectra
     # a custom argument from the command line overrides the lookup
     fwhm = params['fwhm']['value']
-    fwhm = WDmodel.io.get_spectrum_resolution(specfile, fwhm=fwhm)
+    fwhm = WDmodel.io.get_spectrum_resolution(specfile, spectable, fwhm=fwhm)
     params['fwhm']['value'] = fwhm
 
     # read spectrum
@@ -297,11 +304,10 @@ def main(inargs=None, pool=None):
     # between the systematic residuals between data and model
     covmodel = WDmodel.covmodel.WDmodel_CovModel(covtype)
     if covtype == 'White':
-        params['tau']['fixed'] = True
+        migrad_params['tau']['fixed'] = True
 
-
-    # If we don't have a user supplied initial guess of mu and/or sigf then get a guess
-    migrad_params = WDmodel.fit.mu_sigf_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
+    # If we don't have a user supplied initial guess of mu, sigf, tau then get a guess
+    migrad_params = WDmodel.fit.hyper_param_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
 
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
