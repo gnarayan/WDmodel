@@ -180,7 +180,7 @@ def get_spectrum_resolution(specfile, spectable, fwhm=None):
     if fwhm is None:
         try:
             spectable = read_spectable(spectable)
-        except (OSError, IOError) e:
+        except (OSError, IOError), e:
             message = '{}\nCould not get resolution from spectable {}'.format(e, spectable)
             warnings.warn(message, RuntimeWarning)
             spectable = None
