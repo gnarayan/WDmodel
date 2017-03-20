@@ -43,6 +43,7 @@ class WDmodel_CovModel(object):
         gp = self.getgp(wave, flux_err, sigf, tau)
         return gp.lnlikelihood(res, quiet=True)
 
+
     def predict(self, wave, res, flux_err, sigf, tau):
         """
         Return the prediction for residuals given the data, model and hyperparameters
@@ -60,6 +61,31 @@ class WDmodel_CovModel(object):
         """
         gp = self.getgp(wave, flux_err, sigf, tau)
         return gp.predict(res, wave)
+
+
+    def optimize(self, wave, res, flux_err, sigf, tau, bounds, dims=None):
+        """
+        Optimize the kernel hyperparameters given the data The george
+        documentation describes the call to optimize as "not terribly robust"
+
+        Accepts
+            wave: the wavelength array
+            res: the residuals between flux and the model flux
+            flux_err: the uncertainty on the flux measurements - added to the
+            diagonal of the covariance matrix
+            sigf, tau: the kernel hyperparameters defining the amplitude and
+            scale of the stationary kernel
+            bounds: sequence of tuples with lower, upper bounds for each parameter
+            dims: (optional) array of parameter indices to optimize
+        Returns
+            pars: list of optimized parameters
+            result: scipy.optimize.minimze object
+
+        """
+        gp = self.getgp(wave, flux_err, sigf, tau)
+        pars, result = gp.optimize(wave, res, flux_err, dims=dims)
+        return pars, result
+
 
     def getgp(self, wave, flux_err, sigf, tau):
         """
