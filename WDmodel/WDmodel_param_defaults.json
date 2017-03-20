@@ -1,82 +1,82 @@
 {
     "teff": {
-        "value": 35000.0, 
-        "fixed": false, 
+        "value": 35000.0,
+        "fixed": false,
         "scale": 2000.0,
         "bounds": [
-            16000.0, 
+            16000.0,
             90000.0
         ]
-    }, 
+    },
     "logg": {
-        "value": 7.8, 
+        "value": 7.8,
         "fixed": false,
         "scale": 0.1,
         "bounds": [
-            7.0, 
+            7.0,
             9.5
         ]
-    }, 
+    },
     "av": {
-        "value": 0.2, 
+        "value": 0.2,
         "fixed": false,
         "scale": 0.05,
         "bounds": [
-            -1e-25, 
+            -1e-25,
             2.0
         ]
-    }, 
+    },
     "rv": {
-        "value": 3.1, 
+        "value": 3.1,
         "fixed": true,
         "scale": 0.18,
         "bounds": [
-            1.7, 
+            1.7,
             5.1
         ]
-    }, 
+    },
     "dl": {
-        "value": null, 
+        "value": null,
         "fixed": false,
         "scale": 10.0,
         "bounds": [
-            1e-7, 
+            1e-7,
             1e7
         ]
-    }, 
+    },
     "fwhm": {
-        "value": null, 
+        "value": null,
         "fixed": false,
         "scale": 0.5,
         "bounds": [
-            0.1, 
+            0.1,
             25.0
         ]
-    }, 
-    "sigf": {
-        "value": null, 
+    },
+    "fsig": {
+        "value": 0.5,
         "fixed": false,
         "scale": 0.1,
         "bounds": [
-            -1e-25, 
+            0.0,
             1e3
         ]
-    }, 
+    },
     "tau": {
-        "value": 10000.0, 
+        "value": 10000.0,
         "fixed": true,
         "scale": 100.0,
         "bounds": [
-            2000.0, 
+            2000.0,
             20000.0
         ]
     },
     "mu": {
-        "value": null, 
+        "value": null,
         "fixed": false,
         "scale": 1.0,
         "bounds": [
-            -1e-25, 
+            -1e-25,
             1e3
         ]
     }
