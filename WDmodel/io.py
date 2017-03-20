@@ -171,7 +171,7 @@ def get_spectrum_resolution(specfile, fwhm=None):
     """
     Accepts a spectrum filename, and reads a lookup table to get the resolution of the spectrum
     """
-    _default_resolution = 8.0
+    _default_resolution = 5.0
     if fwhm is None:
         spectable = read_spectable('data/spectable_resolution.dat')
         shortfile = os.path.basename(specfile).replace('-total','')
