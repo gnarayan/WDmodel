@@ -91,7 +91,7 @@ def get_options(args=None):
         # work for some parameters. Allow None for these, and we'll determine a
         # good starting guess from the data. Note that we can actually just get
         # a starting guess for FWHM, but it's easier to use a lookup table.
-        if param in ('fwhm','dl','sigf','mu'):
+        if param in ('fwhm','dl','mu'):
             dtype = 'NoneOrFloat'
         else:
             dtype = float
@@ -302,11 +302,12 @@ def main(inargs=None, pool=None):
 
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
-    covmodel = WDmodel.covmodel.WDmodel_CovModel(covtype)
+    errscale = np.median(spec.flux_err)
+    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype)
     if covtype == 'White':
         migrad_params['tau']['fixed'] = True
 
-    # If we don't have a user supplied initial guess of mu, sigf, tau then get a guess
+    # If we don't have a user supplied initial guess of mu, get a guess
     migrad_params = WDmodel.fit.hyper_param_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
 
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
