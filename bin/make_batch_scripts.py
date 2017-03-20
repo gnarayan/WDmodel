@@ -14,7 +14,7 @@ def main():
             "#SBATCH --contiguous",
             "#SBATCH -t 6-00:00",
             "#SBATCH -p general",
-            "#SBATCH --mem-per-cpu=500",
+            "#SBATCH --mem-per-cpu=1000",
             "#SBATCH --mail-type=ALL",
             "#SBATCH --mail-user=gnarayan.work+odyssey@gmail.com"]
 
@@ -38,7 +38,7 @@ def main():
             script_file = WDmodel.io.get_outfile("scripts", specfile,'.sh')
             outlines.append("#SBATCH -o {}".format(stdout_file))
             outlines.append("#SBATCH -e {}".format(stderr_file))
-            outlines.append("mpirun -np 32 ./fit_WDmodel.py mpi --specfile {} --trimspec 3700 5200 --photfile data/photometry/WDphot_C22.dat --tau=10000 --nburnin=1000 --nprod=10000 --discard=10".format(specfile))
+            outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --covtype ExpSquared --photfile data/photometry/WDphot_C22.dat --tau=5000 --tau_fix=True --tau_bounds 1000 10000 --discard=10 --phot_dispersion 0.001".format(specfile))
             out = addnewlines((lines+outlines))
             with open(script_file,'w') as f:
                 f.writelines(out)
@@ -53,7 +53,7 @@ def main():
         script_file = WDmodel.io.get_outfile("scripts", specfile,'.sh')
         outlines.append("#SBATCH -o {}".format(stdout_file))
         outlines.append("#SBATCH -e {}".format(stderr_file))
-        outlines.append("mpirun -np 32 ./fit_WDmodel.py mpi --specfile {} --trimspec 3700 5200 --ignorephot --tau=10000 --nburnin=1000 --nprod=10000 --discard=10".format(specfile))
+        outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --covtype ExpSquared --ignorephot --tau=5000 --tau_fix=True --tau_bounds 1000 10000 --discard=10".format(specfile))
         out = addnewlines((lines+outlines))
         with open(script_file,'w') as f:
             f.writelines(out)
