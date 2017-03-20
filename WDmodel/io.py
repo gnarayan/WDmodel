@@ -167,19 +167,29 @@ read_spectable = _read_ascii
 read_pbmap     = _read_ascii
 
 
-def get_spectrum_resolution(specfile, fwhm=None):
+def get_spectrum_resolution(specfile, spectable, fwhm=None):
     """
-    Accepts a spectrum filename, and reads a lookup table to get the resolution of the spectrum
+    Accepts a spectrum filename, and reads a lookup table to get the resolution
+    of the spectrum spectable must contain at least two column names, specname
+    and fwhm
+
+    Note that there there's some hackish internal name fixing since T.
+    Matheson's table specnames didn't match the spectrum filenames
     """
     _default_resolution = 5.0
     if fwhm is None:
-        spectable = read_spectable('data/spectable_resolution.dat')
+        try:
+            spectable = read_spectable(spectable)
+        except (OSError, IOError) e:
+            message = '{}\nCould not get resolution from spectable {}'.format(e, spectable)
+            warnings.warn(message, RuntimeWarning)
+            spectable = None
         shortfile = os.path.basename(specfile).replace('-total','')
         if shortfile.startswith('test'):
             message = 'Spectrum filename indicates this is a test - using default resolution'
             warnings.warn(message, RuntimeWarning)
             fwhm = _default_resolution
-        else:
+        elif spectable is not None:
             mask = (spectable.specname == shortfile)
             if len(spectable[mask]) != 1:
                 message = 'Could not find an entry for this spectrum in the spectable file - using default resolution'
@@ -187,6 +197,8 @@ def get_spectrum_resolution(specfile, fwhm=None):
                 fwhm = _default_resolution
             else:
                 fwhm = spectable[mask].fwhm[0]
+        else:
+            fwhm = _default_resolution
     else:
         message = 'Smoothing factor specified on command line - overriding spectable file'
         warnings.warn(message, RuntimeWarning)
