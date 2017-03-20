@@ -239,7 +239,7 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
     return fig, mag_draws
 
 
-def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
+def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws, covtype='White'):
     """
     Plot the full spectrum of the DA White Dwarf
     """
@@ -283,7 +283,7 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws):
     ax_spec.set_ylabel('Normalized Flux', fontproperties=font_m)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
-    fig.suptitle('MCMC Fit - No Covariance: %s (%s)'%(objname, specfile), fontproperties=font_l)
+    fig.suptitle('MCMC Fit - No {} Covariance: {} ({})'.format(covtype, objname, specfile), fontproperties=font_l)
 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     return fig
@@ -411,7 +411,7 @@ def plot_mcmc_model(spec, phot, linedata,\
         objname, outdir, specfile,\
         model, covmodel, cont_model, pbs,\
         params, param_names, samples, samples_lnprob,\
-        rvmodel='od94', balmer=None, save=True, ndraws=21, savefig=False):
+        covtype='White', rvmodel='od94', balmer=None, save=True, ndraws=21, savefig=False):
     """
     Plot the full fit of the DA White Dwarf
     """
@@ -439,7 +439,7 @@ def plot_mcmc_model(spec, phot, linedata,\
             pdf.savefig(fig)
 
         # plot continuum, model and draws without gp
-        fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws)
+        fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws, covtype=covtype)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_nogp.pdf')
             fig.savefig(outfile)

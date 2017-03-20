@@ -68,10 +68,11 @@ def get_options(args=None):
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
 
     # photometry options
+    reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
     phot = parser.add_argument_group('photometry', 'Photometry options')
     phot.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
             help="Specify file containing photometry lookup table for objects")
-    phot.add_argument('--reddeningmodel', required=False, default='od94',\
+    phot.add_argument('--reddeningmodel', required=False, choices=reddeninglaws, default='od94',\
             help="Specify functional form of reddening law" )
     phot.add_argument('--phot_dispersion', required=False, type=float, default=0.003,\
             help="Specify a flat photometric dispersion error in mag to add in quadrature to the measurement errors")
@@ -97,6 +98,8 @@ def get_options(args=None):
                 help="Specify param {} scale/step size".format(param))
         model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"],
                 type=float, metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
+    model.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
+                default='White', help='Specify a parametric form for the covariance function to model the spectrum')
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
@@ -143,11 +146,6 @@ def get_options(args=None):
             raise ValueError
     except (TypeError, ValueError):
         message = 'Invalid balmer line value - must be in range [1,6]'
-        raise ValueError(message)
-
-    reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
-    if not args.reddeningmodel in reddeninglaws:
-        message = 'That reddening law is not known (%s)'%' '.join(reddeninglaws)
         raise ValueError(message)
 
     if args.nwalkers < 0:
@@ -200,6 +198,7 @@ def main(inargs=None, pool=None):
     phot_dispersion = args.phot_dispersion
     excludepb = args.excludepb
     ignorephot= args.ignorephot
+    covtype   = args.covtype
 
     ascale    = args.ascale
     nwalkers  = args.nwalkers
@@ -296,7 +295,10 @@ def main(inargs=None, pool=None):
 
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
-    covmodel = WDmodel.covmodel.WDmodel_CovModel()
+    covmodel = WDmodel.covmodel.WDmodel_CovModel(covtype)
+    if covtype == 'White':
+        params['tau']['fixed'] = True
+
 
     # If we don't have a user supplied initial guess of mu and/or sigf then get a guess
     migrad_params = WDmodel.fit.mu_sigf_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
@@ -338,7 +340,7 @@ def main(inargs=None, pool=None):
                     objname, outdir, specfile,\
                     model, covmodel, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
-                    rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
+                    covtype=covtype, rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
 
         spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')
         WDmodel.io.write_spectrum_model(spec, model_spec, spec_model_file)
