@@ -146,9 +146,9 @@ class WDmodel_Posterior(object):
             fwhm0 = self.p0['fwhm']
             out += norm.logpdf(fwhm, fwhm0, 8.)
 
-            # half-Cauchy on the error scale
+            # normal on fsig
             fsig = self.lnlike.get_parameter('fsig')
-            out += halfcauchy.logpdf(fsig, loc=0, scale=3)
+            out += norm.logpdf(fsig, 0.5, 0.2)
 
             # TODO something for tau?
 
