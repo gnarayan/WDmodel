@@ -461,7 +461,9 @@ def plot_mcmc_model(spec, phot, linedata,\
             outfile = io.get_outfile(outdir, specfile, '_mcmc_corner.pdf')
             fig.savefig(outfile)
         pdf.savefig(fig)
+        print "Wrote output plot file {}".format(outfilename)
         #endwith
+
 
     smoothedmod, wres, full_mod, _ = draws[-1]
     model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres), names='wave,flux')

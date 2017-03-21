@@ -154,11 +154,11 @@ def get_options(args=None):
         message = 'Invalid balmer line value - must be in range [1,6]'
         raise ValueError(message)
 
-    if args.nwalkers < 0:
+    if args.nwalkers <= 0:
         message = 'Number of walkers must be greater than zero for MCMC'
         raise ValueError(message)
 
-    if args.nburnin < 0:
+    if args.nburnin <= 0:
         message = 'Number of burnin steps must be greater than zero'
         raise ValueError(message)
 
