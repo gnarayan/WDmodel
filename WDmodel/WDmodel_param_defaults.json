@@ -58,7 +58,7 @@
         "fixed": false,
         "scale": 0.1,
         "bounds": [
-            0.0,
+            1e-2,
             1e3
         ]
     },
