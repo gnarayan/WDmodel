@@ -532,22 +532,13 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             a=ascale,  pool=pool)
 
     # do a short burn-in
-    if nburnin > 0:
-        print "Burn-in"
-        pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
-        sampler.reset()
-        lnlike.set_parameter_vector(pos[np.argmax(prob)])
-        print "\nMAP Parameters after Burn-in"
-        for k, v in lnlike.get_parameter_dict().items():
-            print "{} = {:f}".format(k,v)
-
-        # init a new set of walkers around the maximum likelihood position from the burn-in
-        # burnin_p0 = pos[np.argmax(prob)]
-        # pos = emcee.utils.sample_ball(burnin_p0, std, size=nwalkers)
-        # burnin_params = io.copy_params(params)
-        # for i, key in enumerate(free_param_names):
-        #    burnin_params[key]['value'] = burnin_p0[i]
-        # pos = fix_pos(pos, free_param_names, burnin_params)
+    print "Burn-in"
+    pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
+    sampler.reset()
+    lnlike.set_parameter_vector(pos[np.argmax(prob)])
+    print "\nMAP Parameters after Burn-in"
+    for k, v in lnlike.get_parameter_dict().items():
+        print "{} = {:f}".format(k,v)
 
     # create a HDF5 file to hold the chain data
     outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5',check=True, redo=redo)
