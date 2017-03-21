@@ -1,6 +1,6 @@
 import numpy as np
 from celerite.modeling import Model
-from scipy.stats import norm
+from scipy.stats import norm, halfcauchy
 from . import io
 from .pbmodel import get_model_synmags
 
@@ -48,42 +48,7 @@ class WDmodel_Likelihood(Model):
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
-        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.sigf, self.tau) - (phot_chi/2.)
-
-
-    def lnprior(self):
-        """
-        Extends the log_prior() is implemented in celerite.modeling.Model which
-        returns -inf for out of bounds and 0 otherwise, by adding in priors on Rv, Av
-
-        We have no priors outside the bounds (i.e. weak top hat) on the other parameters
-
-        TODO: Allow the user to specify a custom filename with a function for the prior
-        """
-        lp = self.log_prior()
-        theta = self.get_parameter_vector()
-        if not np.isfinite(lp):
-            return -np.inf
-            # even if the user passes bounds that are physically unrealistic, we
-            # need to keep all the quantities strictly >= 0.
-        elif np.any((theta < 0.)):
-            return -np.inf
-        else:
-            # this is from the Schlafly et al analysis from PS1
-            out = norm.logpdf(self.rv, 3.1, 0.18)
-
-            # this implements the glos prior on Av
-            avtau   = 0.4
-            avsdelt = 0.1
-            wtexp   = 1.
-            wtdelt  = 0.5
-            sqrt2pi = np.sqrt(2.*np.pi)
-            normpeak = (wtdelt/sqrt2pi)/(2.*avsdelt) + wtexp/avtau
-            pav = (wtdelt/sqrt2pi)*np.exp((-self.av**2.)/(2.*avsdelt**2.))/(2.*avsdelt) +\
-                    wtexp*np.exp(-self.av/avtau)/avtau
-            pav /= normpeak
-            out += np.log(pav)
-            return out
+        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau) - (phot_chi/2.)
 
 
 class WDmodel_Posterior(object):
@@ -104,6 +69,7 @@ class WDmodel_Posterior(object):
     """
     def __init__(self, spec, phot, model, covmodel, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
         self.spec    = spec
+        self.wavescale = spec.wave.ptp()
         self.phot    = phot
         self.model   = model
         self.covmodel= covmodel
@@ -112,15 +78,19 @@ class WDmodel_Posterior(object):
         self.lnlike  = lnlike
         self.pixscale= pixel_scale
         self.phot_dispersion = phot_dispersion
+        init_p0 = lnlike.get_parameter_dict(include_frozen=True)
+        self.p0 = init_p0
+
 
     def __call__(self, theta):
         self.lnlike.set_parameter_vector(theta)
-        out = self.lnlike.lnprior()
+        out = self._lnprior()
         if not np.isfinite(out):
             return -np.inf
         out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
+
 
     def lnlike(self, theta):
         self.lnlike.set_parameter_vector(theta)
@@ -128,7 +98,75 @@ class WDmodel_Posterior(object):
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 
+
+    def _lnprior(self):
+        lp = self.lnlike.log_prior()
+        # check if out of bounds
+        if not np.isfinite(lp):
+            return -np.inf
+        else:
+            out = 0.
+
+            # put some weak priors on intrinsic WD  parameters
+
+            # normal on teff
+            teff  = self.lnlike.get_parameter('teff')
+            teff0 = self.p0['teff']
+            out += norm.logpdf(teff, teff0, 10000.)
+
+            # normal on logg
+            logg  = self.lnlike.get_parameter('logg')
+            logg0 = self.p0['logg']
+            out += norm.logpdf(logg, logg0, 1.)
+
+            # this implements the glos prior on Av
+            av = self.lnlike.get_parameter('av')
+            avtau   = 0.4
+            avsdelt = 0.1
+            wtexp   = 1.
+            wtdelt  = 0.5
+            sqrt2pi = np.sqrt(2.*np.pi)
+            normpeak = (wtdelt/sqrt2pi)/(2.*avsdelt) + wtexp/avtau
+            pav = (wtdelt/sqrt2pi)*np.exp((-av**2.)/(2.*avsdelt**2.))/(2.*avsdelt) +\
+                    wtexp*np.exp(-av/avtau)/avtau
+            pav /= normpeak
+            out += np.log(pav)
+
+            # this is from the Schlafly et al analysis from PS1
+            rv  = self.lnlike.get_parameter('rv')
+            out += norm.logpdf(rv, 3.1, 0.18)
+
+            # normal on dl
+            dl  = self.lnlike.get_parameter('dl')
+            dl0 = self.p0['dl']
+            out += norm.logpdf(dl, dl0, 1000.)
+
+            # normal on fwhm
+            fwhm  = self.lnlike.get_parameter('fwhm')
+            fwhm0 = self.p0['fwhm']
+            out += norm.logpdf(fwhm, fwhm0, 8.)
+
+            # half-Cauchy on the error scale
+            fsig = self.lnlike.get_parameter('fsig')
+            out += halfcauchy.logpdf(fsig, loc=0, scale=3)
+
+            # TODO something for tau?
+
+            # normal on mu
+            mu  = self.lnlike.get_parameter('mu')
+            mu0 = self.p0['mu']
+            out += norm.logpdf(mu, mu0, 10.)
+            return out
+
+
     def lnprior(self, theta):
+        """
+        Extends the log_prior() is implemented in celerite.modeling.Model which
+        returns -inf for out of bounds and 0 otherwise, by adding in priors on
+        the other parameters
+
+        TODO: Allow the user to specify a custom filename with a function for
+        the prior
+        """
         self.lnlike.set_parameter_vector(theta)
-        out = self.lnlike.lnprior()
-        return out
+        return self._lnprior()
