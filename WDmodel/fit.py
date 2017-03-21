@@ -511,10 +511,6 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     free_param_names = init_p0.keys()
     std = [scales[x] for x in free_param_names]
 
-    if nwalkers==0:
-        print "nwalkers set to 0. Not running MCMC"
-        return
-
     # create a sample ball
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
     pos = fix_pos(pos, free_param_names, params)
