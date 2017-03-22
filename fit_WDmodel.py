@@ -106,10 +106,17 @@ def get_options(args=None):
                 help="Specify param {} scale/step size".format(param))
         model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"],
                 type=float, metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
-    model.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
-                default='White', help='Specify a parametric form for the covariance function to model the spectrum')
-    model.add_argument('--solver_tol', required=False, type=float, default=1e-12,\
+
+    # covariance model options
+    covmodel = parser.add_argument_group('covariance model', 'Covariance model options - changes what fsig and tau mean')
+    covmodel.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
+                default='ExpSquared', help='Specify a parametric form for the covariance function to model the spectrum')
+    covmodel.add_argument('--usebasic',  required=False, action="store_true", default=False,\
+            help="Use the BasicSolver over the HODLR solver i.e. you want to support global warming.")
+    covmodel.add_argument('--solver_tol', required=False, type=float, default=1e-12,\
             help="Specify tolerance for HODLR solver")
+    covmodel.add_argument('--solver_nleaf',  required=False, type=int, default=100,\
+            help="Specify size of smallest matrix blocks before HODLR solves system directly")
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
@@ -141,8 +148,10 @@ def get_options(args=None):
 
     # output options
     output = parser.add_argument_group('output', 'Output options')
+    output.add_argument('--outroot', required=False,
+            help="Specify a custom output root directory. Directories go under outroot/objname/subdir.")
     output.add_argument('-o', '--outdir', required=False,\
-            help="Specify a custom output directory. Default is CWD+objname/ subdir")
+            help="Specify a custom output directory. Overrides outroot.")
     output.add_argument('--redo',  required=False, action="store_true", default=False,\
             help="Clobber existing fits")
 
@@ -167,7 +176,11 @@ def get_options(args=None):
         raise ValueError(message)
 
     if args.solver_tol <= 0:
-        message = 'Solver tolerance must be greater than 0. ({:g})'.format(args.solver_tol)
+        message = 'HODLR Solver tolerance must be greater than 0. ({:g})'.format(args.solver_tol)
+        raise ValueError(message)
+
+    if args.solver_nleaf <= 0:
+        message = 'HODLR Solver min matrix block size must be greater than zero ({})'.format(args.solver_nleaf)
         raise ValueError(message)
 
     if args.nwalkers <= 0:
@@ -230,8 +243,11 @@ def main(inargs=None, pool=None):
     phot_dispersion = args.phot_dispersion
     excludepb = args.excludepb
     ignorephot= args.ignorephot
+
     covtype   = args.covtype
+    usebasic  = args.usebasic
     tol       = args.solver_tol
+    nleaf     = args.solver_nleaf
 
     ascale    = args.ascale
     nwalkers  = args.nwalkers
@@ -252,6 +268,7 @@ def main(inargs=None, pool=None):
 
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
+    print "Writing to outdir {}".format(outdir)
 
     # parse the parameter keywords in the argparse Namespace into a dictionary
     params = WDmodel.io.get_params_from_argparse(args)
@@ -282,10 +299,6 @@ def main(inargs=None, pool=None):
         params['mu']['fixed'] = True
         phot = None
 
-    # save the inputs to the fitter
-    outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
-    WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile)
-
     # exclude passbands that we want excluded
     pbnames = []
     if phot is not None:
@@ -306,6 +319,11 @@ def main(inargs=None, pool=None):
         params['mu']['value'] = 0.
         params['mu']['fixed'] = True
         phot = None
+
+    # save the inputs to the fitter
+    outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
+    WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
+           covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile)
 
     # get the throughput model
     pbs = WDmodel.pbmodel.get_pbmodel(pbnames, model)
@@ -329,7 +347,7 @@ def main(inargs=None, pool=None):
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
     errscale = np.median(spec.flux_err)
-    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, tol)
+    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, nleaf, tol, usebasic)
     if covtype == 'White':
         migrad_params['tau']['fixed'] = True
 
