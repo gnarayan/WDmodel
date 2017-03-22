@@ -17,10 +17,8 @@ def main():
 
     specfile  = args.specfile
     outdir    = args.outdir
+    outroot   = args.outroot
     rvmodel   = args.reddeningmodel
-    nwalkers  = args.nwalkers
-    nburnin   = args.nburnin
-    nprod     = args.nprod
     discard   = args.discard
     balmer    = args.balmerlines
     ndraws    = args.ndraws
@@ -28,20 +26,25 @@ def main():
     excludepb = args.excludepb
 
     # set the object name and create output directories
-    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot)
 
     # restore data
     input_file = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5')
     res = WDmodel.io.read_fit_inputs(input_file)
-    spec, cont_model, linedata, continuumdata, phot = res
-
+    spec, cont_model, linedata, continuumdata, phot, fit_config = res
+    errscale = np.median(spec.flux_err)
+    covtype  = fit_config['covtype']
+    usebasic = fit_config['usebasic']
+    nleaf    = fit_config['nleaf']
+    tol      = fit_config['tol']
+    scale_factor = fit_config['scale_factor']
 
     # init model
     model = WDmodel.WDmodel()
 
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
-    covmodel = WDmodel.covmodel.WDmodel_CovModel()
+    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, nleaf=nleaf, tol=tol, usebasic=usebasic)
 
     # restore params
     param_file = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
@@ -73,7 +76,10 @@ def main():
 
     # restore samples and prob
     chain_file = WDmodel.io.get_outfile(outdir, specfile, '_mcmc.hdf5')
-    param_names, samples, samples_lnprob = WDmodel.io.read_mcmc(chain_file)
+    samples, samples_lnprob, chain_params = WDmodel.io.read_mcmc(chain_file)
+    param_names = chain_params['param_names']
+    nwalkers    = chain_params['nwalkers']
+    nprod       = chain_params['nprod']
 
     # parse chain
     result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
