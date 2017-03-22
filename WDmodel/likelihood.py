@@ -146,7 +146,7 @@ class WDmodel_Posterior(object):
             # That convolution kernel is truncated at 4 standard deviations by default.
             # If twice that scale is less than 1 pixel, then we're not actually modifying the data.
             # This is what sets the hard lower bound on the data, not fwhm=0.
-            gsig  = (fwhm/model._fwhm_to_sigma)*self.pixscale
+            gsig  = (fwhm/self.model._fwhm_to_sigma)*self.pixscale
             if 8.*gsig < 1.:
                 return -np.inf
             # normal on fwhm
