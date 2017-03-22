@@ -66,6 +66,8 @@ def get_options(args=None):
                 type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
     spectrum.add_argument('--rebin',  required=False, type=int, default=1,\
             help="Rebin the spectrum by an integer factor. Output wavelengths remain uncorrelated.")
+    spectrum.add_argument('--rescale',  required=False, action="store_true", default=False,\
+            help="Rescale the spectrum to make the noise ~1. Changes the value, bounds, scale on dl also")
     spectrum.add_argument('--blotch', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
 
@@ -106,6 +108,8 @@ def get_options(args=None):
                 type=float, metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
     model.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
                 default='White', help='Specify a parametric form for the covariance function to model the spectrum')
+    model.add_argument('--solver_tol', required=False, type=float, default=1e-12,\
+            help="Specify tolerance for HODLR solver")
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
@@ -154,20 +158,40 @@ def get_options(args=None):
         message = 'Invalid balmer line value - must be in range [1,6]'
         raise ValueError(message)
 
+    if args.rebin < 1:
+        message = 'Rebin must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.rebin)
+        raise ValueError(message)
+
+    if args.phot_dispersion < 0.:
+        message = 'Photometric dispersion must be GE 0. ({:g})'.format(args.phot_dispersion)
+        raise ValueError(message)
+
+    if args.solver_tol <= 0:
+        message = 'Solver tolerance must be greater than 0. ({:g})'.format(args.solver_tol)
+        raise ValueError(message)
+
     if args.nwalkers <= 0:
-        message = 'Number of walkers must be greater than zero for MCMC'
+        message = 'Number of walkers must be greater than zero for MCMC ({})'.format(args.nwalkers)
+        raise ValueError(message)
+
+    if args.nwalkers%2 != 0:
+        message = 'Number of walkers must be even ({})'.format(args.nwalkers)
         raise ValueError(message)
 
     if args.nburnin <= 0:
-        message = 'Number of burnin steps must be greater than zero'
+        message = 'Number of burnin steps must be greater than zero ({})'.format(args.nburnin)
         raise ValueError(message)
 
     if args.nprod <= 0:
-        message = 'Number of walkers must be greater than zero'
+        message = 'Number of production steps must be greater than zero ({})'.format(args.nprod)
         raise ValueError(message)
 
     if not (0 <= args.discard < 100):
-        message = 'Discard must be a percentage (0-100)'
+        message = 'Discard must be a percentage (0-100) ({})'.format(args.discard)
+        raise ValueError(message)
+
+    if args.everyn < 1:
+        message = 'EveryN must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.everyn)
         raise ValueError(message)
 
     return args
@@ -196,6 +220,7 @@ def main(inargs=None, pool=None):
     vel       = args.vel
     bluelim, redlim   = args.trimspec
     rebin     = args.rebin
+    rescale   = args.rescale
     blotch    = args.blotch
 
     outdir    = args.outdir
@@ -206,6 +231,7 @@ def main(inargs=None, pool=None):
     excludepb = args.excludepb
     ignorephot= args.ignorephot
     covtype   = args.covtype
+    tol       = args.solver_tol
 
     ascale    = args.ascale
     nwalkers  = args.nwalkers
@@ -244,9 +270,9 @@ def main(inargs=None, pool=None):
     model = WDmodel.WDmodel()
 
     # pre-process spectrum
-    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, model,\
-            rebin=rebin, lamshift=lamshift, vel=vel, blotch=blotch)
-    spec, cont_model, linedata, continuumdata = out
+    out = WDmodel.fit.pre_process_spectrum(spec, bluelim, redlim, model, params,\
+            rebin=rebin, lamshift=lamshift, vel=vel, blotch=blotch, rescale=rescale)
+    spec, cont_model, linedata, continuumdata, scale_factor, params  = out
 
     # get photometry
     if not ignorephot:
@@ -303,7 +329,7 @@ def main(inargs=None, pool=None):
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
     errscale = np.median(spec.flux_err)
-    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype)
+    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, tol)
     if covtype == 'White':
         migrad_params['tau']['fixed'] = True
 
