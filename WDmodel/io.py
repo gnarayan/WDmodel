@@ -266,7 +266,6 @@ def make_outdirs(dirname):
     """
     Checks if output directory exists, else creates it
     """
-    print("Writing to outdir {}".format(dirname))
     if os.path.isdir(dirname):
         return
 
@@ -277,7 +276,7 @@ def make_outdirs(dirname):
         raise OSError(message)
 
 
-def set_objname_outdir_for_specfile(specfile, outdir=None):
+def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None):
     """
     Accepts a spectrum filename (and optionally a preset output directory), and determines the objname
     Raises a warning if the spectra have different object names
@@ -285,10 +284,12 @@ def set_objname_outdir_for_specfile(specfile, outdir=None):
     Else uses provided output directory
     Returns objname and output dirname, if directories were successfully created/exist.
     """
+    if outroot is None:
+        outroot = os.path.join(os.getcwd(), "out")
     basespec = os.path.basename(specfile).replace('.flm','')
     objname = basespec.split('-')[0]
     if outdir is None:
-        dirname = os.path.join(os.getcwd(), "out", objname, basespec)
+        dirname = os.path.join(outroot, objname, basespec)
     else:
         dirname = outdir
     make_outdirs(dirname)
@@ -322,10 +323,12 @@ def get_pkgfile(infile):
     return pkgfile
 
 
-def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile):
+def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
+        covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
+    Also saves the covtype, solver preferences, photometric dispersion, rvmodel and scale_factor
 
     This is intended to be called after WDmodel.fit.pre_process_spectrum() and
     WDmodel.io.get_phot_for_obj()
@@ -348,6 +351,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile):
     dset_spec.create_dataset("wave",data=spec.wave)
     dset_spec.create_dataset("flux",data=spec.flux)
     dset_spec.create_dataset("flux_err",data=spec.flux_err)
+    dset_spec.attrs["scale_factor"] = scale_factor
 
     dset_cont_model = outf.create_group("cont_model")
     dset_cont_model.create_dataset("wave",data=cont_model.wave)
@@ -364,14 +368,22 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata, outfile):
     dset_continuumdata.create_dataset("flux",data=continuumdata.flux)
     dset_continuumdata.create_dataset("flux_err",data=continuumdata.flux_err)
 
+    dset_covmodel = outf.create_group("covmodel")
+    dset_covmodel.attrs["covtype"]=np.string_(covtype)
+    dset_covmodel.attrs["usebasic"]=usebasic
+    dset_covmodel.attrs["nleaf"]=nleaf
+    dset_covmodel.attrs["tol"]=tol
+
     if phot is not None:
         dset_phot = outf.create_group("phot")
         dt = phot.pb.dtype.str.lstrip('|')
         dset_phot.create_dataset("pb", data=phot.pb, dtype=dt)
         dset_phot.create_dataset("mag",data=phot.mag)
         dset_phot.create_dataset("mag_err",data=phot.mag_err)
+        dset_phot.attrs["phot_dispersion"] =phot_dispersion
 
     outf.close()
+    print "Wrote inputs file {}".format(outfile)
 
 
 def read_fit_inputs(input_file):
@@ -399,6 +411,7 @@ def read_fit_inputs(input_file):
         spec_wave = d['spec']['wave'].value
         spec_flux = d['spec']['flux'].value
         spec_ferr = d['spec']['flux_err'].value
+        scale_factor = d['spec'].attrs['scale_factor']
         spec = np.rec.fromarrays([spec_wave, spec_flux, spec_ferr], names='wave,flux,flux_err')
 
         cmod_wave = d['cont_model']['wave'].value
@@ -415,6 +428,14 @@ def read_fit_inputs(input_file):
         cont_flux = d['continuumdata']['flux'].value
         cont_ferr = d['continuumdata']['flux_err'].value
         continuumdata = np.rec.fromarrays([cont_wave, cont_flux, cont_ferr], names='wave,flux,flux_err')
+
+        fit_config = {}
+        fit_config['covtype'] = d['covmodel'].attrs['covtype']
+        fit_config['usebasic'] = d['covmodel'].attrs['usebasic']
+        fit_config['nleaf'] = d['covmodel'].attrs['nleaf']
+        fit_config['tol'] = d['covmodel'].attrs['tol']
+        fit_config['scale_factor'] = scale_factor
+
     except KeyError as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
         raise IOError(message)
@@ -426,11 +447,13 @@ def read_fit_inputs(input_file):
             mag = d['phot']['mag'].value
             mag_err = d['phot']['mag_err'].value
             phot = np.rec.fromarrays([pb, mag, mag_err], names='pb,mag,mag_err')
+            phot_dispersipn = d['phot'].attrs['phot_dispersion']
+            fit_config['phot_dispersion'] = phot_dispersion
         except KeyError as e:
             message = '{}\nFailed to restore photometry from input file {} though group exists'.format(e, input_file)
             warnings.warn(message, RuntimeWarning)
             phot = None
-    return spec, cont_model, linedata, continuumdata, phot
+    return spec, cont_model, linedata, continuumdata, phot, fit_config
 
 
 def read_mcmc(input_file):
@@ -443,14 +466,21 @@ def read_mcmc(input_file):
     d = h5py.File(input_file, mode='r')
 
     try:
-        samples = d['chain']['position'].value
+        chain_params   = {}
+        samples        = d['chain']['position'].value
         samples_lnprob = d['chain']['lnprob'].value
-        param_names = d['chain']['names'].value
+        chain_params['param_names']   = d['chain']['names'].value
+        chain_params['nwalkers']      = d['chain'].attrs['nwalkers']
+        chain_params['nparam']        = d['chain'].attrs['nprod']
+        chain_params['ndim']          = d['chain'].attrs['nparam']
+        chain_params['everyn']        = d['chain'].attrs['everyn']
+        chain_params['ascale']        = d['chain'].attrs['ascale']
+
     except KeyError as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
         raise IOError(message)
 
-    return param_names, samples, samples_lnprob
+    return samples, samples_lnprob, chain_params
 
 
 def write_spectrum_model(spec, model_spec, outfile):
@@ -458,11 +488,11 @@ def write_spectrum_model(spec, model_spec, outfile):
     Write the spectrum and the model spectrum and residuals to outfile
     Accepts
         spec: recarray spectrum (wave, flux, flux_err)
-        model_spec: recarray spectrum (wave, flux)
+        model_spec: recarray spectrum (wave, flux, norm_flux)
         outfile: output filename
     """
-    out = (spec.wave, spec.flux, spec.flux_err, model_spec.flux, spec.flux-model_spec.flux)
-    out = np.rec.fromarrays(out, names='wave,flux,flux_err,model_flux,res_flux')
+    out = (spec.wave, spec.flux, spec.flux_err, model_spec.norm_flux, model_spec.flux, spec.flux-model_spec.flux)
+    out = np.rec.fromarrays(out, names='wave,flux,flux_err,norm_flux,model_flux,res_flux')
     with open(outfile, 'w') as f:
         f.write(rec2txt(out, precision=8)+'\n')
     print "Wrote spec model file {}".format(outfile)
