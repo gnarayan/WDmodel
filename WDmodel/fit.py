@@ -204,10 +204,22 @@ def rebin_spec_by_int_factor(spec, f=1):
     return rspec
 
 
-def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., rebin=1, blotch=False):
+def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
+        lamshift=0., vel=0., rebin=1, blotch=False, rescale=False):
     """
-    Accepts a recarray spectrum, spec, blue and red limits, and an optional
-    keywords lamshift, vel and  blotch
+    Accepts
+        spec: recarray spectrum (wave, flux, flux_err)
+        bluelimit, redlimit: the wavelength limits in Angstrom
+        model: a WDmodel instance
+        params: the input fit parameters - only modified if rescale
+        lamshift: applies a flat wavelength offset to the spectrum wavelengths
+        vel: applies a velocity shift to the spectrum wavelengths
+        rebin: integer factor to rebin the spectrum by. Does not correlate bins.
+        blotch: not very robust removal of gaps, cosmic rays and other weird reduction defects
+        rescale: rescale the spectrum to make the noise ~1
+
+    Returns the (optionally blotched) spectrum, the continuum model for the
+    spectrum, and the extracted line and continuum data for visualization
 
     Applies an offset lamshift to the spectrum wavelengths if non-zero. This is
     useful to correct slit centering errors with wide slits, which result in
@@ -220,8 +232,8 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., 
     blotches the data, builds a continuum model for visualization purposes, and
     trims the spectrum the red and blue limits
 
-    Returns the (optionally blotched) spectrum, the continuum model for the
-    spectrum, and the extracted line and continuum data for visualization
+    Rescales the spectrum to make the noise~1. If so, also changes the bounds
+    and scale on dl, and any supplied initial guess
 
     Note that the continuum model and spectrum are the same length and both
     respect blue/red limits.
@@ -230,11 +242,41 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., 
     # Test that the array is monotonic
     model._wave_test(spec.wave)
 
+    out_params = io.copy_params(params)
+
     # offset and blueshift/redshift the spectrum
     if lamshift != 0.:
         spec.wave += lamshift
     if vel != 0.:
         spec.wave *= (1. +(vel*1000./_C.value))
+
+    # clip the spectrum to whatever range is requested
+    if bluelimit > 0:
+        bluelimit = float(bluelimit)
+    else:
+        bluelimit = spec.wave.min()
+
+    if redlimit > 0:
+        redlimit = float(redlimit)
+    else:
+        redlimit = spec.wave.max()
+
+    if rescale:
+        _, scalemask = model._get_indices_in_range(spec.wave, bluelimit, redlimit)
+        scale_factor = np.median(spec.flux_err[scalemask])
+        if scale_factor == 0:
+            message = 'Uhhhh. This spectrum has incredibly weird errors with a median of 0'
+            raise RuntimeError(message)
+        print "Scaling the spectrum by {:.10g}".format(scale_factor)
+        spec.flux /= scale_factor
+        spec.flux_err /= scale_factor
+        if out_params['dl']['value'] is not None:
+            out_params['dl']['value'] *= (scale_factor)**0.5
+        lb, ub = out_params['dl']['bounds']
+        out_params['dl']['bounds'] = (lb*(scale_factor**0.5), ub*(scale_factor**0.5))
+        out_params['dl']['scale'] *= (scale_factor)**0.5
+    else:
+        scale_factor = 1.
 
     # if requested, rebin the spectrum
     if rebin != 1:
@@ -249,17 +291,6 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., 
     # this isn't used for anything other than cosmetics
     cont_model = polyfit_continuum(continuumdata, spec.wave)
 
-    # clip the spectrum to whatever range is requested
-    if bluelimit > 0:
-        bluelimit = float(bluelimit)
-    else:
-        bluelimit = spec.wave.min()
-
-    if redlimit > 0:
-        redlimit = float(redlimit)
-    else:
-        redlimit = spec.wave.max()
-
     # trim the outputs to the requested length
     _, usemask = model._get_indices_in_range(spec.wave, bluelimit, redlimit)
     spec = spec[usemask]
@@ -270,7 +301,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, lamshift=0., vel=0., 
 
     _, usemask = model._get_indices_in_range(continuumdata.wave, bluelimit, redlimit)
     continuumdata = continuumdata[usemask]
-    return spec, cont_model, linedata, continuumdata
+    return spec, cont_model, linedata, continuumdata, scale_factor, out_params
 
 
 def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
