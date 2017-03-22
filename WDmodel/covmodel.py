@@ -35,7 +35,7 @@ class WDmodel_CovModel(object):
             self._solverkwargs = {}
         else:
             self._solver = HODLRSolver
-            self.solverkwargs = {'nleaf':nleaf, 'tol':tol}
+            self._solverkwargs = {'nleaf':nleaf, 'tol':tol}
 
         # configure the kernel
         self._ndim = 2
