@@ -447,7 +447,7 @@ def read_fit_inputs(input_file):
             mag = d['phot']['mag'].value
             mag_err = d['phot']['mag_err'].value
             phot = np.rec.fromarrays([pb, mag, mag_err], names='pb,mag,mag_err')
-            phot_dispersipn = d['phot'].attrs['phot_dispersion']
+            phot_dispersion = d['phot'].attrs['phot_dispersion']
             fit_config['phot_dispersion'] = phot_dispersion
         except KeyError as e:
             message = '{}\nFailed to restore photometry from input file {} though group exists'.format(e, input_file)
