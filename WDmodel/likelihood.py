@@ -141,14 +141,21 @@ class WDmodel_Posterior(object):
             dl0 = self.p0['dl']
             out += norm.logpdf(dl, dl0, 1000.)
 
-            # normal on fwhm
             fwhm  = self.lnlike.get_parameter('fwhm')
+            # The FWHM is converted into a gaussian sigma for convolution.
+            # That convolution kernel is truncated at 4 standard deviations by default.
+            # If twice that scale is less than 1 pixel, then we're not actually modifying the data.
+            # This is what sets the hard lower bound on the data, not fwhm=0.
+            gsig  = (fwhm/model._fwhm_to_sigma)*self.pixscale
+            if 8.*gsig < 1.:
+                return -np.inf
+            # normal on fwhm
             fwhm0 = self.p0['fwhm']
             out += norm.logpdf(fwhm, fwhm0, 8.)
 
-            # normal on fsig
+            # half-Cauchy on the error scale
             fsig = self.lnlike.get_parameter('fsig')
-            out += norm.logpdf(fsig, 0.5, 0.2)
+            out += halfcauchy.logpdf(fsig, loc=0, scale=3)
 
             # TODO something for tau?
 
