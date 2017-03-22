@@ -1,5 +1,5 @@
 import numpy as np
-from george import GP, HODLRSolver
+from george import GP, HODLRSolver, BasicSolver
 import george.kernels
 
 class WDmodel_CovModel(object):
@@ -9,7 +9,7 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    def __init__(self, errscale, covtype='White', tol=1e-12):
+    def __init__(self, errscale, covtype='ExpSquared', nleaf=100, tol=1e-12, usebasic=False):
         """
         Sets the covariance model and covariance model scale
         Accepts
@@ -24,10 +24,22 @@ class WDmodel_CovModel(object):
             a WDmodel_CovModel instance
         """
 
-        self._k1   = george.kernels.ConstantKernel
-        self._ndim = 2
+        # if we rescale the problem, errscale should be 1.
+        # if not, it is the median error of the data
         self._errscale = errscale
         self._tol  = tol
+
+        # configure the solver
+        if usebasic:
+            self._solver = BasicSolver
+            self._solverkwargs = {}
+        else:
+            self._solver = HODLRSolver
+            self.solverkwargs = {'nleaf':nleaf, 'tol':tol}
+
+        # configure the kernel
+        self._ndim = 2
+        self._k1   = george.kernels.ConstantKernel
         if covtype == 'White':
             self._k1 = george.kernels.WhiteKernel
             self._k2 = None
@@ -57,8 +69,7 @@ class WDmodel_CovModel(object):
             scale of the stationary kernel
         """
         gp = self.getgp(wave, flux_err, fsig, tau)
-        # TODO - we should probably add a factor based on tau and pixel_scale here as well
-        # but we'd need to know the functional form of the kernel 
+        # TODO - we should probably add a factor based on tau here as well
         if ((fsig*self._errscale)**2. < 10.*self._tol):
             return -np.inf
         return gp.lnlikelihood(res, quiet=True)
@@ -124,6 +135,6 @@ class WDmodel_CovModel(object):
             kernel = self._k1((fsig*self._errscale)**2.)
         else:
             kernel = self._k1((fsig*self._errscale)**2.)*self._k2(tau)
-        gp = GP(kernel, mean=0., solver=HODLRSolver, tol=self._tol)
+        gp = GP(kernel, mean=0., solver=self._solver, **self._solverkwargs)
         gp.compute(wave, flux_err, sort=False)
         return gp
