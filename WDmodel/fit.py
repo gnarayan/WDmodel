@@ -579,10 +579,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     chain = outf.create_group("chain")
 
     # save some other attributes about the chain
-    chain.create_dataset("nwalkers", data=nwalkers)
-    chain.create_dataset("nprod", data=nprod)
-    chain.create_dataset("nparam", data=nparam)
-    chain.create_dataset("everyn",data=everyn)
+    chain.attrs["nwalkers"]=nwalkers
+    chain.attrs["nprod"]=nprod
+    chain.attrs["nparam"]=nparam
+    chain.attrs["everyn"]=everyn
+    chain.attrs["ascale"]=ascale
 
     # save the parameter names corresponding to the chain
     free_param_names = np.array(free_param_names)
@@ -590,6 +591,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     chain.create_dataset("names",data=free_param_names, dtype=dt)
 
     # save the parameter configuration as well
+    # this is redundant, since it is saved in the JSON file, but having it one place is nice
     names = lnlike.get_parameter_names(include_frozen=True)
     names = np.array(names)
     dt = names.dtype.str.lstrip('|')
@@ -597,10 +599,10 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     par_grp.create_dataset("names",data=names, dtype=dt)
     for param in params:
         this_par = par_grp.create_group(param)
-        this_par.create_dataset("value",data=params[param]["value"])
-        this_par.create_dataset("fixed",data=params[param]["fixed"])
-        this_par.create_dataset("scale",data=params[param]["scale"])
-        this_par.create_dataset("bounds",data=params[param]["bounds"])
+        this_par.attrs["value"]  = params[param]["value"]
+        this_par.attrs["fixed"]  = params[param]["fixed"]
+        this_par.attrs["scale"]  = params[param]["scale"]
+        this_par.attrs["bounds"] = params[param]["bounds"]
 
     # production
     if pool is None:
