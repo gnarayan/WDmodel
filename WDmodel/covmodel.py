@@ -1,3 +1,4 @@
+import numpy as np
 from george import GP, HODLRSolver
 import george.kernels
 
@@ -8,7 +9,7 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    def __init__(self, errscale, covtype='White'):
+    def __init__(self, errscale, covtype='White', tol=1e-12):
         """
         Sets the covariance model and covariance model scale
         Accepts
@@ -18,6 +19,7 @@ class WDmodel_CovModel(object):
                 choices are White, ExpSquared, Matern32, Matern52, Exp
                 All choices except White are represented by two paramters -
                 fsig, and a length scale, tau
+            tol: tolerance for the HODLR solver (default = 1e-12)
         Returns
             a WDmodel_CovModel instance
         """
@@ -25,6 +27,7 @@ class WDmodel_CovModel(object):
         self._k1   = george.kernels.ConstantKernel
         self._ndim = 2
         self._errscale = errscale
+        self._tol  = tol
         if covtype == 'White':
             self._k1 = george.kernels.WhiteKernel
             self._k2 = None
@@ -54,10 +57,14 @@ class WDmodel_CovModel(object):
             scale of the stationary kernel
         """
         gp = self.getgp(wave, flux_err, fsig, tau)
+        # TODO - we should probably add a factor based on tau and pixel_scale here as well
+        # but we'd need to know the functional form of the kernel 
+        if ((fsig*self._errscale)**2. < 10.*self._tol):
+            return -np.inf
         return gp.lnlikelihood(res, quiet=True)
 
 
-    def predict(self, wave, res, flux_err, fsig, tau):
+    def predict(self, wave, res, flux_err, fsig, tau, mean_only=False):
         """
         Return the prediction for residuals given the data, model and hyperparameters
         Accepts
@@ -73,7 +80,7 @@ class WDmodel_CovModel(object):
 
         """
         gp = self.getgp(wave, flux_err, fsig, tau)
-        return gp.predict(res, wave)
+        return gp.predict(res, wave, mean_only)
 
 
     def optimize(self, wave, res, flux_err, fsig, tau, bounds, dims=None):
@@ -96,7 +103,7 @@ class WDmodel_CovModel(object):
 
         """
         gp = self.getgp(wave, flux_err, fsig, tau)
-        pars, result = gp.optimize(wave, res, flux_err, dims=dims)
+        pars, result = gp.optimize(wave, res, flux_err, dims=dims, sort=False, verbose=True)
         return pars, result
 
 
@@ -117,6 +124,6 @@ class WDmodel_CovModel(object):
             kernel = self._k1((fsig*self._errscale)**2.)
         else:
             kernel = self._k1((fsig*self._errscale)**2.)*self._k2(tau)
-        gp = GP(kernel, mean=0., solver=HODLRSolver)
-        gp.compute(wave, flux_err)
+        gp = GP(kernel, mean=0., solver=HODLRSolver, tol=self._tol)
+        gp.compute(wave, flux_err, sort=False)
         return gp
