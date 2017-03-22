@@ -466,7 +466,7 @@ def plot_mcmc_model(spec, phot, linedata,\
 
 
     smoothedmod, wres, full_mod, _ = draws[-1]
-    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres), names='wave,flux')
+    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, smoothedmod), names='wave,flux,norm_flux')
 
     if mag_draws is not None:
         _, model_mags, _ = mag_draws[-1]
