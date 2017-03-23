@@ -18,12 +18,10 @@ def main():
     specfile  = args.specfile
     outdir    = args.outdir
     outroot   = args.outroot
-    rvmodel   = args.reddeningmodel
     discard   = args.discard
     balmer    = args.balmerlines
     ndraws    = args.ndraws
     savefig   = args.savefig
-    excludepb = args.excludepb
 
     # set the object name and create output directories
     objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot)
@@ -38,6 +36,8 @@ def main():
     nleaf    = fit_config['nleaf']
     tol      = fit_config['tol']
     scale_factor = fit_config['scale_factor']
+    rvmodel  = fit_config['rvmodel']
+    phot_dispersion = fit_config.get('phot_dispersion',0.)
 
     # init model
     model = WDmodel.WDmodel()
@@ -54,16 +54,6 @@ def main():
     pbnames = []
     if phot is not None:
         pbnames = np.unique(phot.pb)
-        if excludepb is not None:
-            pbnames = list(set(pbnames) - set(excludepb))
-
-        # filter the photometry recarray to use only the passbands we want
-        useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
-        useind = np.array(useind)
-        phot = phot.take(useind)
-
-        # set the pbnames from the trimmed photometry recarray to preserve order
-        pbnames = list(phot.pb)
 
     # if we cut out out all the passbands, force mu to be fixed
     if len(pbnames) == 0:
@@ -88,6 +78,7 @@ def main():
 
     # plot the MCMC output
     model_spec, full_mod, model_mags = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+                scale_factor, phot_dispersion,\
                 objname, outdir, specfile,\
                 model, covmodel, cont_model, pbs,\
                 mcmc_params, param_names, in_samp, in_lnprob,\
@@ -107,7 +98,3 @@ def main():
 
 if __name__ =='__main__':
     main()
-
-
-
-
