@@ -237,6 +237,7 @@ def main(inargs=None, pool=None):
     blotch    = args.blotch
 
     outdir    = args.outdir
+    outroot   = args.outroot
 
     photfile  = args.photfile
     rvmodel   = args.reddeningmodel
@@ -267,7 +268,7 @@ def main(inargs=None, pool=None):
 
 
     # set the object name and create output directories
-    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir)
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot)
     print "Writing to outdir {}".format(outdir)
 
     # parse the parameter keywords in the argparse Namespace into a dictionary
@@ -323,7 +324,7 @@ def main(inargs=None, pool=None):
     # save the inputs to the fitter
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
     WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-           covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile)
+           rvmodel, covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile)
 
     # get the throughput model
     pbs = WDmodel.pbmodel.get_pbmodel(pbnames, model)
