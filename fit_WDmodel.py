@@ -339,7 +339,7 @@ def main(inargs=None, pool=None):
         migrad_params  = WDmodel.fit.quick_fit_spec_model(spec, model, params, rvmodel=rvmodel)
 
         # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
-        WDmodel.viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile,\
+        WDmodel.viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor,\
             model, migrad_params, rvmodel=rvmodel, save=True)
     else:
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position

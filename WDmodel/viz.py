@@ -17,7 +17,7 @@ import corner
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 
-def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvmodel='od94', save=True):
+def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, model, result, rvmodel='od94', save=True):
     """
     Quick plot to show the output from the limited Minuit fit of the spectrum.
     This fit doesn't try to account for the covariance in the data, and is not
@@ -29,6 +29,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
         objname: object name - cosmetic only
         outdir: controls where the plot is written out if save=True
         specfile: Used in the title, and to set the name of the outfile if save=True
+        scale_factor: factor by which the flux was scaled
         model: WDmodel.WDmodel instance
         result: dict of parameters with keywords value, fixed, scale, bounds for each
         rvmodel: keyword allows a different model for the reddening law (default O'Donnell '94)
@@ -50,6 +51,28 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
 
+    print_params = ('teff', 'logg', 'av', 'dl')
+    outlabel = 'Model\n'
+    for param in print_params:
+        val = result[param]['value']
+        err = result[param]['scale']
+        fixed = result[param]['fixed']
+        thislabel = '{} = {:.3f} '.format(param, val)
+        if not fixed:
+            thislabel += ' +/- {:.3f}'.format(err)
+        else:
+            thislabel = '[{} FIXED]'.format(thislabel)
+        thislabel +='\n'
+        outlabel += thislabel
+
+    fix_labels = list(set(result.keys()) - set(print_params))
+    for param in fix_labels:
+        val = result[param]['value']
+        thislabel = '{} = {:.3f} '.format(param, val)
+        thislabel = '[{} FIXED]'.format(thislabel)
+        thislabel +='\n'
+        outlabel += thislabel
+
     teff = result['teff']['value']
     logg = result['logg']['value']
     av   = result['av']['value']
@@ -61,7 +84,6 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
 
     mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
     smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
-    outlabel = 'Model\nTeff = {:.1f} K\nlog(g) = {:.2f}\nAv = {:.2f} mag\ndl = {:.2f}'.format(teff, logg, av, dl)
 
     ax_spec.plot(spec.wave, smoothedmod, color='red', linestyle='-',marker='None', label=outlabel)
 
@@ -70,7 +92,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     ax_resid.plot(spec.wave, spec.flux-smoothedmod,  linestyle='-', marker=None,  color='black')
 
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font_m, ha='center')
-    ax_spec.set_ylabel('Normalized Flux', fontproperties=font_m)
+    ax_spec.set_ylabel('Normalized Flux (Scale factor = {})'.format(1./scale_factor), fontproperties=font_m)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
     fig.suptitle('Quick Fit: %s (%s)'%(objname, specfile), fontproperties=font_l)
