@@ -72,7 +72,10 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
     fix_labels = list(set(result.keys()) - set(print_params))
     for param in fix_labels:
         val = result[param]['value']
-        thislabel = '{} = {:.3f} '.format(param, val)
+        if val is None:
+            thislabel = '{} = {} '.format(param, val)
+        else:
+            thislabel = '{} = {:.3f} '.format(param, val)
         thislabel = '[{} FIXED]'.format(thislabel)
         thislabel +='\n'
         outlabel += thislabel
