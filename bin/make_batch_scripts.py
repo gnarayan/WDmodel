@@ -20,9 +20,7 @@ def main():
 
     phottable = WDmodel.io.read_phot('data/photometry/WDphot_C22.dat')
 
-    specfiles = glob.glob('data/spectroscopy/*-total*flm')
     usedfiles = []
-
     for obj in phottable.obj:
         filepattern = "{}-*-total*.flm".format(obj)
         specpattern = os.path.join('data','spectroscopy',filepattern)
@@ -43,6 +41,7 @@ def main():
             with open(script_file,'w') as f:
                 f.writelines(out)
 
+    specfiles = glob.glob('data/spectroscopy/*-total*flm')
     leftfiles = set(specfiles) - set(usedfiles)
     for specfile in leftfiles:
         print specfile
