@@ -388,11 +388,13 @@ def main(inargs=None, pool=None):
         WDmodel.io.write_params(mcmc_params, outfile)
 
         # plot the MCMC output
-        model_spec, full_mod, model_mags = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+        plot_out = WDmodel.viz.plot_mcmc_model(spec, phot, linedata,\
+                    scale_factor, phot_dispersion,\
                     objname, outdir, specfile,\
                     model, covmodel, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
                     covtype=covtype, rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
+        model_spec, full_mod, model_mags = plot_out
 
         spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')
         WDmodel.io.write_spectrum_model(spec, model_spec, spec_model_file)
