@@ -82,7 +82,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, model, result, rvm
     return fig
 
 
-def plot_mcmc_spectrum_fit(spec, objname, specfile, model, covmodel, result, param_names, samples,\
+def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmodel, result, param_names, samples,\
         rvmodel='od94', ndraws=21):
     """
     Plot the full spectrum of the DA White Dwarf
@@ -141,9 +141,9 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, covmodel, result, par
         val = result[param]['value']
         errp, errm = result[param]['errors_pm']
         fixed = result[param]['fixed']
-        thislabel = '{} = {:.3g} '.format(param, val)
+        thislabel = '{} = {:.3f} '.format(param, val)
         if not fixed:
-            thislabel += ' +{:.3g}/-{:.3g}'.format(errp, errm)
+            thislabel += ' +{:.3f}/-{:.3f}'.format(errp, errm)
         else:
             thislabel = '[{} FIXED]'.format(thislabel)
         thislabel +='\n'
@@ -164,7 +164,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, covmodel, result, par
 
     # label the axes
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font_m, ha='center')
-    ax_spec.set_ylabel('Normalized Flux', fontproperties=font_m)
+    ax_spec.set_ylabel('Normalized Flux (Scale factor = {})'.format(1./scale_factor), fontproperties=font_m)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
     fig.suptitle('MCMC Fit: %s (%s)'%(objname, specfile), fontproperties=font_l)
@@ -173,7 +173,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, model, covmodel, result, par
     return fig, out
 
 
-def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
+def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
     font_l  = FM(size='large')
@@ -230,7 +230,7 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
     ax_resid.set_xticklabels(pbs.keys())
     ax_resid.set_xlabel('Passband',fontproperties=font_m, ha='center')
     ax_phot.set_xlabel('Wavelength',fontproperties=font_m, ha='center')
-    ax_phot.set_ylabel('Magnitude', fontproperties=font_m)
+    ax_phot.set_ylabel('Magnitude (Photometric dispersion = {})'.format(phot_dispersion), fontproperties=font_m)
     ax_resid.set_ylabel('Residual (mag)', fontproperties=font_m)
     ax_phot.legend(frameon=False, prop=font_s)
     fig.suptitle('Photometry for {}'.format(objname), fontproperties=font_l)
@@ -239,7 +239,7 @@ def plot_mcmc_photometry_res(objname, phot, model, pbs, draws):
     return fig, mag_draws
 
 
-def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws, covtype='White'):
+def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor, cont_model, draws, covtype='ExpSquared'):
     """
     Plot the full spectrum of the DA White Dwarf
     """
@@ -280,7 +280,7 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws, covt
 
     # label the axes
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font_m, ha='center')
-    ax_spec.set_ylabel('Normalized Flux', fontproperties=font_m)
+    ax_spec.set_ylabel('Normalized Flux (Scale factor = {})'.format(1./scale_factor), fontproperties=font_m)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
     fig.suptitle('MCMC Fit - No {} Covariance: {} ({})'.format(covtype, objname, specfile), fontproperties=font_l)
@@ -407,7 +407,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     return fig, fig2
 
 
-def plot_mcmc_model(spec, phot, linedata,\
+def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         objname, outdir, specfile,\
         model, covmodel, cont_model, pbs,\
         params, param_names, samples, samples_lnprob,\
@@ -422,7 +422,8 @@ def plot_mcmc_model(spec, phot, linedata,\
     outfilename = io.get_outfile(outdir, specfile, '_mcmc.pdf')
     with PdfPages(outfilename) as pdf:
         # plot spectrum and model
-        fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, model, covmodel, params, param_names, samples,\
+        fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor,\
+                model, covmodel, params, param_names, samples,\
                 rvmodel=rvmodel, ndraws=ndraws)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum.pdf')
@@ -432,14 +433,14 @@ def plot_mcmc_model(spec, phot, linedata,\
         # TODO - extinction law plot?
         # plot the photometry and residuals if we actually fit it, else skip
         if phot is not None:
-            fig, mag_draws = plot_mcmc_photometry_res(objname, phot, model, pbs, draws)
+            fig, mag_draws = plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws)
             if savefig:
                 outfile = io.get_outfile(outdir, specfile, '_mcmc_phot.pdf')
                 fig.savefig(outfile)
             pdf.savefig(fig)
 
         # plot continuum, model and draws without gp
-        fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, cont_model, draws, covtype=covtype)
+        fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor, cont_model, draws, covtype=covtype)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_nogp.pdf')
             fig.savefig(outfile)
@@ -463,7 +464,6 @@ def plot_mcmc_model(spec, phot, linedata,\
         pdf.savefig(fig)
         print "Wrote output plot file {}".format(outfilename)
         #endwith
-
 
     smoothedmod, wres, full_mod, _ = draws[-1]
     model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, smoothedmod), names='wave,flux,norm_flux')
