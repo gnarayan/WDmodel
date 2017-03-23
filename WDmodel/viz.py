@@ -57,7 +57,11 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
         val = result[param]['value']
         err = result[param]['scale']
         fixed = result[param]['fixed']
-        thislabel = '{} = {:.3f} '.format(param, val)
+        if val is None:
+            thislabel = '{} = {} '.format(param, val)
+        else:
+            thislabel = '{} = {:.3f} '.format(param, val)
+
         if not fixed:
             thislabel += ' +/- {:.3f}'.format(err)
         else:
@@ -95,7 +99,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
     ax_spec.set_ylabel('Normalized Flux (Scale factor = {})'.format(1./scale_factor), fontproperties=font_m)
     ax_resid.set_ylabel('Fit Residual Flux', fontproperties=font_m)
     ax_spec.legend(frameon=False, prop=font_s)
-    fig.suptitle('Quick Fit: %s (%s)'%(objname, specfile), fontproperties=font_l)
+    fig.suptitle('Quick Fit for Initial Guess: %s (%s)'%(objname, specfile), fontproperties=font_l)
 
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
     if save:
