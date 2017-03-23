@@ -324,7 +324,7 @@ def get_pkgfile(infile):
 
 
 def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-        covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile):
+        rvmodel, covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
@@ -368,11 +368,12 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
     dset_continuumdata.create_dataset("flux",data=continuumdata.flux)
     dset_continuumdata.create_dataset("flux_err",data=continuumdata.flux_err)
 
-    dset_covmodel = outf.create_group("covmodel")
-    dset_covmodel.attrs["covtype"]=np.string_(covtype)
-    dset_covmodel.attrs["usebasic"]=usebasic
-    dset_covmodel.attrs["nleaf"]=nleaf
-    dset_covmodel.attrs["tol"]=tol
+    dset_fit_config = outf.create_group("fit_config")
+    dset_fit_config.attrs["covtype"]=np.string_(covtype)
+    dset_fit_config.attrs["usebasic"]=usebasic
+    dset_fit_config.attrs["nleaf"]=nleaf
+    dset_fit_config.attrs["tol"]=tol
+    dset_fit_config.attrs["rvmodel"]=np.string_(rvmodel)
 
     if phot is not None:
         dset_phot = outf.create_group("phot")
@@ -430,10 +431,11 @@ def read_fit_inputs(input_file):
         continuumdata = np.rec.fromarrays([cont_wave, cont_flux, cont_ferr], names='wave,flux,flux_err')
 
         fit_config = {}
-        fit_config['covtype'] = d['covmodel'].attrs['covtype']
-        fit_config['usebasic'] = d['covmodel'].attrs['usebasic']
-        fit_config['nleaf'] = d['covmodel'].attrs['nleaf']
-        fit_config['tol'] = d['covmodel'].attrs['tol']
+        fit_config['covtype'] = d['fit_config'].attrs['covtype']
+        fit_config['usebasic'] = d['fit_config'].attrs['usebasic']
+        fit_config['nleaf'] = d['fit_config'].attrs['nleaf']
+        fit_config['tol'] = d['fit_config'].attrs['tol']
+        fit_config['rvmodel'] = d['fit_config'].attrs['rvmodel']
         fit_config['scale_factor'] = scale_factor
 
     except KeyError as e:
