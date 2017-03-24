@@ -56,7 +56,7 @@ def get_options(args=None):
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
     spectrum.add_argument('--specfile', required=True, \
             help="Specify spectrum to fit")
-    spectrum.add_argument('--spectable', required=False,  default="data/spectable_resolution.dat",\
+    spectrum.add_argument('--spectable', required=False,  default="data/spectroscopy/spectable_resolution.dat",\
             help="Specify file containing a fwhm lookup table for specfile")
     spectrum.add_argument('--lamshift', required=False, type=float, default=0.,\
             help="Specify a flat wavelength shift in Angstrom to fix  slit centering errors")
@@ -74,7 +74,7 @@ def get_options(args=None):
     # photometry options
     reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
     phot = parser.add_argument_group('photometry', 'Photometry options')
-    phot.add_argument('--photfile', required=False,  default="data/WDphot_C22.dat",\
+    phot.add_argument('--photfile', required=False,  default="data/photometry/WDphot_C22.dat",\
             help="Specify file containing photometry lookup table for objects")
     phot.add_argument('--reddeningmodel', required=False, choices=reddeninglaws, default='od94',\
             help="Specify functional form of reddening law" )
