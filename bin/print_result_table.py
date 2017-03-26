@@ -30,7 +30,7 @@ def main(inargs=None):
 
     args = get_options(inargs)
     if args.specfiles is None:
-        specfiles = glob.glob('data/spectroscopy/*flm')
+        specfiles = glob.glob('data/spectroscopy/*/*flm')
     else:
         specfiles = args.specfiles
 
