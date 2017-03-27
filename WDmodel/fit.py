@@ -512,35 +512,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     Incrementally saves the chain if run single-threaded
     """
 
-    # parse the params to create a dictionary and init the WDmodel.likelihood.WDmodel_Likelihood instance
-    setup_args = {}
-    bounds     = []
-    scales     = {}
-    fixed      = {}
-    for param in io._PARAMETER_NAMES:
-        setup_args[param] = params[param]['value']
-        bounds.append(params[param]['bounds'])
-        scales[param] = params[param]['scale']
-        fixed[param] = params[param]['fixed']
-
-    setup_args['bounds'] = bounds
-
-    # configure the likelihood function
-    lnlike = likelihood.WDmodel_Likelihood(**setup_args)
-
-    # freeze any parameters that we want fixed
-    for param, val in fixed.items():
-        if val:
-            print "Freezing {}".format(param)
-            lnlike.freeze_parameter(param)
-
+    lnlike = likelihood.setup_likelihood(params)
     nparam   = lnlike.vector_size
 
     # get the starting position and the scales for each parameter
     init_p0  = lnlike.get_parameter_dict()
     p0       = init_p0.values()
     free_param_names = init_p0.keys()
-    std = [scales[x] for x in free_param_names]
+    std = [params[x]['scale'] for x in free_param_names]
 
     # create a sample ball
     pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
@@ -629,7 +608,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         # save the chain
         dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
         dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
-    dset_afrac = chain.create_dataset("afrac", data=sampler.acceptance_fraction)
+    chain.create_dataset("afrac", data=sampler.acceptance_fraction)
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
