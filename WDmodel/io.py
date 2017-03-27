@@ -278,11 +278,14 @@ def make_outdirs(dirname):
 
 def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None):
     """
-    Accepts a spectrum filename (and optionally a preset output directory), and determines the objname
-    Raises a warning if the spectra have different object names
-    If output directory isn't provided, creates an output directory based on object name
-    Else uses provided output directory
-    Returns objname and output dirname, if directories were successfully created/exist.
+    Accepts a spectrum filename (and optionally a preset output directory) or
+    an output root directory, and determines the objname.
+
+    If output directory isn't provided, creates an output directory based on
+    object name, else just uses outdir
+
+    Returns objname and output dirname, if directories were successfully
+    created/exist.
     """
     if outroot is None:
         outroot = os.path.join(os.getcwd(), "out")
@@ -328,7 +331,9 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
-    Also saves the covtype, solver preferences, photometric dispersion, rvmodel and scale_factor
+
+    Also saves the covtype, solver preferences, photometric dispersion, rvmodel and
+    scale_factor
 
     This is intended to be called after WDmodel.fit.pre_process_spectrum() and
     WDmodel.io.get_phot_for_obj()
@@ -340,10 +345,20 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
     WDmodel.fit.fit_model() with the sample chain is enough to regenerate the
     plots and output without redoing the fit.
 
-    Accepts a recarray spectrum (spec), recarray photometry (phot), a recarray
-    continuum model (cont_model), recarray Balmer line data (linedata) and
-    recarray continuum line data (continuumdata) as well as outfile to
-    control where the output is written.
+    Accepts
+        spec: recarray spectrum (wave, flux, flux_err)
+        phot: recarray photometry (pb, mag, mag_err)
+        cont_model: recarray continuum model (wave, flux)
+        linedata: recarray linedata (wave, flux, flux_err, line_mask)
+        continuumdata: data used to generate the continuum model (wave, flux, flux_err)
+        rvmodel: string specifying which RV law was used to redden the spectrum
+        covtype: string specifying which kernel was used to model the spectrum covariance
+        usebasic: bool specifying if the user requested that we use the basic solver over HODLR
+        nleaf: minimum matrix size before HODLR attempts to directly solve system with Eigen Cholesky
+        tol: HODLR tolerance
+        phot_dispersion: amount of photometric dispersion to add in quadrature with the reported uncertainties
+        scale_factor: how the spectrum flux and flux_err was scaled
+        outfile: output filename
     """
 
     outf = h5py.File(outfile, 'w')
@@ -394,6 +409,7 @@ def read_fit_inputs(input_file):
     The groups, and the datasets they must have are
         spec
             wave, flux, flux_err
+            and a HDF5 attribute, scale_factor specifying how the spectrum was scaled
         cont_model
             wave, flux
         linedata
@@ -402,9 +418,11 @@ def read_fit_inputs(input_file):
             wave, flux, flux_err
         [phot]
             pb, mag, mag_err
+        the fit_config group must have the following HDF5 attributes
+            covtype, usebasic, nleaf, tol, rvmodel
 
-    Returns a tuple of recarrays
-        spec, cont_model, linedata, continuumdata, phot[=None if absent]
+    Returns a tuple of recarrays and dictionary
+        spec, cont_model, linedata, continuumdata, phot[=None if absent], fit_config
     """
     d = h5py.File(input_file, mode='r')
 
