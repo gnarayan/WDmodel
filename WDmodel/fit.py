@@ -629,6 +629,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         # save the chain
         dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
         dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
+    dset_afrac = chain.create_dataset("afrac", data=sampler.acceptance_fraction)
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
