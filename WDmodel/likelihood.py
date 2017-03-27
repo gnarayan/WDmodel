@@ -5,6 +5,37 @@ from . import io
 from .pbmodel import get_model_synmags
 
 
+def setup_likelihood(params):
+    """
+    Setup the WDmodel_Likelihood function based on the parameter dictionary, params
+    Accepts:
+        params: dict of parameters with keywords value, fixed, bounds, scale for each
+    Returns
+        WDmodel_Likelihood instance
+    """
+    # parse the params to create a dictionary and init the
+    # WDmodel.likelihood.WDmodel_Likelihood instance
+    setup_args = {}
+    bounds     = []
+    fixed      = {}
+    for param in io._PARAMETER_NAMES:
+        setup_args[param] = params[param]['value']
+        bounds.append(params[param]['bounds'])
+        fixed[param] = params[param]['fixed']
+
+    setup_args['bounds'] = bounds
+
+    # configure the likelihood function
+    lnlike = WDmodel_Likelihood(**setup_args)
+
+    # freeze any parameters that we want fixed
+    for param, val in fixed.items():
+        if val:
+            print "Freezing {}".format(param)
+            lnlike.freeze_parameter(param)
+    return lnlike
+
+
 class WDmodel_Likelihood(Model):
     """
     Needs a dictionary structure with parameter names and optionally a keyword
