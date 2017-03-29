@@ -87,6 +87,38 @@ must start the process with `mpirun`
 
 ______
 
+## Notes from installing on the Odyssey cluster at Harvard
+These may be of use to get the code up and running with MPI on some other
+cluster. Good luck. 
+
+### git clone the repository and install anaconda/astroconda/miniconda
+Follow the regular instructions above until install eigen3
+
+### Install everything but emcee, george and celerite
+* `pip install (everything but emcee, george and celerite)`
+
+### Follow this process
+Odyssey uses the lmod system for module management, like many other clusters
+You can `module spider openmpi` to find what the openmpi modules
+There may also be an eigen module someplace, in which case use that instead of
+the conda version
+
+* `conda install eigen`
+* `module load gcc/6.3.0-fasrc01 openmpi/2.0.2.40dc0399-fasrc01`
+* `wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-2.0.0.tar.gz`
+* `tar xvzf mpi4py-2.0.0.tar.gz`
+* `cd mpi4py-2.0.0`
+* `python setup.py build --mpicc=$(which mpicc)`
+* `python setup.py build_exe --mpicc="$(which mpicc) --dynamic"`
+* `python setup.py install`
+* `cd ..`
+* `pip install emcee`
+* `pip install george --global-option=build_ext --global-option=-I/path/to/eigen3`
+* `pip install celerite --global-option=build_ext --global-option=-I/path/to/eigen3`
+
+`bin/make_batch_scripts.py` can setup batch SLURM scripts that you can submit with `sbatch`
+______
+
 ## Some useful options:
 
 The spectrum can be trimmed prior to fitting with the `--trimspec` option. You
