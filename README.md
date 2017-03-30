@@ -103,7 +103,8 @@ You can `module spider openmpi` to find what the openmpi modules
 There may also be an eigen module someplace, in which case use that instead of
 the conda version
 
-* `conda install eigen`
+* `conda install eigen` or "install" (i.e. copy the headers someplace) from
+  source as in the normal instructions
 * `module load gcc/6.3.0-fasrc01 openmpi/2.0.2.40dc0399-fasrc01`
 * `wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-2.0.0.tar.gz`
 * `tar xvzf mpi4py-2.0.0.tar.gz`
