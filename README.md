@@ -141,6 +141,13 @@ computing the log likelihood with `--everyn` - this is only intended for
 testing purposes, and should probably not be used for any final analysis. Note
 that the uncertainities increase as you'd expect with fewer points.
 
+Occasionally, you might see very low-acceptance fractions, accompanied with
+weird spikes in the fsig parameter. We've noticed this on the odyssey cluster,
+but aren't yet sure why it is happening. It appears to be the HODLR solver that
+is the default. The problem goes away completely with `--usebasic`, which forces
+the basic solver, at the cost of runtime. We have not seen the problem, with
+the exact same data and settings on a linux desktop or Macbook Pro.
+
 You can get a summary of all available options with `--help`
 ______
 
