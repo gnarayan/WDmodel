@@ -48,13 +48,13 @@ def main():
     for specfile in leftfiles:
         print specfile
         outlines = []
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot="out/ignorephot")
         stdout_file = WDmodel.io.get_outfile(outdir, specfile, '.stdout')
         stderr_file = WDmodel.io.get_outfile(outdir, specfile, '.stderr')
-        script_file = WDmodel.io.get_outfile("scripts", specfile,'.sh')
+        script_file = WDmodel.io.get_outfile("scripts/ignorephot", specfile,'.sh')
         outlines.append("#SBATCH -o {}".format(stdout_file))
         outlines.append("#SBATCH -e {}".format(stderr_file))
-        outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --ignorephot --tau=5000 --redo --rescale --usebasic".format(specfile))
+        outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --ignorephot --tau=5000 --redo --rescale --usebasic --outroot out/ignorephot".format(specfile))
         out = addnewlines((lines+outlines))
         with open(script_file,'w') as f:
             f.writelines(out)
