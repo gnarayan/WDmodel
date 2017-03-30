@@ -36,11 +36,14 @@ def main():
             script_file = WDmodel.io.get_outfile("scripts", specfile,'.sh')
             outlines.append("#SBATCH -o {}".format(stdout_file))
             outlines.append("#SBATCH -e {}".format(stderr_file))
-            outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --covtype ExpSquared --photfile data/photometry/WDphot_C22.dat --tau=5000 --tau_fix=True --tau_bounds 1000 10000 --discard=10 --phot_dispersion 0.001 --redo --rescale --solver_tol 1e-14 --nwalkers 600 --nprod 10000".format(specfile))
+            outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --photfile data/photometry/WDphot_C22.dat --tau=5000 --phot_dispersion 0.001 --redo --rescale --usebasic".format(specfile))
             out = addnewlines((lines+outlines))
             with open(script_file,'w') as f:
                 f.writelines(out)
 
+    filepattern = "*-total*.flm"
+    specpattern = os.path.join('data','spectroscopy','*',filepattern)
+    specfiles = glob.glob(specpattern)
     leftfiles = set(specfiles) - set(usedfiles)
     for specfile in leftfiles:
         print specfile
@@ -51,7 +54,7 @@ def main():
         script_file = WDmodel.io.get_outfile("scripts", specfile,'.sh')
         outlines.append("#SBATCH -o {}".format(stdout_file))
         outlines.append("#SBATCH -e {}".format(stderr_file))
-        outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --covtype ExpSquared --ignorephot --tau=5000 --tau_fix=True --tau_bounds 1000 10000 --discard=10 --redo --rescale --solver_tol 1e-14 --nwalkers 600 --nprod 10000".format(specfile))
+        outlines.append("mpirun -np 32 ./fit_WDmodel.py mpil --specfile {} --trimspec 3700 5200 --ignorephot --tau=5000 --redo --rescale --usebasic".format(specfile))
         out = addnewlines((lines+outlines))
         with open(script_file,'w') as f:
             f.writelines(out)
