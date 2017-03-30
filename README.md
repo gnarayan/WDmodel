@@ -14,9 +14,6 @@ the uncertainties + a Gaussian process with a Exponential Squared Kernel, with
 a length scale that is fixed to 5000 Angstroms by default, or bounded to be
 large.
 
-A list of packages needed to run this code is available in requirements.txt
-pip install -r requirements.txt
-
 Very much in beta - caveat emptor
 
 ______
@@ -51,7 +48,7 @@ These are available over FTP from [ftp://archive.stsci.edu/pub/hst/pysynphot/]
 
 Untar them, and set the `PYSYN_CDBS` environment variable
 
-* `export PYSYN_CDBS=place_you_untarred_the_files
+* `export PYSYN_CDBS=place_you_untarred_the_files`
 
 
 ### cd to directory you git cloned:
