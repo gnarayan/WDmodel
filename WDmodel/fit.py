@@ -583,6 +583,9 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         this_par.attrs["scale"]  = params[param]["scale"]
         this_par.attrs["bounds"] = params[param]["bounds"]
 
+    # write to disk before we start
+    outf.flush()
+
     # production
     if pool is None:
         # run single threaded - create an incrementally saved chain and progress bar
@@ -613,6 +616,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
     outf.close()
+    if pool is not None:
+        pool.close()
 
     lnlike.set_parameter_vector(samples[np.argmax(samples_lnprob)])
     print "\nMAP Parameters after Production"

@@ -430,7 +430,3 @@ if __name__=='__main__':
         inargs = sys.argv[1:]
 
     main(inargs, pool)
-
-    if mpi:
-        # Close the processes.
-        pool.close()
