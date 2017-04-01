@@ -33,9 +33,11 @@ class WDmodel_CovModel(object):
         if usebasic:
             self._solver = BasicSolver
             self._solverkwargs = {}
+            self._computekwargs = {}
         else:
             self._solver = HODLRSolver
             self._solverkwargs = {'nleaf':nleaf, 'tol':tol}
+            self._computekwargs = {'seed':1}
 
         # configure the kernel
         self._ndim = 2
@@ -136,5 +138,5 @@ class WDmodel_CovModel(object):
         else:
             kernel = self._k1((fsig*self._errscale)**2.)*self._k2(tau)
         gp = GP(kernel, mean=0., solver=self._solver, **self._solverkwargs)
-        gp.compute(wave, flux_err, sort=False)
+        gp.compute(wave, flux_err, sort=False, **self._computekwargs)
         return gp

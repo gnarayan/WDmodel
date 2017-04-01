@@ -229,7 +229,6 @@ class WDmodel(object):
         return modwave, modflux
 
 
-
     def _normalize_model(self, spec, log=False):
         """
         Imprecise normalization for visualization only

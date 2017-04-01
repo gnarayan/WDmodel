@@ -25,10 +25,10 @@ def write_params(params, outfile):
 
     params is a dict the parameter names, as defined with _PARAMETER_NAMES as keys
     Each key must have a dictionary with keys
-        "default" : default value - make sure this is a floating point
+        "value"   : value
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
         "scale"   : a scale parameter used to set the step size in this dimension
-        "bounds"  : An upper and lower limit on parameter values. Use null for None.
+        "bounds"  : An upper and lower limit on parameter values
     Any extra keys are simply written as-is
 
     Note that JSON doesn't preserve ordering necessarily - this is enforced by read_params
@@ -48,15 +48,19 @@ def read_params(param_file=None):
     parameters, as well as if they should be fixed.  The JSON keys are the
     parameter names, as defined in _PARAMETER_NAMES.
     Each key must have a dictionary with keys
-        "default" : default value - make sure this is a floating point
+        "value"   : value
         "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
         "scale"   : a scale parameter used to set the step size in this dimension
-        "bounds"  : An upper and lower limit on parameter values. Use null for None.
+        "bounds"  : An upper and lower limit on parameter values.
     And extra keys are simply loaded as-is
 
     Note that the default bounds are set by the grids available for the DA
     White Dwarf atmospheres, and by reasonable plausible ranges for the other
     parameters. Don't muck with them unless you really have good reason to.
+
+    Note that this routine does not do any checking of types, values or bounds
+    This is done by get_params_from_argparse before the fit If you setup the
+    fit using an external code, you should check these values
 
     Returns the dictionary with the parameter defaults.
     """
@@ -101,14 +105,23 @@ def get_params_from_argparse(args):
             message = "Parameter {} does not have value|fixed|scale|bounds specified in argparse args".format(param)
             raise KeyError(message)
         out[param]={}
-        out[param]['value']  = kwargs[param]
+        value = kwargs[param]
+        out[param]['value']  = value
         out[param]['fixed']  = kwargs['{}_fix'.format(param)]
-        if (out[param]['fixed'] is True) and (out[param]['value'] is None):
+
+        # check if are fixed to None, which would cause likelihood to always fail
+        if (out[param]['fixed'] is True) and (value is None):
             message = "Parameter {} fixed but value is None - must be specified".format(param)
             raise RuntimeError(message)
-        out[param]['scale']  = kwargs['{}_scale'.format(param)]
-        out[param]['bounds'] = kwargs['{}_bounds'.format(param)]
+        bounds = kwargs['{}_bounds'.format(param)]
 
+        # check if value is out of bounds, which will cause fit to fail
+        if value is not None:
+            if value < bounds[0] or value > bounds[1]:
+                message = "Parameter {} value ({}) is out of bounds ({},{})".format(param, value, bounds[0], bounds[1])
+                raise RuntimeError(message)
+        out[param]['scale']  = kwargs['{}_scale'.format(param)]
+        out[param]['bounds'] = bounds
     return out
 
 
