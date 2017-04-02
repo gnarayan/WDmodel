@@ -36,7 +36,7 @@ class WDmodel_CovModel(object):
 
         # configure the solver
         if usehodlr:
-            message = "Using HODLR solver with tol={:g}, nleaf={:i}".format(tol, nleaf)
+            message = "Using HODLR solver with tol={:g}, nleaf={:n}".format(tol, nleaf)
             self._solver = HODLRSolver
             self._solverkwargs = {'nleaf':nleaf, 'tol':tol}
             self._computekwargs = {'seed':1}
