@@ -108,10 +108,10 @@ def get_options(args=None):
                 type=float, metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
 
     # covariance model options
-    covmodel = parser.add_argument_group('covariance model', 'Covariance model options - changes what fsig and tau mean')
+    covmodel = parser.add_argument_group('covariance model', 'Covariance model options')
     covmodel.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
-                default='ExpSquared', help='Specify a parametric form for the covariance function to model the spectrum')
-    covmodel.add_argument('--usehodlr',  required=False, action="store_false", default=True,\
+                default='ExpSquared', help='Specify  parametric form the covariance function to model the spectrum')
+    covmodel.add_argument('--usehodlr',  required=False, type="bool", default="True",\
             help="Use the HODLR solver over the Basic Solver - faster, but approximate")
     covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-16,\
             help="Specify tolerance for HODLR solver")
