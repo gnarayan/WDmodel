@@ -9,7 +9,7 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    def __init__(self, errscale, covtype='ExpSquared', nleaf=100, tol=1e-12, usebasic=False):
+    def __init__(self, errscale, covtype='ExpSquared', nleaf=200, tol=1e-16, usehodlr=True):
         """
         Sets the covariance model and covariance model scale
         Accepts
@@ -19,7 +19,12 @@ class WDmodel_CovModel(object):
                 choices are White, ExpSquared, Matern32, Matern52, Exp
                 All choices except White are represented by two paramters -
                 fsig, and a length scale, tau
-            tol: tolerance for the HODLR solver (default = 1e-12)
+
+        These options are only used if usehodlr is set
+            nleaf: mimimum matrix block size for the HODLR solver
+            tol: tolerance for the HODLR solver
+            usehodlr: use the HODLR solver over the Basic Solver
+
         Returns
             a WDmodel_CovModel instance
         """
@@ -30,14 +35,14 @@ class WDmodel_CovModel(object):
         self._tol  = tol
 
         # configure the solver
-        if usebasic:
-            self._solver = BasicSolver
-            self._solverkwargs = {}
-            self._computekwargs = {}
-        else:
+        if usehodlr:
             self._solver = HODLRSolver
             self._solverkwargs = {'nleaf':nleaf, 'tol':tol}
             self._computekwargs = {'seed':1}
+        else:
+            self._solver = BasicSolver
+            self._solverkwargs = {}
+            self._computekwargs = {}
 
         # configure the kernel
         self._ndim = 2

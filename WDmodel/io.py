@@ -340,7 +340,7 @@ def get_pkgfile(infile):
 
 
 def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-        rvmodel, covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile):
+        rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
@@ -366,7 +366,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
         continuumdata: data used to generate the continuum model (wave, flux, flux_err)
         rvmodel: string specifying which RV law was used to redden the spectrum
         covtype: string specifying which kernel was used to model the spectrum covariance
-        usebasic: bool specifying if the user requested that we use the basic solver over HODLR
+        usehodlr: bool specifying if the user requested that we use the HODLR solver
         nleaf: minimum matrix size before HODLR attempts to directly solve system with Eigen Cholesky
         tol: HODLR tolerance
         phot_dispersion: amount of photometric dispersion to add in quadrature with the reported uncertainties
@@ -398,7 +398,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
 
     dset_fit_config = outf.create_group("fit_config")
     dset_fit_config.attrs["covtype"]=np.string_(covtype)
-    dset_fit_config.attrs["usebasic"]=usebasic
+    dset_fit_config.attrs["usehodlr"]=usehodlr
     dset_fit_config.attrs["nleaf"]=nleaf
     dset_fit_config.attrs["tol"]=tol
     dset_fit_config.attrs["rvmodel"]=np.string_(rvmodel)
@@ -432,7 +432,7 @@ def read_fit_inputs(input_file):
         [phot]
             pb, mag, mag_err
         the fit_config group must have the following HDF5 attributes
-            covtype, usebasic, nleaf, tol, rvmodel
+            covtype, usehodlr, nleaf, tol, rvmodel
 
     Returns a tuple of recarrays and dictionary
         spec, cont_model, linedata, continuumdata, phot[=None if absent], fit_config
@@ -463,7 +463,7 @@ def read_fit_inputs(input_file):
 
         fit_config = {}
         fit_config['covtype'] = d['fit_config'].attrs['covtype']
-        fit_config['usebasic'] = d['fit_config'].attrs['usebasic']
+        fit_config['usehodlr'] = d['fit_config'].attrs['usehodlr']
         fit_config['nleaf'] = d['fit_config'].attrs['nleaf']
         fit_config['tol'] = d['fit_config'].attrs['tol']
         fit_config['rvmodel'] = d['fit_config'].attrs['rvmodel']

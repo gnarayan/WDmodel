@@ -111,11 +111,11 @@ def get_options(args=None):
     covmodel = parser.add_argument_group('covariance model', 'Covariance model options - changes what fsig and tau mean')
     covmodel.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
                 default='ExpSquared', help='Specify a parametric form for the covariance function to model the spectrum')
-    covmodel.add_argument('--usebasic',  required=False, action="store_true", default=False,\
-            help="Use the BasicSolver over the HODLR solver i.e. you want to support global warming.")
-    covmodel.add_argument('--solver_tol', required=False, type=float, default=1e-12,\
+    covmodel.add_argument('--usehodlr',  required=False, action="store_false", default=True,\
+            help="Use the HODLR solver over the Basic Solver - faster, but approximate")
+    covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-16,\
             help="Specify tolerance for HODLR solver")
-    covmodel.add_argument('--solver_nleaf',  required=False, type=int, default=100,\
+    covmodel.add_argument('--hodlr_nleaf',  required=False, type=int, default=200,\
             help="Specify size of smallest matrix blocks before HODLR solves system directly")
 
     # MCMC config options
@@ -175,12 +175,12 @@ def get_options(args=None):
         message = 'Photometric dispersion must be GE 0. ({:g})'.format(args.phot_dispersion)
         raise ValueError(message)
 
-    if args.solver_tol <= 0:
-        message = 'HODLR Solver tolerance must be greater than 0. ({:g})'.format(args.solver_tol)
+    if args.hodlr_tol <= 0:
+        message = 'HODLR Solver tolerance must be greater than 0. ({:g})'.format(args.hodlr_tol)
         raise ValueError(message)
 
-    if args.solver_nleaf <= 0:
-        message = 'HODLR Solver min matrix block size must be greater than zero ({})'.format(args.solver_nleaf)
+    if args.hodlr_nleaf <= 0:
+        message = 'HODLR Solver nleaf must be greater than zero ({})'.format(args.hodlr_nleaf)
         raise ValueError(message)
 
     if args.nwalkers <= 0:
@@ -246,9 +246,9 @@ def main(inargs=None, pool=None):
     ignorephot= args.ignorephot
 
     covtype   = args.covtype
-    usebasic  = args.usebasic
-    tol       = args.solver_tol
-    nleaf     = args.solver_nleaf
+    usehodlr  = args.usehodlr
+    tol       = args.hodlr_tol
+    nleaf     = args.hodlr_nleaf
 
     ascale    = args.ascale
     nwalkers  = args.nwalkers
@@ -324,7 +324,7 @@ def main(inargs=None, pool=None):
     # save the inputs to the fitter
     outfile = WDmodel.io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
     WDmodel.io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-           rvmodel, covtype, usebasic, nleaf, tol, phot_dispersion, scale_factor, outfile)
+           rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile)
 
     # get the throughput model
     pbs = WDmodel.pbmodel.get_pbmodel(pbnames, model)
@@ -348,7 +348,7 @@ def main(inargs=None, pool=None):
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
     errscale = np.median(spec.flux_err)
-    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, nleaf, tol, usebasic)
+    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, nleaf, tol, usehodlr)
     if covtype == 'White':
         migrad_params['tau']['fixed'] = True
 
