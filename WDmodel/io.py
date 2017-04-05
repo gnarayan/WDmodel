@@ -504,7 +504,7 @@ def read_mcmc(input_file):
         samples_lnprob = d['chain']['lnprob'].value
         chain_params['param_names']   = d['chain']['names'].value
         chain_params['nwalkers']      = d['chain'].attrs['nwalkers']
-        chain_params['nparam']        = d['chain'].attrs['nprod']
+        chain_params['nprod']        = d['chain'].attrs['nprod']
         chain_params['ndim']          = d['chain'].attrs['nparam']
         chain_params['everyn']        = d['chain'].attrs['everyn']
         chain_params['ascale']        = d['chain'].attrs['ascale']
