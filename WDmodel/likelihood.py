@@ -49,11 +49,6 @@ class WDmodel_Likelihood(Model):
     values, and modeling the residuals with a Rational Quadratic kernel
 
     Implements a lnprior function, in addition to Model's log_prior function
-    This imposes a prior on Rv, and on Av.  The prior on Av is the glos prior.
-    The prior on Rv is a Gaussian with mean 3.1 and sigma 0.18 - derived from
-    Schlafly et al from PS1 - note that they report 3.31, but they aren't
-    really measuring E(B-V) with PS1. Their sigma should be consistent despite
-    the different filter set.
 
     To use it, construct an object from the class with the kwargs dictionary
     and an initial guess, and freeze/thaw parameters as needed. Then write a
@@ -94,9 +89,30 @@ class WDmodel_Posterior(object):
         covmodel: a WDmodel_CovModel instance
         rvmodel: The form of the reddening law to be used to redden the spectrum
         pbs: a model of the throughput of the different passbands
-        lnlike: a WDmodel_Likelihood instance that can return the log prior and log likelihood
+        lnlike: a WDmodel_Likelihood instance that can return the log likelihood
 
-    Call returns the log posterior
+    Implements an lnprior function which imposes weakly informative priors on
+    the parameters - broad guassians on most parameters except:
+        - the prior on Av is the glos prior.
+        - the prior on Rv is a Gaussian with mean 3.1 and sigma 0.18 - derived from
+            Schlafly et al from PS1 - note that they report 3.31, but they aren't
+            really measuring E(B-V) with PS1. Their sigma should be consistent despite
+            the different filter set.
+        - the prior on fsig is half-Cauchy since we don't want it to be less than zero
+            there's also a cutoff to prevent it from getting too close to zero,
+            where the covariance matrix becomes non-inertvible with the
+            approximate solver
+        - there is no prior on tau (i.e. a flat prior). TODO.
+        - fwhm has a cut on value below which the spectrum isn't being convolved anymore
+            if the fwhm is that low, then we would need a higher resolution grid...
+
+    Note that the likelihood function has a logprior() function, inherited from
+    celerite modeling, which imposes the boundscheck, so technically all priors
+    are the produce of a tophat and the prior described above. This is not an
+    issue for any parameter of any object, since even the bound on Av is set
+    negative.
+
+    Call returns the sum of log likelihood and log prior - the log posterior
     """
     def __init__(self, spec, phot, model, covmodel, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
         self.spec    = spec

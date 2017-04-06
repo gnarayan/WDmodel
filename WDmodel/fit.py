@@ -501,9 +501,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     either minuit or user supplied values/defaults. Model parameters may be
     frozen/fixed. Parameters can have bounds limiting their range.
 
-    The prior is a tophat on all parameters, preventing them from going out of
-    range. The WDmodel.likelihood class can implement additional priors on
-    parameters.
+    The WDmodel_Posterior class implements additional priors on
+    parameters. See there for details.
 
     pool controls if the process is run with MPI or single threaded.  If pool
     is an MPIPool object and the process is started with mpirun, the tasks are
