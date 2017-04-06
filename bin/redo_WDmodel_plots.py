@@ -32,7 +32,7 @@ def main():
     spec, cont_model, linedata, continuumdata, phot, fit_config = res
     errscale = np.median(spec.flux_err)
     covtype  = fit_config['covtype']
-    usebasic = fit_config['usebasic']
+    usehodlr = fit_config['usehodlr']
     nleaf    = fit_config['nleaf']
     tol      = fit_config['tol']
     scale_factor = fit_config['scale_factor']
@@ -44,7 +44,7 @@ def main():
 
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
-    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, nleaf=nleaf, tol=tol, usebasic=usebasic)
+    covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, nleaf=nleaf, tol=tol, usehodlr=usehodlr)
 
     # restore params
     param_file = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
@@ -54,6 +54,14 @@ def main():
     pbnames = []
     if phot is not None:
         pbnames = np.unique(phot.pb)
+
+        # filter the photometry recarray to use only the passbands we want
+        useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
+        useind = np.array(useind)
+        phot = phot.take(useind)
+
+        # set the pbnames from the trimmed photometry recarray to preserve order
+        pbnames = list(phot.pb)
 
     # if we cut out out all the passbands, force mu to be fixed
     if len(pbnames) == 0:
