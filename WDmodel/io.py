@@ -524,8 +524,10 @@ def write_spectrum_model(spec, model_spec, outfile):
         model_spec: recarray spectrum (wave, flux, norm_flux)
         outfile: output filename
     """
-    out = (spec.wave, spec.flux, spec.flux_err, model_spec.norm_flux, model_spec.flux, spec.flux-model_spec.flux)
-    out = np.rec.fromarrays(out, names='wave,flux,flux_err,norm_flux,model_flux,res_flux')
+    out = (spec.wave, spec.flux, spec.flux_err,\
+            model_spec.norm_flux, model_spec.flux, model_spec.flux_err,\
+            spec.flux-model_spec.flux)
+    out = np.rec.fromarrays(out, names='wave,flux,flux_err,norm_flux,model_flux,model_flux_err,res_flux')
     with open(outfile, 'w') as f:
         f.write(rec2txt(out, precision=8)+'\n')
     print "Wrote spec model file {}".format(outfile)
@@ -546,18 +548,17 @@ def write_phot_model(phot, model_mags, outfile):
     print "Wrote phot model file {}".format(outfile)
 
 
-def write_full_model(full_model, mu, outfile):
+def write_full_model(full_model, outfile):
     """
     Write the full SED model to outfile
     Accepts
         full_model: recarray SED model (wave, flux)
-        mu: Model normalization from photometry
         outfile: output filename
     """
-    full_model.flux*=(10**(-0.4*mu))
     outf = h5py.File(outfile, 'w')
     dset_model = outf.create_group("model")
     dset_model.create_dataset("wave",data=full_model.wave)
     dset_model.create_dataset("flux",data=full_model.flux)
+    dset_model.create_dataset("flux_err",data=full_model.flux_err)
     outf.close()
     print "Wrote full model file {}".format(outfile)

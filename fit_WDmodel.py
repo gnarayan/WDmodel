@@ -400,7 +400,7 @@ def main(inargs=None, pool=None):
         WDmodel.io.write_spectrum_model(spec, model_spec, spec_model_file)
 
         full_model_file = WDmodel.io.get_outfile(outdir, specfile, '_full_model.hdf5')
-        WDmodel.io.write_full_model(full_mod, mcmc_params['mu']['value'], full_model_file)
+        WDmodel.io.write_full_model(full_mod, full_model_file)
 
         if phot is not None:
             phot_model_file = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
