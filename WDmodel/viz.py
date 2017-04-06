@@ -2,6 +2,7 @@
 Routines to visualize the DA White Dwarf model atmosphere fit
 """
 import numpy as np
+from scipy.stats import norm
 from itertools import cycle
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -136,7 +137,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
     pixel_scale = 1./np.median(np.gradient(spec.wave))
 
     # plot one draw of the sample, bundled into a dict
-    def plot_one(this_draw, color='red', alpha=1., label=None):
+    def plot_one(this_draw, color='red', alpha=1., label=None, i=1):
         teff = this_draw['teff']['value']
         logg = this_draw['logg']['value']
         av   = this_draw['av']['value']
@@ -162,8 +163,9 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
     for i in range(ndraws):
         for j, param in enumerate(param_names):
             this_draw[param]['value'] = draws[i,j]
-        smoothedmod, wres, cov, full_mod, out_draw = plot_one(this_draw, color='orange', alpha=0.3)
-        out.append((smoothedmod, wres, full_mod, out_draw))
+        smoothedmod, wres, cov, full_mod, out_draw = plot_one(this_draw, color='orange', alpha=0.3, i=i)
+        wres_err = np.diag(cov)**0.5
+        out.append((smoothedmod, wres, wres_err, full_mod, out_draw))
 
     outlabel = 'Model\n'
     for param in result:
@@ -180,7 +182,8 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
 
     # finally, overplot the best result draw as solid
     smoothedmod, wres, cov, full_mod, out_draw = plot_one(result, color='red', alpha=1., label=outlabel)
-    out.append((smoothedmod, wres, full_mod, out_draw))
+    wres_err = np.diag(cov)**0.5
+    out.append((smoothedmod, wres, wres_err, full_mod, out_draw))
 
     # plot the residuals
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod-wres+spec.flux_err, spec.flux-smoothedmod-wres-spec.flux_err,\
@@ -190,6 +193,8 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
         ax_resid.plot(spec.wave, draw[0]+draw[1]-smoothedmod-wres, linestyle='-',\
                 marker=None, alpha=0.3, color='orange')
     ax_resid.axhline(0., color='red', linestyle='--')
+    ax_resid.fill_between(spec.wave, +wres_err, -wres_err,\
+        facecolor='red', alpha=0.3, interpolate=True)
 
     # label the axes
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font_m, ha='center')
@@ -218,7 +223,7 @@ def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
 
     # plot one draw of the sample
     def plot_draw(draw, color='red', alpha=1.0, label=None, linestyle='None'):
-        _, _, model_spec, params = draw
+        _, _, _, model_spec, params = draw
         mu = params['mu']['value']
         model_mags = pbmodel.get_model_synmags(model_spec, pbs, mu=mu)
         ax_phot.plot(refwave, model_mags.mag, color=color, alpha=alpha, marker='o', label=label, linestyle=linestyle)
@@ -243,6 +248,8 @@ def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
     # the draws are already samples from the posterior distribution - just take the median
     out = np.array(out)
     errs = np.median(np.abs(out), axis=0)
+    scaling  = norm.ppf(3/4.)
+    errs/=scaling
 
     # plot the residuals
     ax_resid.fill_between(pbind, -errs, errs, interpolate=True, facecolor='orange', alpha=0.3)
@@ -291,14 +298,15 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor, cont_mode
     ax_spec.plot(cont_model.wave, cont_model.flux, color='blue', linestyle='--', marker='None', label='Continuum')
 
     # plot the residual without the covariance term
-    smoothedmod, wres, _, _ = draws[-1]
+    smoothedmod, wres, wres_err, _ , _ = draws[-1]
+    ax_resid.fill_between(spec.wave, wres+wres_err, wres-wres_err, facecolor='red', alpha=0.3, interpolate=True)
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod+spec.flux_err, spec.flux-smoothedmod-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_resid.plot(spec.wave, spec.flux - smoothedmod, color='black', linestyle='-', marker='None')
 
-    bestfit, bestres, _, _ = draws[-1]
+    bestfit, bestres, _, _, _ = draws[-1]
     def plot_draw(draw, color='red', alpha=1.0, label=None):
-        smoothedmod, wres, _, _ = draw
+        smoothedmod, wres, _, _, _ = draw
         ax_resid.plot(spec.wave, wres+smoothedmod - bestfit,  linestyle='-', marker=None,  color=color, alpha=alpha)
         ax_spec.plot(spec.wave, smoothedmod, color=color, linestyle='-', marker='None', alpha=alpha, label=label)
 
@@ -352,7 +360,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
     # plot the distribution of residuals for the entire spectrum
     ax_resid  = fig2.add_subplot(gs2[0])
-    smoothedmod, wres, _, _ = draws[-1]
+    smoothedmod, wres, _, _, _ = draws[-1]
     res = spec.flux - smoothedmod - wres
     hist(res, bins='knuth', normed=True, histtype='stepfilled', color='grey', alpha=0.5, label='Residuals',ax=ax_resid)
     ax_resid.axvline(0., color='red', linestyle='--')
@@ -399,7 +407,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
         # plot one of the draws
         def plot_draw(draw, color='red', alpha=1.0):
-            smoothedmod, wres, _, _ = draw
+            smoothedmod, wres, _, _, _ = draw
             line_model = (smoothedmod + wres)[ind]
             line_model /= this_line_cont
             line_model += voff
@@ -409,6 +417,17 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
         for draw in draws[:-1]:
             plot_draw(draw, color='orange', alpha=0.3)
         plot_draw(draws[-1], color='red', alpha=1.0)
+
+        # overplot the best model err as the bottom layer
+        bestmod, bestres, bestres_err, _, _ = draws[-1]
+        besthi = (bestmod + bestres + bestres_err)[ind]
+        bestlo = (bestmod + bestres - bestres_err)[ind]
+        besthi /= this_line_cont
+        bestlo /= this_line_cont
+        besthi += voff
+        bestlo += voff
+        ax_lines.fill_between(shifted_wave, besthi, bestlo,\
+                              facecolor='red', alpha=0.3, interpolate=True, zorder=-1)
 
         # plot the residuals of this line
         ax_resid  = fig2.add_subplot(gs2[k])
@@ -494,11 +513,31 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         print "Wrote output plot file {}".format(outfilename)
         #endwith
 
-    smoothedmod, wres, full_mod, _ = draws[-1]
-    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, smoothedmod), names='wave,flux,norm_flux')
+    smoothedmod, wres, wres_err, full_mod, best_params = draws[-1]
+    res_spec = []
+    res_mod  = []
+    bestmu = best_params['mu']['value']
+    full_mod.flux*=(10**(-0.4*bestmu))
+    for draw in draws[:-1]:
+        ts, tr, trerr, tm, params = draw
+        mu = params['mu']['value']
+        tm.flux*=(10**(-0.4*mu))
+        res_spec.append((ts+tr-smoothedmod-wres))
+        res_mod.append((tm.flux - full_mod.flux))
+    res_spec = np.vstack(res_spec)
+    res_mod  = np.vstack(res_mod)
+    mad_spec = np.median(np.abs(res_spec), axis=0)
+    mad_mod  = np.median(np.abs(res_mod), axis=0)
+    scaling  = norm.ppf(3/4.)
+    sigma_spec = mad_spec/scaling
+    sigma_mod  = mad_mod/scaling
+
+    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, sigma_spec, smoothedmod),\
+            names='wave,flux,flux_err,norm_flux')
+    SED_model  = np.rec.fromarrays((full_mod.wave, full_mod.flux, sigma_mod), names='wave,flux,flux_err')
 
     if mag_draws is not None:
         _, model_mags, _ = mag_draws[-1]
     else:
         model_mags = None
-    return model_spec, full_mod, model_mags
+    return model_spec, SED_model, model_mags
