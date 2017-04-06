@@ -114,7 +114,7 @@ the conda version
 * `pip install george --global-option=build_ext --global-option=-I/path/to/eigen3`
 * `pip install celerite --global-option=build_ext --global-option=-I/path/to/eigen3`
 
-`bin/make_batch_scripts.py` can setup batch SLURM scripts that you can submit with `sbatch`
+`bin/make_WDmodel_slrum_batch_scripts.py` can setup batch SLURM scripts that you can submit with `sbatch`
 ______
 
 ## Some useful options:
