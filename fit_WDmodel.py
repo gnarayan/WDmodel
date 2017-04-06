@@ -113,9 +113,9 @@ def get_options(args=None):
                 default='ExpSquared', help='Specify  parametric form the covariance function to model the spectrum')
     covmodel.add_argument('--usehodlr',  required=False, type="bool", default="True",\
             help="Use the HODLR solver over the Basic Solver - faster, but approximate")
-    covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-16,\
+    covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-12,\
             help="Specify tolerance for HODLR solver")
-    covmodel.add_argument('--hodlr_nleaf',  required=False, type=int, default=200,\
+    covmodel.add_argument('--hodlr_nleaf',  required=False, type=int, default=500,\
             help="Specify size of smallest matrix blocks before HODLR solves system directly")
 
     # MCMC config options

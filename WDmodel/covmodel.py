@@ -9,7 +9,7 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    def __init__(self, errscale, covtype='ExpSquared', nleaf=200, tol=1e-16, usehodlr=True):
+    def __init__(self, errscale, covtype='ExpSquared', nleaf=500, tol=1e-12, usehodlr=True):
         """
         Sets the covariance model and covariance model scale
         Accepts
