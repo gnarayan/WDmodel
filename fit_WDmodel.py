@@ -110,7 +110,7 @@ def get_options(args=None):
     # covariance model options
     covmodel = parser.add_argument_group('covariance model', 'Covariance model options')
     covmodel.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
-                default='ExpSquared', help='Specify  parametric form the covariance function to model the spectrum')
+                default='ExpSquared', help='Specify parametric form of the covariance function to model the spectrum')
     covmodel.add_argument('--usehodlr',  required=False, type="bool", default="True",\
             help="Use the HODLR solver over the Basic Solver - faster, but approximate")
     covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-12,\
