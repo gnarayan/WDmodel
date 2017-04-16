@@ -463,15 +463,23 @@ def read_fit_inputs(input_file):
 
         fit_config = {}
         fit_config['covtype'] = d['fit_config'].attrs['covtype']
-        fit_config['usehodlr'] = d['fit_config'].attrs['usehodlr']
         fit_config['nleaf'] = d['fit_config'].attrs['nleaf']
         fit_config['tol'] = d['fit_config'].attrs['tol']
         fit_config['rvmodel'] = d['fit_config'].attrs['rvmodel']
         fit_config['scale_factor'] = scale_factor
 
-    except KeyError as e:
+    except Exception as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
         raise IOError(message)
+    try:
+        fit_config['usehodlr'] = d['fit_config'].attrs['usehodlr']
+    except Exception as e:
+        try:
+            fit_config['usehodlr'] = ~d['fit_config'].attrs['usebasic']
+        except Exception as e:
+            message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
+            raise IOError(message)
+
 
     phot = None
     if 'phot' in d.keys():
