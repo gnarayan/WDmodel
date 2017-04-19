@@ -122,32 +122,51 @@ class WDmodel_Posterior(object):
         self.covmodel= covmodel
         self.rvmodel = rvmodel
         self.pbs     = pbs
-        self.lnlike  = lnlike
+        self._lnlike  = lnlike
         self.pixscale= pixel_scale
         self.phot_dispersion = phot_dispersion
         init_p0 = lnlike.get_parameter_dict(include_frozen=True)
         self.p0 = init_p0
 
 
-    def __call__(self, theta):
-        self.lnlike.set_parameter_vector(theta)
+    def __call__(self, theta, prior=False, likelihood=False):
+        """
+        Returns the posterior of the parameters theta, given the data
+        Accepts two optional key word arguments
+            prior: Return the prior instead of the posterior
+            likelihood: Return the likelihood instead of the posterior
+        This allows a quick assesment with a flat prior (i.e. no prior) if we want an MLE
+        """
+        self._lnlike.set_parameter_vector(theta)
         out = self._lnprior()
         if not np.isfinite(out):
             return -np.inf
-        out += self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
+        if prior:
+            return out
+
+        loglike = self._lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
+        if likelihood:
+            return loglike
+
+        out += loglike
         return out
 
 
     def lnlike(self, theta):
-        self.lnlike.set_parameter_vector(theta)
-        out = self.lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
+        """
+        Returns the likelihood of the model given the data Note that this
+        cannot be used when fitting multi-threaded because instancemethods
+        cannot be pickled
+        """
+        self._lnlike.set_parameter_vector(theta)
+        out = self._lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 
 
     def _lnprior(self):
-        lp = self.lnlike.log_prior()
+        lp = self._lnlike.log_prior()
         # check if out of bounds
         if not np.isfinite(lp):
             return -np.inf
@@ -157,17 +176,17 @@ class WDmodel_Posterior(object):
             # put some weak priors on intrinsic WD  parameters
 
             # normal on teff
-            teff  = self.lnlike.get_parameter('teff')
+            teff  = self._lnlike.get_parameter('teff')
             teff0 = self.p0['teff']
             out += norm.logpdf(teff, teff0, 10000.)
 
             # normal on logg
-            logg  = self.lnlike.get_parameter('logg')
+            logg  = self._lnlike.get_parameter('logg')
             logg0 = self.p0['logg']
             out += norm.logpdf(logg, logg0, 1.)
 
             # this implements the glos prior on Av
-            av = self.lnlike.get_parameter('av')
+            av = self._lnlike.get_parameter('av')
             avtau   = 0.4
             avsdelt = 0.1
             wtexp   = 1.
@@ -180,15 +199,15 @@ class WDmodel_Posterior(object):
             out += np.log(pav)
 
             # this is from the Schlafly et al analysis from PS1
-            rv  = self.lnlike.get_parameter('rv')
+            rv  = self._lnlike.get_parameter('rv')
             out += norm.logpdf(rv, 3.1, 0.18)
 
             # normal on dl
-            dl  = self.lnlike.get_parameter('dl')
+            dl  = self._lnlike.get_parameter('dl')
             dl0 = self.p0['dl']
             out += norm.logpdf(dl, dl0, 1000.)
 
-            fwhm  = self.lnlike.get_parameter('fwhm')
+            fwhm  = self._lnlike.get_parameter('fwhm')
             # The FWHM is converted into a gaussian sigma for convolution.
             # That convolution kernel is truncated at 4 standard deviations by default.
             # If twice that scale is less than 1 pixel, then we're not actually modifying the data.
@@ -201,13 +220,13 @@ class WDmodel_Posterior(object):
             out += norm.logpdf(fwhm, fwhm0, 8.)
 
             # half-Cauchy on the error scale
-            fsig = self.lnlike.get_parameter('fsig')
+            fsig = self._lnlike.get_parameter('fsig')
             out += halfcauchy.logpdf(fsig, loc=0, scale=3)
 
             # TODO something for tau?
 
             # normal on mu
-            mu  = self.lnlike.get_parameter('mu')
+            mu  = self._lnlike.get_parameter('mu')
             mu0 = self.p0['mu']
             out += norm.logpdf(mu, mu0, 10.)
             return out
@@ -222,5 +241,5 @@ class WDmodel_Posterior(object):
         TODO: Allow the user to specify a custom filename with a function for
         the prior
         """
-        self.lnlike.set_parameter_vector(theta)
+        self._lnlike.set_parameter_vector(theta)
         return self._lnprior()
