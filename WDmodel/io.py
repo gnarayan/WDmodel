@@ -510,12 +510,15 @@ def read_mcmc(input_file):
         chain_params   = {}
         samples        = d['chain']['position'].value
         samples_lnprob = d['chain']['lnprob'].value
-        chain_params['param_names']   = d['chain']['names'].value
-        chain_params['nwalkers']      = d['chain'].attrs['nwalkers']
-        chain_params['nprod']        = d['chain'].attrs['nprod']
-        chain_params['ndim']          = d['chain'].attrs['nparam']
-        chain_params['everyn']        = d['chain'].attrs['everyn']
-        chain_params['ascale']        = d['chain'].attrs['ascale']
+        chain_params['param_names'] = d['chain']['names'].value
+        chain_params['samptype']    = d['chain'].attrs['samptype']
+        chain_params['ntemps']      = d['chain'].attrs['ntemps']
+        chain_params['nwalkers']    = d['chain'].attrs['nwalkers']
+        chain_params['nprod']       = d['chain'].attrs['nprod']
+        chain_params['ndim']        = d['chain'].attrs['nparam']
+        chain_params['everyn']      = d['chain'].attrs['everyn']
+        chain_params['ascale']      = d['chain'].attrs['ascale']
+
 
     except KeyError as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
