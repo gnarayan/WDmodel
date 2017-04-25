@@ -661,9 +661,10 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         # save the chain
         samples = sampler.flatchain
+        samples = samples.reshape(ntemps*nwalkers*nprod, nparam)
         dset_chain  = chain.create_dataset("position",data=samples)
         lnprob = sampler.lnprobability
-        lnprob = lnprob.reshape(ntemps*nwalkers,nprod)
+        lnprob = lnprob.reshape(ntemps*nwalkers*nprod)
         dset_lnprob = chain.create_dataset("lnprob",data=lnprob)
 
     # save the acceptance fraction
