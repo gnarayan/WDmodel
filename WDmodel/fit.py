@@ -1,4 +1,4 @@
-import time
+import sys
 import warnings
 import numpy as np
 import numpy.polynomial.polynomial as poly
@@ -9,6 +9,7 @@ from astropy.constants import c as _C
 import emcee
 import h5py
 from clint.textui import progress
+progress.STREAM = sys.stdout
 from . import io
 from . import pbmodel
 from . import likelihood
@@ -635,45 +636,38 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     # write to disk before we start
     outf.flush()
 
-    # production
-    if pool is None:
-        # run single threaded - create an incrementally saved chain and progress bar
-        dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
-        dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
-        with progress.Bar(label="Production", expected_size=nprod) as bar:
-            for i, result in enumerate(sampler.sample(pos, iterations=nprod, **sampler_kwargs)):
-                position = result[0]
-                lnpost   = result[1]
-                position = position.reshape((-1, nparam))
-                lnpost   = lnpost.reshape(ntemps*nwalkers)
-                dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
-                dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
-                outf.flush()
-                bar.show(i+1)
-    else:
-        # run with MPI
-        start = time.clock()
-        print "Started at : {:f}".format(start)
-        pos, prob, state = sampler.run_mcmc(pos, nprod, **sampler_kwargs)
-        end = time.clock()
-        print "Stopped at : {:f}".format(end)
-        print "Done in {:f} minutes".format((end-start)/60.)
+    # since we're going to save the chain in HDF5, we don't need to save it in memory elsewhere
+    sampler_kwargs['storechain']=False
 
-        # save the chain
-        samples = sampler.flatchain
-        samples = samples.reshape(ntemps*nwalkers*nprod, nparam)
-        dset_chain  = chain.create_dataset("position",data=samples)
-        lnprob = sampler.lnprobability
-        lnprob = lnprob.reshape(ntemps*nwalkers*nprod)
-        dset_lnprob = chain.create_dataset("lnprob",data=lnprob)
+    # production
+    dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
+    dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
+    with progress.Bar(label="Production", expected_size=nprod, hide=False) as bar:
+        bar.show(0)
+        for i, result in enumerate(sampler.sample(pos, iterations=nprod, **sampler_kwargs)):
+            position = result[0]
+            lnpost   = result[1]
+            rstate   = result[2]
+            position = position.reshape((-1, nparam))
+            lnpost   = lnpost.reshape(ntemps*nwalkers)
+            dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
+            dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
+            if (i > 0) & (i%100 == 0):
+                outf.flush()
+            bar.show(i+1)
+        bar.done()
 
     # save the acceptance fraction
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
     if samptype != 'ensemble':
         chain.create_dataset("tswap_afrac", data=sampler.tswap_acceptance_fraction)
 
+    # TODO save the rstate of the chain to allow us to restore state and
+    # increase length of chain if we want
+
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
+    outf.flush()
     outf.close()
     if pool is not None:
         pool.close()
