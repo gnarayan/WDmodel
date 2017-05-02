@@ -1,5 +1,4 @@
 import os
-import shutil
 import warnings
 from copy import deepcopy
 import numpy as np
@@ -282,12 +281,7 @@ def make_outdirs(dirname, redo=False):
     """
     if os.path.isdir(dirname):
         if redo:
-            try:
-                print "--redo specified. REMOVING EXISTING DIRECTORY {} !".format(dirname)
-                shutil.rmtree(dirname)
-            except (OSError, IOError) as e:
-                message = "{}\nOutput directory {} already exists and cannot clobber!".format(e, dirname)
-                raise IOError(message)
+            return
         else:
             message = "Output directory {} already exists. Specify --redo to clobber.".format(dirname)
             raise IOError(message)
