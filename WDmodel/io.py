@@ -1,4 +1,5 @@
 import os
+import shutil
 import warnings
 from copy import deepcopy
 import numpy as np
@@ -152,8 +153,8 @@ def read_model_grid(grid_file=None, grid_name=None):
         try:
             grid = grids[grid_name]
         except KeyError,e:
-            message = '%s\nGrid %s not found in grid_file %s. Accepted values are (%s)'%(e, grid_name, grid_file,\
-                    ','.join(grids.keys()))
+            message = '{}\nGrid {} not found in grid_file {}. Accepted values are ({})'.format(e, grid_name,\
+                    grid_file, ','.join(grids.keys()))
             raise ValueError(message)
 
         wave  = grid['wave'].value.astype('float64')
@@ -252,10 +253,10 @@ def get_phot_for_obj(objname, filename):
 
     nmatch = len(phot[mask])
     if nmatch == 0:
-        message = 'Got no matches for object %s in file %s. Did you want --ignorephot?'%(objname, filename)
+        message = 'Got no matches for object {} in file {}. Did you want --ignorephot?'.format(objname, filename)
         raise RuntimeError(message)
     elif nmatch > 1:
-        message = 'Got multiple matches for object %s in file %s'%(objname, filename)
+        message = 'Got multiple matches for object {} in file {}'.format(objname, filename)
         raise RuntimeError(message)
     else:
         pass
@@ -275,21 +276,30 @@ def get_phot_for_obj(objname, filename):
     return out_phot
 
 
-def make_outdirs(dirname):
+def make_outdirs(dirname, redo=False):
     """
     Checks if output directory exists, else creates it
     """
     if os.path.isdir(dirname):
-        return
+        if redo:
+            try:
+                print "--redo specified. REMOVING EXISTING DIRECTORY {} !".format(dirname)
+                shutil.rmtree(dirname)
+            except (OSError, IOError) as e:
+                message = "{}\nOutput directory {} already exists and cannot clobber!".format(e, dirname)
+                raise IOError(message)
+        else:
+            message = "Output directory {} already exists. Specify --redo to clobber.".format(dirname)
+            raise IOError(message)
 
     try:
         os.makedirs(dirname)
-    except OSError, e:
-        message = '%s\nCould not create outdir %s for writing.'%(e,dirname)
+    except OSError as  e:
+        message = '{}\nCould not create outdir {} for writing.'.format(e,dirname)
         raise OSError(message)
 
 
-def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None):
+def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False):
     """
     Accepts a spectrum filename (and optionally a preset output directory) or
     an output root directory, and determines the objname.
@@ -308,7 +318,7 @@ def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None):
         dirname = os.path.join(outroot, objname, basespec)
     else:
         dirname = outdir
-    make_outdirs(dirname)
+    make_outdirs(dirname, redo=redo)
     return objname, dirname
 
 
@@ -322,7 +332,7 @@ def get_outfile(outdir, specfile, ext, check=False, redo=False):
     outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm', ext)))
     if check:
         if os.path.exists(outfile) and (not redo):
-            message = "Output file %s already exists. Specify --redo to clobber."%outfile
+            message = "Output file {} already exists. Specify --redo to clobber.".format(outfile)
             raise IOError(message)
     return outfile
 

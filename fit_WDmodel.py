@@ -293,7 +293,7 @@ def main(inargs=None, pool=None):
 
 
     # set the object name and create output directories
-    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot)
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot, redo=redo)
     print "Writing to outdir {}".format(outdir)
 
     # parse the parameter keywords in the argparse Namespace into a dictionary
