@@ -420,7 +420,8 @@ def main(inargs=None, pool=None):
                     objname, outdir, specfile,\
                     model, covmodel, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
-                    covtype=covtype, rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
+                    covtype=covtype, rvmodel=rvmodel, balmer=balmer,\
+                    ndraws=ndraws, everyn=everyn, savefig=savefig)
         model_spec, full_mod, model_mags = plot_out
 
         spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')
