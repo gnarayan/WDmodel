@@ -195,7 +195,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
                 marker=None, alpha=0.3, color='orange')
 
     if everyn != 1:
-        ax_spec.plot(spec.wave[::everyn], (smoothedmod+wres)[::everyn], color='blue', marker='o', ls='None',\
+        ax_spec.plot(spec.wave[::everyn], spec.flux[::everyn], color='blue', marker='o', ls='None',\
             alpha=0.5, label='everyn:{:n}'.format(everyn))
         ax_resid.plot(spec.wave[::everyn], (spec.flux-smoothedmod-wres)[::everyn], color='blue', marker='o',\
                 alpha=0.5, ls='None')
@@ -326,7 +326,7 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor,\
 
     if everyn != 1:
         smoothedmod, wres, _, _, _ = draws[-1]
-        ax_spec.plot(spec.wave[::everyn], smoothedmod[::everyn], color='blue', marker='o', ls='None',\
+        ax_spec.plot(spec.wave[::everyn], spec.flux[::everyn], color='blue', marker='o', ls='None',\
                 alpha=0.5, label='everyn:{:n}'.format(everyn))
         ax_resid.plot(spec.wave[::everyn], wres[::everyn], marker='o',  color='blue', ls='None', alpha=0.5)
 
