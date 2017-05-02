@@ -655,7 +655,6 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             if (i > 0) & (i%100 == 0):
                 outf.flush()
             bar.show(i+1)
-        bar.done()
 
     # save the acceptance fraction
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
