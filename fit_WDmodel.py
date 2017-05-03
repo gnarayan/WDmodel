@@ -122,18 +122,24 @@ def get_options(args=None):
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
     mcmc.add_argument('--skipminuit',  required=False, action="store_true", default=False,\
             help="Skip Minuit fit - make sure to specify dl guess")
+    mcmc.add_argument('--samptype', required=False, default='ensemble', choices=('ensemble', 'gibbs', 'pt'),\
+            help='Specify what kind of sampler you want to use')
     mcmc.add_argument('--skipmcmc',  required=False, action="store_true", default=False,\
             help="Skip MCMC - if you skip both minuit and MCMC, simply prepares files")
     mcmc.add_argument('--ascale', required=False, type=float, default=2.0,\
             help="Specify proposal scale for MCMC")
     mcmc.add_argument('--nwalkers',  required=False, type=int, default=300,\
             help="Specify number of walkers to use (0 disables MCMC)")
+    mcmc.add_argument('--ntemps', required=False, type=int, default=1,\
+            help="Specify number of temperatures in ladder for parallel tempering - only available with PTSampler")
     mcmc.add_argument('--nburnin',  required=False, type=int, default=200,\
             help="Specify number of steps for burn-in")
     mcmc.add_argument('--nprod',  required=False, type=int, default=2000,\
             help="Specify number of steps for production")
     mcmc.add_argument('--everyn',  required=False, type=int, default=1,\
             help="Use only every nth point in data for computing likelihood - useful for testing.")
+    mcmc.add_argument('--thin', required=False, type=int, default=1,\
+            help="Save only every nth point in the chain - only works with PTSampler and Gibbs")
     mcmc.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
 
@@ -191,6 +197,14 @@ def get_options(args=None):
         message = 'Number of walkers must be even ({})'.format(args.nwalkers)
         raise ValueError(message)
 
+    if args.ntemps <= 0:
+        message = 'Number of temperatures must be greater than zero ({})'.format(args.ntemps)
+        raise ValueError(message)
+
+    if (args.ntemps > 1) and (args.samptype == 'ensemble'):
+        message = 'Multiple temperatures only available with PTSampler or Gibbs Sampler: ({})'.format(args.ntemps)
+        raise ValueError(message)
+
     if args.nburnin <= 0:
         message = 'Number of burnin steps must be greater than zero ({})'.format(args.nburnin)
         raise ValueError(message)
@@ -205,6 +219,14 @@ def get_options(args=None):
 
     if args.everyn < 1:
         message = 'EveryN must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.everyn)
+        raise ValueError(message)
+
+    if args.thin < 1:
+        message = 'Thin must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.thin)
+        raise ValueError(message)
+
+    if (args.thin > 1) and (args.samptype == 'ensemble'):
+        message = 'Chain thinning only available with PTSampler or Gibbs Sampler: ({})'.format(args.thin)
         raise ValueError(message)
 
     return args
@@ -250,11 +272,14 @@ def main(inargs=None, pool=None):
     tol       = args.hodlr_tol
     nleaf     = args.hodlr_nleaf
 
+    samptype  = args.samptype
     ascale    = args.ascale
+    ntemps    = args.ntemps
     nwalkers  = args.nwalkers
     nburnin   = args.nburnin
     nprod     = args.nprod
     everyn    = args.everyn
+    thin      = args.thin
     redo      = args.redo
 
     discard   = args.discard
@@ -268,7 +293,7 @@ def main(inargs=None, pool=None):
 
 
     # set the object name and create output directories
-    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot)
+    objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot, redo=redo)
     print "Writing to outdir {}".format(outdir)
 
     # parse the parameter keywords in the argparse Namespace into a dictionary
@@ -371,7 +396,9 @@ def main(inargs=None, pool=None):
         result = WDmodel.fit.fit_model(spec, phot, model, covmodel, pbs, migrad_params,\
                     objname, outdir, specfile,\
                     rvmodel=rvmodel, phot_dispersion=phot_dispersion,\
-                    ascale=ascale, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod, everyn=everyn,\
+                    samptype=samptype, ascale=ascale,\
+                    ntemps=ntemps, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod,\
+                    thin=thin, everyn=everyn,\
                     redo=redo,\
                     pool=pool)
 
@@ -380,7 +407,7 @@ def main(inargs=None, pool=None):
 
         # parse the samples in the chain and get the result
         result = WDmodel.fit.get_fit_params_from_samples(param_names, samples, samples_lnprob, mcmc_params,\
-                        nwalkers=nwalkers, nprod=nprod, discard=discard)
+                        ntemps=ntemps, nwalkers=nwalkers, nprod=nprod, discard=discard)
         mcmc_params, in_samp, in_lnprob = result
 
         # write the result to a file
@@ -393,7 +420,8 @@ def main(inargs=None, pool=None):
                     objname, outdir, specfile,\
                     model, covmodel, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
-                    covtype=covtype, rvmodel=rvmodel, balmer=balmer, ndraws=ndraws, savefig=savefig)
+                    covtype=covtype, rvmodel=rvmodel, balmer=balmer,\
+                    ndraws=ndraws, everyn=everyn, savefig=savefig)
         model_spec, full_mod, model_mags = plot_out
 
         spec_model_file = WDmodel.io.get_outfile(outdir, specfile, '_spec_model.dat')

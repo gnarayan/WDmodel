@@ -113,7 +113,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
 
 
 def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmodel, result, param_names, samples,\
-        rvmodel='od94', ndraws=21):
+        rvmodel='od94', ndraws=21, everyn=1):
     """
     Plot the full spectrum of the DA White Dwarf
     """
@@ -189,9 +189,17 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
     ax_resid.fill_between(spec.wave, spec.flux-smoothedmod-wres+spec.flux_err, spec.flux-smoothedmod-wres-spec.flux_err,\
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_resid.plot(spec.wave, spec.flux-smoothedmod-wres,  linestyle='-', marker=None,  color='black')
+
     for draw in out[:-1]:
         ax_resid.plot(spec.wave, draw[0]+draw[1]-smoothedmod-wres, linestyle='-',\
                 marker=None, alpha=0.3, color='orange')
+
+    if everyn != 1:
+        ax_spec.plot(spec.wave[::everyn], spec.flux[::everyn], color='blue', marker='o', ls='None',\
+            alpha=0.5, label='everyn:{:n}'.format(everyn))
+        ax_resid.plot(spec.wave[::everyn], (spec.flux-smoothedmod-wres)[::everyn], color='blue', marker='o',\
+                alpha=0.5, ls='None')
+
     ax_resid.axhline(0., color='red', linestyle='--')
     ax_resid.fill_between(spec.wave, +wres_err, -wres_err,\
         facecolor='red', alpha=0.3, interpolate=True)
@@ -275,7 +283,8 @@ def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
     return fig, mag_draws
 
 
-def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor, cont_model, draws, covtype='ExpSquared'):
+def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor,\
+        cont_model, draws, covtype='ExpSquared', everyn=1):
     """
     Plot the full spectrum of the DA White Dwarf
     """
@@ -314,6 +323,12 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor, cont_mode
     for draw in draws[:-1]:
         plot_draw(draw, color='orange', alpha=0.3)
     plot_draw(draws[-1], color='red', alpha=1.0, label='Model - no Covariance')
+
+    if everyn != 1:
+        smoothedmod, wres, _, _, _ = draws[-1]
+        ax_spec.plot(spec.wave[::everyn], spec.flux[::everyn], color='blue', marker='o', ls='None',\
+                alpha=0.5, label='everyn:{:n}'.format(everyn))
+        ax_resid.plot(spec.wave[::everyn], wres[::everyn], marker='o',  color='blue', ls='None', alpha=0.5)
 
     # label the axes
     ax_resid.set_xlabel('Wavelength~(\AA)',fontproperties=font_m, ha='center')
@@ -459,7 +474,7 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         objname, outdir, specfile,\
         model, covmodel, cont_model, pbs,\
         params, param_names, samples, samples_lnprob,\
-        covtype='White', rvmodel='od94', balmer=None, save=True, ndraws=21, savefig=False):
+        covtype='White', rvmodel='od94', balmer=None, save=True, ndraws=21, everyn=1, savefig=False):
     """
     Plot the full fit of the DA White Dwarf
     """
@@ -472,13 +487,12 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         # plot spectrum and model
         fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor,\
                 model, covmodel, params, param_names, samples,\
-                rvmodel=rvmodel, ndraws=ndraws)
+                rvmodel=rvmodel, ndraws=ndraws, everyn=everyn)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum.pdf')
             fig.savefig(outfile)
         pdf.savefig(fig)
 
-        # TODO - extinction law plot?
         # plot the photometry and residuals if we actually fit it, else skip
         if phot is not None:
             fig, mag_draws = plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws)
@@ -488,7 +502,8 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
             pdf.savefig(fig)
 
         # plot continuum, model and draws without gp
-        fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor, cont_model, draws, covtype=covtype)
+        fig = plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor,\
+                cont_model, draws, covtype=covtype, everyn=everyn)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_nogp.pdf')
             fig.savefig(outfile)

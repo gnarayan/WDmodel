@@ -1,4 +1,4 @@
-import time
+import sys
 import warnings
 import numpy as np
 import numpy.polynomial.polynomial as poly
@@ -9,9 +9,11 @@ from astropy.constants import c as _C
 import emcee
 import h5py
 from clint.textui import progress
+progress.STREAM = sys.stdout
 from . import io
 from . import pbmodel
 from . import likelihood
+from . import mossampler
 
 
 def polyfit_continuum(continuumdata, wave):
@@ -482,7 +484,8 @@ def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
 def fit_model(spec, phot, model, covmodel, pbs, params,\
             objname, outdir, specfile,\
             rvmodel='od94', phot_dispersion=0.,\
-            ascale=2.0, nwalkers=300, nburnin=50, nprod=1000, everyn=1, pool=None,\
+            samptype='ensemble', ascale=2.0,\
+            ntemps=1, nwalkers=300, nburnin=50, nprod=1000, everyn=1, thin=1, pool=None,\
             redo=False):
     """
     Models the spectrum using the white dwarf model and a Gaussian process with
@@ -521,8 +524,10 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     std = [params[x]['scale'] for x in free_param_names]
 
     # create a sample ball
-    pos = emcee.utils.sample_ball(p0, std, size=nwalkers)
+    pos = emcee.utils.sample_ball(p0, std, size=ntemps*nwalkers)
     pos = fix_pos(pos, free_param_names, params)
+    if samptype != 'ensemble':
+        pos = pos.reshape(ntemps, nwalkers, nparam)
 
     if everyn != 1:
         inspec = spec[::everyn]
@@ -537,17 +542,60 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             pixel_scale=pixel_scale, phot_dispersion=phot_dispersion)
 
     # setup the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
-            a=ascale,  pool=pool)
+    if samptype == 'ensemble':
+        sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
+                a=ascale,  pool=pool)
+        thin = 1
+        ntemps = 1
+    else:
+        logpkwargs = {'prior':True}
+        loglkwargs = {'likelihood':True}
+        sampler = mossampler.MOSSampler(ntemps, nwalkers, nparam, lnpost, lnpost,\
+                a=ascale, pool=pool, logpkwargs=logpkwargs, loglkwargs=loglkwargs)
+
+    # use James Guillochon's MOSSampler "gibbs"(-ish) implementation
+    gibbs = False
+    if samptype == 'gibbs':
+        gibbs = True
+    sampler_kwargs = {}
+    if samptype != 'ensemble':
+        inpos = pos.reshape(ntemps*nwalkers, nparam)
+        if pool is None:
+            lnprob0 = map(lnpost, inpos)
+        else:
+            lnprob0 = pool.map(lnpost, inpos)
+
+        lnprob0 = np.array(lnprob0)
+        lnprob0 = lnprob0.reshape(ntemps, nwalkers)
+        sampler_kwargs = {'gibbs':gibbs, 'thin':thin, 'lnprob0':lnprob0}
 
     # do a short burn-in
     print "Burn-in"
-    pos, prob, state = sampler.run_mcmc(pos, nburnin, storechain=False)
+    pos, _,  _ = sampler.run_mcmc(pos, thin*nburnin, **sampler_kwargs)
+
+    # find the MAP position after the burnin
+    samples        = sampler.flatchain
+    samples_lnprob = sampler.lnprobability
+    map_samples        = samples.reshape(ntemps, nwalkers, nburnin, nparam)
+    map_samples_lnprob = samples_lnprob.reshape(ntemps, nwalkers, nburnin)
+    max_ind        = np.argmax(map_samples_lnprob)
+    max_ind        = np.unravel_index(max_ind, (ntemps, nwalkers, nburnin))
+    max_ind        = tuple(max_ind)
+    p1        = map_samples[max_ind]
+
+    # reset the sampler
     sampler.reset()
-    lnlike.set_parameter_vector(pos[np.argmax(prob)])
+
+    lnlike.set_parameter_vector(p1)
     print "\nMAP Parameters after Burn-in"
     for k, v in lnlike.get_parameter_dict().items():
         print "{} = {:f}".format(k,v)
+
+    # adjust the walkers to start around the MAP position from burnin
+    pos = emcee.utils.sample_ball(p1, std, size=ntemps*nwalkers)
+    pos = fix_pos(pos, free_param_names, params)
+    if samptype != 'ensemble':
+        pos = pos.reshape(ntemps, nwalkers, nparam)
 
     # create a HDF5 file to hold the chain data
     outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5',check=True, redo=redo)
@@ -562,6 +610,9 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     chain.attrs["nparam"]=nparam
     chain.attrs["everyn"]=everyn
     chain.attrs["ascale"]=ascale
+    chain.attrs["samptype"] = samptype
+    chain.attrs["ntemps"] = ntemps
+    chain.attrs["thin"] = thin
 
     # save the parameter names corresponding to the chain
     free_param_names = np.array(free_param_names)
@@ -585,48 +636,59 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     # write to disk before we start
     outf.flush()
 
-    # production
-    if pool is None:
-        # run single threaded - create an incrementally saved chain and progress bar
-        dset_chain  = chain.create_dataset("position",(nwalkers*nprod,nparam),maxshape=(None,nparam))
-        dset_lnprob = chain.create_dataset("lnprob",(nwalkers*nprod,),maxshape=(None,))
-        with progress.Bar(label="Production", expected_size=nprod) as bar:
-            for i, result in enumerate(sampler.sample(pos, iterations=nprod)):
-                position = result[0]
-                lnpost   = result[1]
-                dset_chain[nwalkers*i:nwalkers*(i+1),:] = position
-                dset_lnprob[nwalkers*i:nwalkers*(i+1)] = lnpost
-                outf.flush()
-                bar.show(i+1)
-    else:
-        # run with MPI
-        start = time.clock()
-        print "Started at : {:f}".format(start)
-        pos, prob, state = sampler.run_mcmc(pos, nprod)
-        end = time.clock()
-        print "Stopped at : {:f}".format(end)
-        print "Done in {:f} minutes".format((end-start)/60.)
+    # since we're going to save the chain in HDF5, we don't need to save it in memory elsewhere
+    sampler_kwargs['storechain']=False
 
-        # save the chain
-        dset_chain  = chain.create_dataset("position",data=sampler.flatchain)
-        dset_lnprob = chain.create_dataset("lnprob",data=sampler.flatlnprobability)
+    # production
+    dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
+    dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
+    with progress.Bar(label="Production", expected_size=nprod, hide=False) as bar:
+        bar.show(0)
+        for i, result in enumerate(sampler.sample(pos, iterations=nprod, **sampler_kwargs)):
+            position = result[0]
+            lnpost   = result[1]
+            rstate   = result[2]
+            position = position.reshape((-1, nparam))
+            lnpost   = lnpost.reshape(ntemps*nwalkers)
+            dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
+            dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
+            if (i > 0) & (i%100 == 0):
+                outf.flush()
+            bar.show(i+1)
+
+    # save the acceptance fraction
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
+    if samptype != 'ensemble':
+        chain.create_dataset("tswap_afrac", data=sampler.tswap_acceptance_fraction)
+
+    # TODO save the rstate of the chain to allow us to restore state and
+    # increase length of chain if we want
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
+    outf.flush()
     outf.close()
     if pool is not None:
         pool.close()
 
-    lnlike.set_parameter_vector(samples[np.argmax(samples_lnprob)])
+    # find the MAP value after production
+    map_samples = samples.reshape(ntemps, nwalkers, nprod, nparam)
+    map_samples_lnprob = samples_lnprob.reshape(ntemps, nwalkers, nprod)
+    max_ind = np.argmax(map_samples_lnprob)
+    max_ind = np.unravel_index(max_ind, (ntemps, nwalkers, nprod))
+    max_ind = tuple(max_ind)
+    p_final = map_samples[max_ind]
+    lnlike.set_parameter_vector(p_final)
     print "\nMAP Parameters after Production"
+
     for k, v in lnlike.get_parameter_dict().items():
         print "{} = {:f}".format(k,v)
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
     return  free_param_names, samples, samples_lnprob
 
 
-def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nwalkers=300, nprod=1000, discard=5):
+def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
+        ntemps=1, nwalkers=300, nprod=1000, discard=5):
     """
     Get the marginalized parameters from the sample chain
 
@@ -637,6 +699,7 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
         params: dict of parameters with keywords value, fixed, bounds for each
 
         The following keyword arguments should be consistent with the call to fit_model/mpifit_model
+            ntemps: number of temperatures
             nwalkers: number of walkers
             nprod:  number of steps
 
@@ -652,14 +715,15 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params, nw
     """
     ndim = len(param_names)
 
-    in_samp   = samples.reshape(nwalkers, nprod, ndim)
-    in_lnprob = samples_lnprob.reshape(nwalkers, nprod)
+    in_samp   = samples.reshape(ntemps, nwalkers, nprod, ndim)
+    in_lnprob = samples_lnprob.reshape(ntemps, nwalkers, nprod)
 
     # discard the first %discard steps from all the walkers
     nstart    = int(np.ceil((discard/100.)*nprod))
-    in_samp   = in_samp[:,nstart:,:]
-    in_lnprob = in_lnprob[:,nstart:]
+    in_samp   = in_samp[:,:,nstart:,:]
+    in_lnprob = in_lnprob[:,:,nstart:]
 
+    # reflatten
     in_samp = in_samp.reshape((-1, ndim))
     in_lnprob = in_lnprob.reshape(in_samp.shape[0])
 
