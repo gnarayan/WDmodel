@@ -71,6 +71,15 @@
             20000.0
         ]
     },
+    "fw": {
+        "value": 0.0001,
+        "fixed": false,
+        "scale": 0.1,
+        "bounds": [
+            1e-20,
+            1e2
+        ]
+    },
     "mu": {
         "value": null,
         "fixed": false,
