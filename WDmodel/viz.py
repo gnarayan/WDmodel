@@ -146,13 +146,14 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
         fwhm = this_draw['fwhm']['value']
         fsig = this_draw['fsig']['value']
         tau  = this_draw['tau']['value']
+        fw   = this_draw['fw']['value']
 
         mod, full_mod = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
                 rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
         smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
 
         res = spec.flux - smoothedmod
-        wres, cov = covmodel.predict(spec.wave, res, spec.flux_err, fsig, tau)
+        wres, cov = covmodel.predict(spec.wave, res, spec.flux_err, fsig, tau, fw)
         ax_spec.plot(spec.wave, smoothedmod+wres,\
                 color=color, linestyle='-',marker='None', alpha=alpha, label=label)
         out_draw = io.copy_params(this_draw)
