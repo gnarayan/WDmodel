@@ -375,7 +375,9 @@ def main(inargs=None, pool=None):
     errscale = np.median(spec.flux_err)
     covmodel = WDmodel.covmodel.WDmodel_CovModel(errscale, covtype, nleaf, tol, usehodlr)
     if covtype == 'White':
-        migrad_params['tau']['fixed'] = True
+        migrad_params['fsig']['value'] = 0.
+        migrad_params['fsig']['fixed'] = True
+        migrad_params['tau']['fixed']  = True
 
     # If we don't have a user supplied initial guess of mu, get a guess
     migrad_params = WDmodel.fit.hyper_param_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
