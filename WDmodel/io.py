@@ -228,8 +228,14 @@ def read_spec(filename, **kwargs):
     Removes any NaN entries (any column)
     """
     spec = _read_ascii(filename, **kwargs)
-    ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))
-    spec = spec[ind]
+    if np.any(~np.isfinite(spec.wave)) or np.any(~np.isfinite(spec.flux)) or np.any(~np.isfinite(spec.flux_err)):
+        message = "Spectroscopy values and uncertainties must be finite."
+        raise ValueError(message)
+
+    if np.any(spec.flux_err <= 0.) or np.any(spec.flux <= 0.):
+        message = "Spectroscopy values uncertainties must all be positive."
+        raise ValueError(message)
+
     return spec
 
 
@@ -270,6 +276,14 @@ def get_phot_for_obj(objname, filename):
     pbnames = np.array(pbnames)
     mags    = np.array(mags)
     errs    = np.array(errs)
+
+    if np.any(~np.isfinite(mags)) or np.any(~np.isfinite(errs)):
+        message = "Photometry values and uncertainties must be finite."
+        raise ValueError(message)
+
+    if np.any(errs <= 0.):
+        message = "Photometry uncertainties must all be positive."
+        raise ValueError(message)
 
     out_phot = np.rec.fromarrays([pbnames, mags, errs],names='pb,mag,mag_err')
     return out_phot
