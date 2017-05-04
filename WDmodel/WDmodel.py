@@ -27,8 +27,8 @@ class WDmodel(object):
         lno     = [   1    ,   2     ,    3     ,    4    ,   5      ,  6      ]
         lines   = ['alpha' , 'beta'  , 'gamma'  , 'delta' , 'zeta'   , 'eta'   ]
         H       = [6562.857, 4861.346, 4340.478 ,4101.745 , 3970.081 , 3889.056]
-        D       = [ 130.0  ,  170.0  ,  125.0   ,  75.0   ,  50.0    ,  27.0   ]
-        eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,   5.0    ,   3.0   ]
+        D       = [ 130.0  ,  170.0  ,  125.0   ,  75.0   ,   50.0   ,   27.0  ]
+        eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,    5.0   ,    3.0  ]
         self._lines = dict(zip(lno, zip(lines, H, D, eps)))
         # we're passing grid_file so we know which model to init
         self._fwhm_to_sigma = np.sqrt(8.*np.log(2.))

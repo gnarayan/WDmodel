@@ -605,14 +605,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     chain = outf.create_group("chain")
 
     # save some other attributes about the chain
-    chain.attrs["nwalkers"]=nwalkers
-    chain.attrs["nprod"]=nprod
-    chain.attrs["nparam"]=nparam
-    chain.attrs["everyn"]=everyn
-    chain.attrs["ascale"]=ascale
+    chain.attrs["nwalkers"] = nwalkers
+    chain.attrs["nprod"]    = nprod
+    chain.attrs["nparam"]   = nparam
+    chain.attrs["everyn"]   = everyn
+    chain.attrs["ascale"]   = ascale
     chain.attrs["samptype"] = samptype
-    chain.attrs["ntemps"] = ntemps
-    chain.attrs["thin"] = thin
+    chain.attrs["ntemps"]   = ntemps
+    chain.attrs["thin"]     = thin
 
     # save the parameter names corresponding to the chain
     free_param_names = np.array(free_param_names)
