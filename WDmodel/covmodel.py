@@ -17,8 +17,11 @@ class WDmodel_CovModel(object):
             hyperparameter fsig is reported as a fraction of this number
             covtype: type of covariance model
                 choices are White, ExpSquared, Matern32, Matern52, Exp
-                All choices except White are represented by two paramters -
-                fsig, and a length scale, tau
+
+                All choices except White are represented by three paramters -
+                fsig, tau, fw: the kernel hyperparameters defining the amplitude and
+                    scale of the stationary kernel, and the white noise
+                White just uses fw
 
         These options are only used if usehodlr is set
             nleaf: mimimum matrix block size for the HODLR solver
@@ -48,10 +51,11 @@ class WDmodel_CovModel(object):
         print message
 
         # configure the kernel
-        self._ndim = 2
-        self._k1   = george.kernels.ConstantKernel
+        self._ndim = 3
+        self._k1   = george.kernels.ConstantKernel # amplitude of the covariance kernel
+        self._k3   = george.kernels.ConstantKernel # amplitude of the white noise kernel 
         if covtype == 'White':
-            self._k1 = george.kernels.WhiteKernel
+            self._k1 = None
             self._k2 = None
             self._ndim = 1
         elif covtype == 'ExpSquared':
@@ -67,7 +71,7 @@ class WDmodel_CovModel(object):
             raise RuntimeError(message)
 
 
-    def lnlikelihood(self, wave, res, flux_err, fsig, tau):
+    def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw):
         """
         Return the lnlikelihood given the data, model and hyperparameters
         Accepts
@@ -75,17 +79,17 @@ class WDmodel_CovModel(object):
             res: the residuals between flux and the model flux
             flux_err: the uncertainty on the flux measurements - added to the
             diagonal of the covariance matrix
-            fsig, tau: the kernel hyperparameters defining the amplitude and
-            scale of the stationary kernel
+            fsig, tau, fw: the kernel hyperparameters defining the amplitude and
+            scale of the stationary kernel, and the white noise
         """
-        gp = self.getgp(wave, flux_err, fsig, tau)
+        gp = self.getgp(wave, flux_err, fsig, tau, fw)
         # TODO - we should probably add a factor based on tau here as well
         if ((fsig*self._errscale)**2. < 10.*self._tol):
             return -np.inf
         return gp.lnlikelihood(res, quiet=True)
 
 
-    def predict(self, wave, res, flux_err, fsig, tau, mean_only=False):
+    def predict(self, wave, res, flux_err, fsig, tau, fw, mean_only=False):
         """
         Return the prediction for residuals given the data, model and hyperparameters
         Accepts
@@ -93,18 +97,18 @@ class WDmodel_CovModel(object):
             res: the residuals between flux and the model flux
             flux_err: the uncertainty on the flux measurements - added to the
             diagonal of the covariance matrix
-            fsig, tau: the kernel hyperparameters defining the amplitude and
-            scale of the stationary kernel
+            fsig, tau, fw: the kernel hyperparameters defining the amplitude and
+            scale of the stationary kernel, and the white noise
         Returns
             wres: array of the predicted residuals
             cov: the full covariance matrix of the observations
 
         """
-        gp = self.getgp(wave, flux_err, fsig, tau)
+        gp = self.getgp(wave, flux_err, fsig, tau, fw)
         return gp.predict(res, wave, mean_only)
 
 
-    def optimize(self, wave, res, flux_err, fsig, tau, bounds, dims=None):
+    def optimize(self, wave, res, flux_err, fsig, tau, fw, bounds, dims=None):
         """
         Optimize the kernel hyperparameters given the data The george
         documentation describes the call to optimize as "not terribly robust"
@@ -114,8 +118,8 @@ class WDmodel_CovModel(object):
             res: the residuals between flux and the model flux
             flux_err: the uncertainty on the flux measurements - added to the
             diagonal of the covariance matrix
-            fsig, tau: the kernel hyperparameters defining the amplitude and
-            scale of the stationary kernel
+            fsig, tau, fw: the kernel hyperparameters defining the amplitude and
+            scale of the stationary kernel, and the white noise
             bounds: sequence of tuples with lower, upper bounds for each parameter
             dims: (optional) array of parameter indices to optimize
         Returns
@@ -123,12 +127,12 @@ class WDmodel_CovModel(object):
             result: scipy.optimize.minimze object
 
         """
-        gp = self.getgp(wave, flux_err, fsig, tau)
+        gp = self.getgp(wave, flux_err, fsig, tau, fw)
         pars, result = gp.optimize(wave, res, flux_err, dims=dims, sort=False, verbose=True)
         return pars, result
 
 
-    def getgp(self, wave, flux_err, fsig, tau):
+    def getgp(self, wave, flux_err, fsig, tau, fw):
         """
         Returns the GP object, given the locations of the model observation
         locations, uncertainties, and the hyperparameters
@@ -136,15 +140,14 @@ class WDmodel_CovModel(object):
             wave: the wavelength array
             flux_err: the uncertainty on the flux measurements - added to the
             diagonal of the covariance matrix
-            fsig, tau: the kernel hyperparameters defining the amplitude and
-            scale of the stationary kernel
+            fsig, tau, fw: the kernel hyperparameters defining the amplitude and
+            scale of the stationary kernel, and the white noise
         Returns
             gp: the george GP object
         """
-        if self._ndim == 1:
-            kernel = self._k1((fsig*self._errscale)**2.)
-        else:
-            kernel = self._k1((fsig*self._errscale)**2.)*self._k2(tau)
+        kernel = self._k3((fw*self._errscale)**2.)
+        if self._ndim != 1:
+            kernel = self._k1((fsig*self._errscale)**2.)*self._k2(tau) + kernel
         gp = GP(kernel, mean=0., solver=self._solver, **self._solverkwargs)
         gp.compute(wave, flux_err, sort=False, **self._computekwargs)
         return gp
