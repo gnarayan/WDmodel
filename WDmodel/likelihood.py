@@ -74,7 +74,7 @@ class WDmodel_Likelihood(Model):
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
-        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau) - (phot_chi/2.)
+        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau, self.fw) - (phot_chi/2.)
 
 
 class WDmodel_Posterior(object):
@@ -98,10 +98,11 @@ class WDmodel_Posterior(object):
             Schlafly et al from PS1 - note that they report 3.31, but they aren't
             really measuring E(B-V) with PS1. Their sigma should be consistent despite
             the different filter set.
-        - the prior on fsig is half-Cauchy since we don't want it to be less than zero
+        - the prior on fsig, fw is half-Cauchy since we don't want it to be less than zero
             there's also a cutoff to prevent it from getting too close to zero,
             where the covariance matrix becomes non-inertvible with the
             approximate solver
+            (TODO: check if we still need this with fw)
         - there is no prior on tau (i.e. a flat prior). TODO.
         - fwhm has a cut on value below which the spectrum isn't being convolved anymore
             if the fwhm is that low, then we would need a higher resolution grid...
@@ -115,15 +116,15 @@ class WDmodel_Posterior(object):
     Call returns the sum of log likelihood and log prior - the log posterior
     """
     def __init__(self, spec, phot, model, covmodel, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
-        self.spec    = spec
+        self.spec      = spec
         self.wavescale = spec.wave.ptp()
-        self.phot    = phot
-        self.model   = model
-        self.covmodel= covmodel
-        self.rvmodel = rvmodel
-        self.pbs     = pbs
-        self._lnlike  = lnlike
-        self.pixscale= pixel_scale
+        self.phot      = phot
+        self.model     = model
+        self.covmodel  = covmodel
+        self.rvmodel   = rvmodel
+        self.pbs       = pbs
+        self._lnlike   = lnlike
+        self.pixscale  = pixel_scale
         self.phot_dispersion = phot_dispersion
         init_p0 = lnlike.get_parameter_dict(include_frozen=True)
         self.p0 = init_p0
@@ -219,11 +220,12 @@ class WDmodel_Posterior(object):
             fwhm0 = self.p0['fwhm']
             out += norm.logpdf(fwhm, fwhm0, 8.)
 
-            # half-Cauchy on the error scale
+            # half-Cauchy on the kernel amplitudes (both stationary and white)
             fsig = self._lnlike.get_parameter('fsig')
             out += halfcauchy.logpdf(fsig, loc=0, scale=3)
 
-            # TODO something for tau?
+            fw = self._lnlike.get_parameter('fw')
+            out += halfcauchy.logpdf(fw, loc=0, scale=3)
 
             # normal on mu
             mu  = self._lnlike.get_parameter('mu')
