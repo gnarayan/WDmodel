@@ -36,8 +36,7 @@ def get_options(args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,\
                     parents=[conf_parser],\
                     description=__doc__,\
-                    epilog="If running fit_WDmodel.py with MPI using mpirun,\
-                    mpi must be the first argument, and -np must be at least 2.")
+                    epilog="If running fit_WDmodel.py with MPI using mpirun, -np must be at least 2.")
 
     # create a couple of custom types to use with the parser
     # this type exists to make a quasi bool type instead of store_false/store_true
@@ -57,7 +56,8 @@ def get_options(args=None):
     parser.register('type','NoneOrFloat',NoneOrFloat)
 
     # multiprocessing options
-    mproc = parser.add_mutually_exclusive_group()
+    parallel = parser.add_argument_group('parallel', 'Parallel processing options')
+    mproc = parallel.add_mutually_exclusive_group()
     mproc.add_argument("--ncores", dest="n_cores", default=1,
                        type=int, help="Number of processes (uses multiprocessing).")
     mproc.add_argument("--mpi", dest="mpi", default=False,
