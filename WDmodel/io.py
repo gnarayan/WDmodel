@@ -1,5 +1,6 @@
 import sys
 import os
+from emcee.utils import MPIPool
 import schwimmbad
 import argparse
 import warnings
@@ -64,7 +65,6 @@ def get_options(args=None):
                        action="store_true", help="Run with MPI.")
 
     # spectrum options
-
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
 
     spectrum.add_argument('--specfile', required=True, \
@@ -242,13 +242,14 @@ def get_options(args=None):
         message = 'Chain thinning only available with PTSampler or Gibbs Sampler: ({})'.format(args.thin)
         raise ValueError(message)
 
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
     # Wait for instructions from the master process if we are running MPI
     if args.mpi:
+        pool = MPIPool()
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
-
+    else:
+        pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
     return args, pool
 
 
