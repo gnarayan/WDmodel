@@ -10,7 +10,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.font_manager import FontProperties as FM
 from astropy.visualization import hist
 from . import io
-from . import pbmodel
+from . import passband
 import corner
 #from matplotlib import rc
 #rc('text', usetex=True)
@@ -234,7 +234,7 @@ def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
     def plot_draw(draw, color='red', alpha=1.0, label=None, linestyle='None'):
         _, _, _, model_spec, params = draw
         mu = params['mu']['value']
-        model_mags = pbmodel.get_model_synmags(model_spec, pbs, mu=mu)
+        model_mags = passband.get_model_synmags(model_spec, pbs, mu=mu)
         ax_phot.plot(refwave, model_mags.mag, color=color, alpha=alpha, marker='o', label=label, linestyle=linestyle)
         res = phot.mag - model_mags.mag
         return res, model_mags, mu

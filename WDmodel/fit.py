@@ -11,7 +11,7 @@ import h5py
 from clint.textui import progress
 progress.STREAM = sys.stdout
 from . import io
-from . import pbmodel
+from . import passband
 from . import likelihood
 from . import mossampler
 
@@ -472,7 +472,7 @@ def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
     if params['mu']['value'] is None or (not params['mu']['fixed']):
         # get the median between observed and model mags for the minuit model
         if phot is not None:
-            model_mags = pbmodel.get_model_synmags(model_spec, pbs)
+            model_mags = passband.get_model_synmags(model_spec, pbs)
             mu0_guess  = np.median(phot.mag - model_mags.mag)
         else:
             mu0_guess = 0.

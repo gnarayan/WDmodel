@@ -2,7 +2,7 @@ import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm, halfcauchy
 from . import io
-from .pbmodel import get_model_synmags
+from .passband import get_model_synmags
 
 
 def setup_likelihood(params):
