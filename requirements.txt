@@ -4,7 +4,6 @@ matplotlib==2.0.1
 scipy==0.18.0
 pysynphot==0.9.8.6
 clint==0.5.1
-schwimmbad==0.2.1
 george==0.2.1
 emcee==2.2.1
 astropy==1.3.2

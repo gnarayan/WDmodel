@@ -1,7 +1,6 @@
 import sys
 import os
 from emcee.utils import MPIPool
-import schwimmbad
 import argparse
 import warnings
 from copy import deepcopy
@@ -59,10 +58,10 @@ def get_options(args=None):
     # multiprocessing options
     parallel = parser.add_argument_group('parallel', 'Parallel processing options')
     mproc = parallel.add_mutually_exclusive_group()
-    mproc.add_argument("--ncores", dest="n_cores", default=1,
-                       type=int, help="Number of processes (uses multiprocessing).")
     mproc.add_argument("--mpi", dest="mpi", default=False,
                        action="store_true", help="Run with MPI.")
+    mproc.add_argument("--mpil", dest="mpil", default=False,
+                       action="store_true", help="Run with MPI and enable loadbalancing.")
 
     # spectrum options
     spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
@@ -243,13 +242,13 @@ def get_options(args=None):
         raise ValueError(message)
 
     # Wait for instructions from the master process if we are running MPI
-    if args.mpi:
-        pool = MPIPool()
+    pool = None
+    if args.mpi or args.mpil:
+        pool = MPIPool(loadbalance=args.mpil, debug=False)
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
-    else:
-        pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
+
     return args, pool
 
 
