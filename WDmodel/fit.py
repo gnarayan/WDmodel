@@ -570,8 +570,10 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         sampler_kwargs = {'gibbs':gibbs, 'thin':thin, 'lnprob0':lnprob0}
 
     # do a short burn-in
-    print "Burn-in"
-    pos, _,  _ = sampler.run_mcmc(pos, thin*nburnin, **sampler_kwargs)
+    with progress.Bar(label="Burn-in", expected_size=thin*nburnin, hide=False) as bar:
+        bar.show(0)
+        for i, result in enumerate(sampler.sample(pos, iterations=thin*nburnin, **sampler_kwargs)):
+            bar.show(i+1)
 
     # find the MAP position after the burnin
     samples        = sampler.flatchain
@@ -642,17 +644,17 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     # production
     dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
     dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
-    with progress.Bar(label="Production", expected_size=nprod, hide=False) as bar:
+    with progress.Bar(label="Production", expected_size=thin*nprod, hide=False) as bar:
         bar.show(0)
-        for i, result in enumerate(sampler.sample(pos, iterations=nprod, **sampler_kwargs)):
+        for i, result in enumerate(sampler.sample(pos, iterations=thin*nprod, **sampler_kwargs)):
             position = result[0]
             lnpost   = result[1]
-            rstate   = result[2]
             position = position.reshape((-1, nparam))
             lnpost   = lnpost.reshape(ntemps*nwalkers)
             dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
             dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
             if (i > 0) & (i%100 == 0):
+                rstate   = result[2]
                 outf.flush()
             bar.show(i+1)
 
