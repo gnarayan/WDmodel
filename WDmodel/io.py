@@ -84,7 +84,7 @@ def get_options(args=None):
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
 
     # photometry options
-    reddeninglaws = ('od94', 'ccm89', 'gcc09', 'f99', 'fm07', 'wd01', 'd03')
+    reddeninglaws = ('od94', 'ccm89', 'f99')
     phot = parser.add_argument_group('photometry', 'Photometry options')
     phot.add_argument('--photfile', required=False,  default="data/photometry/WDphot_C22.dat",\
             help="Specify file containing photometry lookup table for objects")
@@ -397,8 +397,8 @@ def read_model_grid(grid_file=None, grid_name=None):
             raise ValueError(message)
 
         wave  = grid['wave'].value.astype('float64')
-        ggrid = grid['ggrid'].value
-        tgrid = grid['tgrid'].value
+        ggrid = grid['ggrid'].value.astype('float64')
+        tgrid = grid['tgrid'].value.astype('float64')
         flux  = grid['flux'].value.astype('float64')
 
     return grid_file, grid_name, wave, ggrid, tgrid, flux
