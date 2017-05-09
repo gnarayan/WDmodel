@@ -77,11 +77,10 @@ A more reasonable way to run things fast is to use mpi.
 
 
 ### Run as an MPI process:
-* `mpirun -np 8 fit_WDmodel.py mpi --specfile=file.flm [--ignorephot]`
+* `mpirun -np 8 fit_WDmodel.py --mpi --specfile=file.flm [--ignorephot]`
 
-Note that `mpi` __MUST__ be the first option after `fit_WDmodel.py` and you
-must start the process with `mpirun`
-
+Note that `--mpi` __MUST__ be specified in the options to `fit_WDmodel.py` and
+you must start the process with `mpirun`
 ______
 
 ## Notes from installing on the Odyssey cluster at Harvard
