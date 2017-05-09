@@ -1,9 +1,10 @@
 import warnings
 import numpy as np
 from . import io
+from . import _interpolate3d
 import scipy.interpolate as spinterp
 from astropy import units as u
-from specutils.extinction import reddening
+import extinction
 from scipy.ndimage.filters import gaussian_filter1d
 
 
@@ -17,7 +18,7 @@ class WDmodel(object):
     internal use, and do not have the sanity checking of the public methods.
     """
 
-    def __init__(self, grid_file=None, grid_name=None):
+    def __init__(self, grid_file=None, grid_name=None, rvmodel='od94'):
         """
         constructs a white dwarf model atmosphere object
         Virtually none of the attributes should be used directly
@@ -27,12 +28,13 @@ class WDmodel(object):
         lno     = [   1    ,   2     ,    3     ,    4    ,   5      ,  6      ]
         lines   = ['alpha' , 'beta'  , 'gamma'  , 'delta' , 'zeta'   , 'eta'   ]
         H       = [6562.857, 4861.346, 4340.478 ,4101.745 , 3970.081 , 3889.056]
-        D       = [ 130.0  ,  170.0  ,  125.0   ,  75.0   ,  50.0    ,  27.0   ]
-        eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,   5.0    ,   3.0   ]
+        D       = [ 130.0  ,  170.0  ,  125.0   ,  75.0   ,   50.0   ,   27.0  ]
+        eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,    5.0   ,    3.0  ]
         self._lines = dict(zip(lno, zip(lines, H, D, eps)))
         # we're passing grid_file so we know which model to init
         self._fwhm_to_sigma = np.sqrt(8.*np.log(2.))
         self.__init__tlusty(grid_file=grid_file)
+        self.__init__rvmodel(rvmodel=rvmodel)
 
 
     def __init__tlusty(self, grid_file=None, grid_name=None):
@@ -43,13 +45,61 @@ class WDmodel(object):
 
         ingrid = io.read_model_grid(grid_file, grid_name)
         self._grid_file, self._grid_name, self._wave, self._ggrid, self._tgrid, self._flux = ingrid
+        self._lwave = np.log10(self._wave, dtype=np.float64)
+        self._lflux  = np.log10(self._flux.T)
+        self._ntemp = len(self._tgrid)
+        self._ngrav = len(self._ggrid)
+        self._nwave = len(self._wave)
 
         # pre-init the interpolation and do it in log-space
         # note that we do the interpolation in log-log
         # this is because the profiles are linear, redward of the Balmer break in log-log
         # and the regular grid interpolator is just doing linear interpolation under the hood
         self._model = spinterp.RegularGridInterpolator((self._tgrid, self._ggrid),\
-                np.log10(self._flux.T))
+                self._lflux)
+
+
+    def __init__rvmodel(self, rvmodel='od94'):
+        if rvmodel == 'ccm89':
+            self._law = extinction.ccm89
+        elif rvmodel == 'od94':
+            self._law = extinction.odonnell94
+        elif rvmodel == 'f99':
+            self._law = extinction.fitzpatrick99
+        else:
+            message = 'Unknown reddening law {}'.format(rvmodel)
+            raise ValueError(message)
+
+
+    def extinction(self, wave, av, rv=3.1):
+        """ Return the extinction for Av, Rv at wavelengths wave (Angstrom)"""
+        return self._law(wave, av, rv, unit='aa')
+
+
+    def reddening(self, wave, flux, av, rv=3.1):
+        """ Apply extinction Av, Rv to flux values flux at wavelengths wave (Angstrom) in place"""
+        return extinction.apply(self.extinction(wave, av, rv), flux, inplace=True)
+
+
+    def _get_model_cython(self, teff, logg, wave, log=False):
+        """
+        Returns the model flux given temperature and logg at wavelengths wave
+        """
+        nwave = len(wave)
+        t     = np.tile(teff, nwave)
+        g     = np.tile(logg, nwave)
+        lwave = np.log10(wave)
+        out   = np.empty(nwave, dtype=np.float64)
+        _interpolate3d.interpolate3d(nwave,
+                                 t, g, lwave,
+                                 self._ntemp, self._tgrid,
+                                 self._ngrav, self._ggrid,
+                                 self._nwave, self._lwave,
+                                 self._lflux,
+                                 out)
+        if log:
+            return out
+        return (10.**out)
 
 
     def _get_model(self, teff, logg, wave, log=False):
@@ -64,31 +114,29 @@ class WDmodel(object):
         return (10.**out)
 
 
-    def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False, rvmodel='od94'):
+    def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False):
         """
-        Returns the reddened model flux given teff, logg, av, rv, rvmodel, and
+        Returns the reddened model flux given teff, logg, av, rv and
         wavelengths
         """
         mod = self._get_model(teff, logg, wave, log=log)
-        bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             mod = 10.**mod
-        mod/=bluening
+        mod = self.reddening(wave, mod, av, rv=rv)
         if log:
             mod = np.log10(mod)
         return mod
 
 
-    def _get_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, rvmodel='od94', pixel_scale=1.):
+    def _get_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, pixel_scale=1.):
         """
-        Returns the observed model flux given teff, logg, av, rv, rvmodel, fwhm
+        Returns the observed model flux given teff, logg, av, rv, fwhm
         (for Gaussian instrumental broadening) and wavelengths
         """
         mod = self._get_model(teff, logg, wave, log=log)
-        bluening = reddening(wave*u.Angstrom, av, r_v=rv, model=rvmodel)
         if log:
             mod = 10.**mod
-        mod/=bluening
+        mod = self.reddening(wave, mod, av, rv=rv)
         gsig = fwhm/self._fwhm_to_sigma * pixel_scale
         mod = gaussian_filter1d(mod, gsig, order=0, mode='nearest')
         if log:
@@ -96,18 +144,14 @@ class WDmodel(object):
         return mod
 
 
-    def _get_full_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, rvmodel='od94', pixel_scale=1.):
+    def _get_full_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, pixel_scale=1.):
         """
         Convenience function that does the same thing as _get_obs_model, but
         also returns the full SED without any instrumental broadening applied
         """
-        xi = (teff, logg)
-        mod = self._model(xi)
-        mod = 10.**mod
-        bluening = reddening(self._wave*u.Angstrom, av, r_v=rv, model=rvmodel)
-        mod/=bluening
+        mod = self._get_model(teff, logg, self._wave)
+        mod = self.reddening(self._wave, mod, av, rv=rv)
         omod = np.interp(wave, self._wave, np.log10(mod))
-        omod = 10.**omod
         gsig = fwhm/self._fwhm_to_sigma * pixel_scale
         omod = gaussian_filter1d(omod, gsig, order=0, mode='nearest')
         if log:
@@ -176,17 +220,17 @@ class WDmodel(object):
         outwave = wave[((wave >= self._wave.min()) & (wave <= self._wave.max()))]
 
         if len(outwave) > 0:
-            outflux = self._get_model(teff, logg, wave, log=log)
+            outflux = self._get_model(teff, logg, outwave, log=log)
             return outwave, outflux
         else:
             message = 'No valid wavelengths'
             raise ValueError(message)
 
 
-    def get_red_model(self, teff, logg, av, rv=3.1, rvmodel='od94', wave=None, log=False, strict=True):
+    def get_red_model(self, teff, logg, av, rv=3.1, wave=None, log=False, strict=True):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
-        reddening law "rvmodel" at wavelengths wave If not specified,
+        the reddening law at wavelengths wave If not specified,
         wavelengths are from 3000-9000A Applies reddening that is specified to
         the spectrum (the model has no reddening by default)
 
@@ -197,20 +241,20 @@ class WDmodel(object):
         modwave, modflux = self.get_model(teff, logg, wave=wave, log=log, strict=strict)
         av = float(av)
         rv = float(rv)
-        bluening = reddening(modwave*u.Angstrom, av, r_v=rv, model=rvmodel)
+
         if log:
             modflux = 10.**modflux
-        modflux/=bluening
+        modflux = self.reddening(modwave, modflux, av, rv=rv)
         if log:
             modflux = np.log10(modflux)
         return modwave, modflux
 
 
-    def get_obs_model(self, teff, logg, av, fwhm, rv=3.1, rvmodel='od94', wave=None,\
+    def get_obs_model(self, teff, logg, av, fwhm, rv=3.1, wave=None,\
             log=False, strict=True, pixel_scale=1.):
         """
         Returns the model (wavelength and flux) for some teff, logg av, rv with
-        reddening law "rvmodel" at wavelengths wave If not specified,
+        the reddening law at wavelengths wave If not specified,
         wavelengths are from 3000-9000A Applies reddening that is specified to
         the spectrum (the model has no reddening by default)
 
@@ -218,7 +262,7 @@ class WDmodel(object):
         need the model repeatedly for slightly different parameters, use
         _get_obs_model directly
         """
-        modwave, modflux = self.get_red_model(teff, logg, av, rv=rv, rvmodel=rvmodel,\
+        modwave, modflux = self.get_red_model(teff, logg, av, rv=rv,\
                 wave=wave, log=log, strict=strict)
         if log:
             modflux = 10.**modflux

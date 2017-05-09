@@ -1,4 +1,7 @@
+import sys
 import os
+from emcee.utils import MPIPool
+import argparse
 import warnings
 from copy import deepcopy
 import numpy as np
@@ -9,7 +12,244 @@ import json
 import h5py
 
 # Declare this tuple to init the likelihood model, and to preserve order of parameters
-_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "mu")
+_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw", "mu")
+
+
+def get_options(args=None):
+    """
+    Get command line options for the WDmodel fitter
+    """
+
+    # create a config parser that will take a single option - param file
+    conf_parser = argparse.ArgumentParser(add_help=False)
+
+    # config options - this lets you specify a parameter configuration file,
+    # set the default parameters values from it, and override them later as needed
+    # if not supplied, it'll use the default parameter file included in the package
+    conf_parser.add_argument("--param_file", required=False, default=None,\
+            help="Specify parameter config JSON file")
+
+    args, remaining_argv = conf_parser.parse_known_args(args)
+    params = read_params(param_file=args.param_file)
+
+    # now that we've gotten the param_file and the params (either custom, or default), create the parse
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,\
+                    parents=[conf_parser],\
+                    description=__doc__,\
+                    epilog="If running fit_WDmodel.py with MPI using mpirun, -np must be at least 2.")
+
+    # create a couple of custom types to use with the parser
+    # this type exists to make a quasi bool type instead of store_false/store_true
+    def str2bool(v):
+        return v.lower() in ("yes", "true", "t", "1")
+
+    # this type exists for parameters where we can't or don't really want the
+    # user to guess a default value - better to make a guess internally than
+    # have a bad  starting point
+    def NoneOrFloat(v):
+        if v.lower() in ("none", "null", "nan"):
+            return None
+        else:
+            return float(v)
+
+    parser.register('type','bool',str2bool)
+    parser.register('type','NoneOrFloat',NoneOrFloat)
+
+    # multiprocessing options
+    parallel = parser.add_argument_group('parallel', 'Parallel processing options')
+    mproc = parallel.add_mutually_exclusive_group()
+    mproc.add_argument("--mpi", dest="mpi", default=False,
+                       action="store_true", help="Run with MPI.")
+    mproc.add_argument("--mpil", dest="mpil", default=False,
+                       action="store_true", help="Run with MPI and enable loadbalancing.")
+
+    # spectrum options
+    spectrum = parser.add_argument_group('spectrum', 'Spectrum options')
+
+    spectrum.add_argument('--specfile', required=True, \
+            help="Specify spectrum to fit")
+    spectrum.add_argument('--spectable', required=False,  default="data/spectroscopy/spectable_resolution.dat",\
+            help="Specify file containing a fwhm lookup table for specfile")
+    spectrum.add_argument('--lamshift', required=False, type=float, default=0.,\
+            help="Specify a flat wavelength shift in Angstrom to fix  slit centering errors")
+    spectrum.add_argument('--vel', required=False, type=float, default=0.,\
+            help="Specify a velocity shift in kmps to apply to the spectrum")
+    spectrum.add_argument('--trimspec', required=False, nargs=2, default=(None,None),
+                type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
+    spectrum.add_argument('--rebin',  required=False, type=int, default=1,\
+            help="Rebin the spectrum by an integer factor. Output wavelengths remain uncorrelated.")
+    spectrum.add_argument('--rescale',  required=False, action="store_true", default=False,\
+            help="Rescale the spectrum to make the noise ~1. Changes the value, bounds, scale on dl also")
+    spectrum.add_argument('--blotch', required=False, action='store_true',\
+            default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
+
+    # photometry options
+    reddeninglaws = ('od94', 'ccm89', 'f99')
+    phot = parser.add_argument_group('photometry', 'Photometry options')
+    phot.add_argument('--photfile', required=False,  default="data/photometry/WDphot_C22.dat",\
+            help="Specify file containing photometry lookup table for objects")
+    phot.add_argument('--reddeningmodel', required=False, choices=reddeninglaws, default='od94',\
+            help="Specify functional form of reddening law" )
+    phot.add_argument('--phot_dispersion', required=False, type=float, default=0.003,\
+            help="Specify a flat photometric dispersion error in mag to add in quadrature to the measurement errors")
+    phot.add_argument('--excludepb', nargs='+',\
+            help="Specify passbands to exclude" )
+    phot.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
+            help="Ignores missing photometry and does the fit with just the spectrum")
+
+    # fitting options
+    model = parser.add_argument_group('model',\
+            'Model options. Modify using --param_file or CL. CL overrides. Caveat emptor.')
+    for param in params:
+        # we can't reasonably expect a user supplied guess or a static value to
+        # work for some parameters. Allow None for these, and we'll determine a
+        # good starting guess from the data. Note that we can actually just get
+        # a starting guess for FWHM, but it's easier to use a lookup table.
+        if param in ('fwhm','dl','mu'):
+            dtype = 'NoneOrFloat'
+        else:
+            dtype = float
+
+        model.add_argument('--{}'.format(param), required=False, type=dtype, default=params[param]['value'],\
+                help="Specify param {} value".format(param))
+        model.add_argument('--{}_fix'.format(param), required=False, default=params[param]['fixed'], type="bool",\
+                help="Specify if param {} is fixed".format(param))
+        model.add_argument('--{}_scale'.format(param), required=False, type=float, default=params[param]['scale'],\
+                help="Specify param {} scale/step size".format(param))
+        model.add_argument('--{}_bounds'.format(param), required=False, nargs=2, default=params[param]["bounds"],
+                type=float, metavar=("LOWERLIM", "UPPERLIM"), help="Specify param {} bounds".format(param))
+
+    # covariance model options
+    covmodel = parser.add_argument_group('covariance model', 'Covariance model options')
+    covmodel.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
+                default='ExpSquared', help='Specify parametric form of the covariance function to model the spectrum')
+    covmodel.add_argument('--usehodlr',  required=False, type="bool", default="True",\
+            help="Use the HODLR solver over the Basic Solver - faster, but approximate")
+    covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-12,\
+            help="Specify tolerance for HODLR solver")
+    covmodel.add_argument('--hodlr_nleaf',  required=False, type=int, default=200,\
+            help="Specify size of smallest matrix blocks before HODLR solves system directly")
+
+    # MCMC config options
+    mcmc = parser.add_argument_group('mcmc', 'MCMC options')
+    mcmc.add_argument('--skipminuit',  required=False, action="store_true", default=False,\
+            help="Skip Minuit fit - make sure to specify dl guess")
+    mcmc.add_argument('--samptype', required=False, default='ensemble', choices=('ensemble', 'gibbs', 'pt'),\
+            help='Specify what kind of sampler you want to use')
+    mcmc.add_argument('--skipmcmc',  required=False, action="store_true", default=False,\
+            help="Skip MCMC - if you skip both minuit and MCMC, simply prepares files")
+    mcmc.add_argument('--ascale', required=False, type=float, default=2.0,\
+            help="Specify proposal scale for MCMC")
+    mcmc.add_argument('--nwalkers',  required=False, type=int, default=300,\
+            help="Specify number of walkers to use (0 disables MCMC)")
+    mcmc.add_argument('--ntemps', required=False, type=int, default=1,\
+            help="Specify number of temperatures in ladder for parallel tempering - only available with PTSampler")
+    mcmc.add_argument('--nburnin',  required=False, type=int, default=200,\
+            help="Specify number of steps for burn-in")
+    mcmc.add_argument('--nprod',  required=False, type=int, default=2000,\
+            help="Specify number of steps for production")
+    mcmc.add_argument('--everyn',  required=False, type=int, default=1,\
+            help="Use only every nth point in data for computing likelihood - useful for testing.")
+    mcmc.add_argument('--thin', required=False, type=int, default=1,\
+            help="Save only every nth point in the chain - only works with PTSampler and Gibbs")
+    mcmc.add_argument('--discard',  required=False, type=float, default=5,\
+            help="Specify percentage of steps to be discarded")
+
+    # visualization options
+    viz = parser.add_argument_group('viz', 'Visualization options')
+    viz.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
+            help="Specify Balmer lines to visualize [1:7]")
+    viz.add_argument('--ndraws', required=False, type=int, default=21,\
+            help="Specify number of draws from posterior to overplot for model")
+    viz.add_argument('--savefig',  required=False, action="store_true", default=False,\
+            help="Save individual plots")
+
+    # output options
+    output = parser.add_argument_group('output', 'Output options')
+    output.add_argument('--outroot', required=False,
+            help="Specify a custom output root directory. Directories go under outroot/objname/subdir.")
+    output.add_argument('-o', '--outdir', required=False,\
+            help="Specify a custom output directory. Overrides outroot.")
+    output.add_argument('--redo',  required=False, action="store_true", default=False,\
+            help="Clobber existing fits")
+
+    args = parser.parse_args(args=remaining_argv)
+
+    # some sanity checking for option values
+    balmer = args.balmerlines
+    try:
+        balmer = np.atleast_1d(balmer).astype('int')
+        if np.any((balmer < 1) | (balmer > 6)):
+            raise ValueError
+    except (TypeError, ValueError):
+        message = 'Invalid balmer line value - must be in range [1,6]'
+        raise ValueError(message)
+
+    if args.rebin < 1:
+        message = 'Rebin must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.rebin)
+        raise ValueError(message)
+
+    if args.phot_dispersion < 0.:
+        message = 'Photometric dispersion must be GE 0. ({:g})'.format(args.phot_dispersion)
+        raise ValueError(message)
+
+    if args.hodlr_tol <= 0:
+        message = 'HODLR Solver tolerance must be greater than 0. ({:g})'.format(args.hodlr_tol)
+        raise ValueError(message)
+
+    if args.hodlr_nleaf <= 0:
+        message = 'HODLR Solver nleaf must be greater than zero ({})'.format(args.hodlr_nleaf)
+        raise ValueError(message)
+
+    if args.nwalkers <= 0:
+        message = 'Number of walkers must be greater than zero for MCMC ({})'.format(args.nwalkers)
+        raise ValueError(message)
+
+    if args.nwalkers%2 != 0:
+        message = 'Number of walkers must be even ({})'.format(args.nwalkers)
+        raise ValueError(message)
+
+    if args.ntemps <= 0:
+        message = 'Number of temperatures must be greater than zero ({})'.format(args.ntemps)
+        raise ValueError(message)
+
+    if (args.ntemps > 1) and (args.samptype == 'ensemble'):
+        message = 'Multiple temperatures only available with PTSampler or Gibbs Sampler: ({})'.format(args.ntemps)
+        raise ValueError(message)
+
+    if args.nburnin <= 0:
+        message = 'Number of burnin steps must be greater than zero ({})'.format(args.nburnin)
+        raise ValueError(message)
+
+    if args.nprod <= 0:
+        message = 'Number of production steps must be greater than zero ({})'.format(args.nprod)
+        raise ValueError(message)
+
+    if not (0 <= args.discard < 100):
+        message = 'Discard must be a percentage (0-100) ({})'.format(args.discard)
+        raise ValueError(message)
+
+    if args.everyn < 1:
+        message = 'EveryN must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.everyn)
+        raise ValueError(message)
+
+    if args.thin < 1:
+        message = 'Thin must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.thin)
+        raise ValueError(message)
+
+    if (args.thin > 1) and (args.samptype == 'ensemble'):
+        message = 'Chain thinning only available with PTSampler or Gibbs Sampler: ({})'.format(args.thin)
+        raise ValueError(message)
+
+    # Wait for instructions from the master process if we are running MPI
+    pool = None
+    if args.mpi or args.mpil:
+        pool = MPIPool(loadbalance=args.mpil, debug=False)
+        if not pool.is_master():
+            pool.wait()
+            sys.exit(0)
+
+    return args, pool
 
 
 def copy_params(params):
@@ -157,8 +397,8 @@ def read_model_grid(grid_file=None, grid_name=None):
             raise ValueError(message)
 
         wave  = grid['wave'].value.astype('float64')
-        ggrid = grid['ggrid'].value
-        tgrid = grid['tgrid'].value
+        ggrid = grid['ggrid'].value.astype('float64')
+        tgrid = grid['tgrid'].value.astype('float64')
         flux  = grid['flux'].value.astype('float64')
 
     return grid_file, grid_name, wave, ggrid, tgrid, flux
@@ -228,8 +468,14 @@ def read_spec(filename, **kwargs):
     Removes any NaN entries (any column)
     """
     spec = _read_ascii(filename, **kwargs)
-    ind = np.where((np.isnan(spec.wave)==0) & (np.isnan(spec.flux)==0) & (np.isnan(spec.flux_err)==0))
-    spec = spec[ind]
+    if np.any(~np.isfinite(spec.wave)) or np.any(~np.isfinite(spec.flux)) or np.any(~np.isfinite(spec.flux_err)):
+        message = "Spectroscopy values and uncertainties must be finite."
+        raise ValueError(message)
+
+    if np.any(spec.flux_err <= 0.) or np.any(spec.flux <= 0.):
+        message = "Spectroscopy values uncertainties must all be positive."
+        raise ValueError(message)
+
     return spec
 
 
@@ -270,6 +516,14 @@ def get_phot_for_obj(objname, filename):
     pbnames = np.array(pbnames)
     mags    = np.array(mags)
     errs    = np.array(errs)
+
+    if np.any(~np.isfinite(mags)) or np.any(~np.isfinite(errs)):
+        message = "Photometry values and uncertainties must be finite."
+        raise ValueError(message)
+
+    if np.any(errs <= 0.):
+        message = "Photometry uncertainties must all be positive."
+        raise ValueError(message)
 
     out_phot = np.rec.fromarrays([pbnames, mags, errs],names='pb,mag,mag_err')
     return out_phot

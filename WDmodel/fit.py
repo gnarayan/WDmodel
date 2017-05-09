@@ -11,7 +11,7 @@ import h5py
 from clint.textui import progress
 progress.STREAM = sys.stdout
 from . import io
-from . import pbmodel
+from . import passband
 from . import likelihood
 from . import mossampler
 
@@ -306,7 +306,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
     return spec, cont_model, linedata, continuumdata, scale_factor, out_params
 
 
-def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
+def quick_fit_spec_model(spec, model, params):
     """
     Does a quick fit of the spectrum to get an initial guess of the fit parameters
     This isn't robust, but it's good enough for an initial guess
@@ -347,7 +347,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
     if dl0 is None:
         # only dl and fwhm are allowed to have None as input values
         # fwhm will get set to a default fwhm if it's None
-        mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+        mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, pixel_scale=pixel_scale)
         c0   = spec.flux.mean()/mod.mean()
         dl0 = (1./(4.*np.pi*c0))**0.5
 
@@ -363,7 +363,7 @@ def quick_fit_spec_model(spec, model, params, rvmodel='od94'):
 
     # ignore the covariance and define a simple chi2 to minimize
     def chi2(teff, logg, av, dl):
-        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+        mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, pixel_scale=pixel_scale)
         mod *= (1./(4.*np.pi*(dl)**2.))
         chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
         return chi2
@@ -442,7 +442,7 @@ def fix_pos(pos, free_param_names, params):
     return pos
 
 
-def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
+def hyper_param_guess(spec, phot, model, pbs, params):
     """
     Makes a guess for mu after the initial minuit fit
 
@@ -466,13 +466,13 @@ def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
     fwhm = params['fwhm']['value']
     pixel_scale = 1./np.median(np.gradient(spec.wave))
     _, model_spec = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
-            rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+            rv=rv, pixel_scale=pixel_scale)
 
     # update the mu guess if we don't have one, or the parameter isn't fixed
     if params['mu']['value'] is None or (not params['mu']['fixed']):
         # get the median between observed and model mags for the minuit model
         if phot is not None:
-            model_mags = pbmodel.get_model_synmags(model_spec, pbs)
+            model_mags = passband.get_model_synmags(model_spec, pbs)
             mu0_guess  = np.median(phot.mag - model_mags.mag)
         else:
             mu0_guess = 0.
@@ -483,7 +483,7 @@ def hyper_param_guess(spec, phot, model, pbs, params, rvmodel='od94'):
 
 def fit_model(spec, phot, model, covmodel, pbs, params,\
             objname, outdir, specfile,\
-            rvmodel='od94', phot_dispersion=0.,\
+            phot_dispersion=0.,\
             samptype='ensemble', ascale=2.0,\
             ntemps=1, nwalkers=300, nburnin=50, nprod=1000, everyn=1, thin=1, pool=None,\
             redo=False):
@@ -538,7 +538,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     pixel_scale = 1./np.median(np.gradient(spec.wave))
 
     # configure the posterior function
-    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, covmodel, rvmodel, pbs, lnlike,\
+    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, covmodel, pbs, lnlike,\
             pixel_scale=pixel_scale, phot_dispersion=phot_dispersion)
 
     # setup the sampler
@@ -570,8 +570,10 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         sampler_kwargs = {'gibbs':gibbs, 'thin':thin, 'lnprob0':lnprob0}
 
     # do a short burn-in
-    print "Burn-in"
-    pos, _,  _ = sampler.run_mcmc(pos, thin*nburnin, **sampler_kwargs)
+    with progress.Bar(label="Burn-in", expected_size=thin*nburnin, hide=False) as bar:
+        bar.show(0)
+        for i, result in enumerate(sampler.sample(pos, iterations=thin*nburnin, **sampler_kwargs)):
+            bar.show(i+1)
 
     # find the MAP position after the burnin
     samples        = sampler.flatchain
@@ -605,14 +607,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     chain = outf.create_group("chain")
 
     # save some other attributes about the chain
-    chain.attrs["nwalkers"]=nwalkers
-    chain.attrs["nprod"]=nprod
-    chain.attrs["nparam"]=nparam
-    chain.attrs["everyn"]=everyn
-    chain.attrs["ascale"]=ascale
+    chain.attrs["nwalkers"] = nwalkers
+    chain.attrs["nprod"]    = nprod
+    chain.attrs["nparam"]   = nparam
+    chain.attrs["everyn"]   = everyn
+    chain.attrs["ascale"]   = ascale
     chain.attrs["samptype"] = samptype
-    chain.attrs["ntemps"] = ntemps
-    chain.attrs["thin"] = thin
+    chain.attrs["ntemps"]   = ntemps
+    chain.attrs["thin"]     = thin
 
     # save the parameter names corresponding to the chain
     free_param_names = np.array(free_param_names)
@@ -642,17 +644,17 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     # production
     dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
     dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
-    with progress.Bar(label="Production", expected_size=nprod, hide=False) as bar:
+    with progress.Bar(label="Production", expected_size=thin*nprod, hide=False) as bar:
         bar.show(0)
-        for i, result in enumerate(sampler.sample(pos, iterations=nprod, **sampler_kwargs)):
+        for i, result in enumerate(sampler.sample(pos, iterations=thin*nprod, **sampler_kwargs)):
             position = result[0]
             lnpost   = result[1]
-            rstate   = result[2]
             position = position.reshape((-1, nparam))
             lnpost   = lnpost.reshape(ntemps*nwalkers)
             dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
             dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
             if (i > 0) & (i%100 == 0):
+                rstate   = result[2]
                 outf.flush()
             bar.show(i+1)
 

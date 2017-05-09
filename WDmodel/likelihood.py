@@ -2,7 +2,7 @@ import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm, halfcauchy
 from . import io
-from .pbmodel import get_model_synmags
+from .passband import get_model_synmags
 
 
 def setup_likelihood(params):
@@ -57,24 +57,24 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, rvmodel, covmodel, pbs, pixel_scale=1., phot_dispersion=0.):
+    def get_value(self, spec, phot, model, covmodel, pbs, pixel_scale=1., phot_dispersion=0.):
         """
         Returns the log likelihood of the data given the model
         """
         if phot is None:
             phot_chi = 0.
             mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm,\
-                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+                    spec.wave, rv=self.rv, pixel_scale=pixel_scale)
         else:
             mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
-                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+                    spec.wave, rv=self.rv, pixel_scale=pixel_scale)
             mod_mags = get_model_synmags(full, pbs, mu=self.mu)
             phot_res = phot.mag - mod_mags.mag
             phot_chi = np.sum(phot_res**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
-        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau) - (phot_chi/2.)
+        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau, self.fw) - (phot_chi/2.)
 
 
 class WDmodel_Posterior(object):
@@ -87,7 +87,6 @@ class WDmodel_Posterior(object):
         model: a WDmodel instance to get the model spectrum in the presence
         of reddening and through some instrument
         covmodel: a WDmodel_CovModel instance
-        rvmodel: The form of the reddening law to be used to redden the spectrum
         pbs: a model of the throughput of the different passbands
         lnlike: a WDmodel_Likelihood instance that can return the log likelihood
 
@@ -98,10 +97,11 @@ class WDmodel_Posterior(object):
             Schlafly et al from PS1 - note that they report 3.31, but they aren't
             really measuring E(B-V) with PS1. Their sigma should be consistent despite
             the different filter set.
-        - the prior on fsig is half-Cauchy since we don't want it to be less than zero
+        - the prior on fsig, fw is half-Cauchy since we don't want it to be less than zero
             there's also a cutoff to prevent it from getting too close to zero,
             where the covariance matrix becomes non-inertvible with the
             approximate solver
+            (TODO: check if we still need this with fw)
         - there is no prior on tau (i.e. a flat prior). TODO.
         - fwhm has a cut on value below which the spectrum isn't being convolved anymore
             if the fwhm is that low, then we would need a higher resolution grid...
@@ -114,16 +114,15 @@ class WDmodel_Posterior(object):
 
     Call returns the sum of log likelihood and log prior - the log posterior
     """
-    def __init__(self, spec, phot, model, covmodel, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
-        self.spec    = spec
+    def __init__(self, spec, phot, model, covmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
+        self.spec      = spec
         self.wavescale = spec.wave.ptp()
-        self.phot    = phot
-        self.model   = model
-        self.covmodel= covmodel
-        self.rvmodel = rvmodel
-        self.pbs     = pbs
-        self._lnlike  = lnlike
-        self.pixscale= pixel_scale
+        self.phot      = phot
+        self.model     = model
+        self.covmodel  = covmodel
+        self.pbs       = pbs
+        self._lnlike   = lnlike
+        self.pixscale  = pixel_scale
         self.phot_dispersion = phot_dispersion
         init_p0 = lnlike.get_parameter_dict(include_frozen=True)
         self.p0 = init_p0
@@ -144,7 +143,7 @@ class WDmodel_Posterior(object):
         if prior:
             return out
 
-        loglike = self._lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
+        loglike = self._lnlike.get_value(self.spec, self.phot, self.model, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         if likelihood:
             return loglike
@@ -160,7 +159,7 @@ class WDmodel_Posterior(object):
         cannot be pickled
         """
         self._lnlike.set_parameter_vector(theta)
-        out = self._lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
+        out = self._lnlike.get_value(self.spec, self.phot, self.model, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 
@@ -219,11 +218,12 @@ class WDmodel_Posterior(object):
             fwhm0 = self.p0['fwhm']
             out += norm.logpdf(fwhm, fwhm0, 8.)
 
-            # half-Cauchy on the error scale
+            # half-Cauchy on the kernel amplitudes (both stationary and white)
             fsig = self._lnlike.get_parameter('fsig')
             out += halfcauchy.logpdf(fsig, loc=0, scale=3)
 
-            # TODO something for tau?
+            fw = self._lnlike.get_parameter('fw')
+            out += halfcauchy.logpdf(fw, loc=0, scale=3)
 
             # normal on mu
             mu  = self._lnlike.get_parameter('mu')
