@@ -77,7 +77,7 @@ def main(inargs=None):
     spec = io.read_spec(specfile)
 
     # init the model
-    model = WDmodel.WDmodel()
+    model = WDmodel.WDmodel(rvmodel=rvmodel)
 
     # pre-process spectrum
     out = fit.pre_process_spectrum(spec, bluelim, redlim, model, params,\
@@ -128,11 +128,11 @@ def main(inargs=None):
     # to avoid minuit messing up inputs, it can be skipped entirely to force the MCMC to start at a specific position
     if not args.skipminuit:
         # do a quick fit to refine the input params
-        migrad_params  = fit.quick_fit_spec_model(spec, model, params, rvmodel=rvmodel)
+        migrad_params  = fit.quick_fit_spec_model(spec, model, params)
 
         # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
         viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor,\
-            model, migrad_params, rvmodel=rvmodel, save=True)
+            model, migrad_params, save=True)
     else:
         # we didn't run minuit, so we'll assume the user intended to start us at some specific position
         migrad_params = io.copy_params(params)
@@ -147,7 +147,7 @@ def main(inargs=None):
         migrad_params['tau']['fixed']  = True
 
     # If we don't have a user supplied initial guess of mu, get a guess
-    migrad_params = fit.hyper_param_guess(spec, phot, model, pbs, migrad_params, rvmodel=rvmodel)
+    migrad_params = fit.hyper_param_guess(spec, phot, model, pbs, migrad_params)
 
     # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
     # if skipmcmc is set, you can now run the code with MPI
@@ -164,7 +164,7 @@ def main(inargs=None):
         # do the fit
         result = fit.fit_model(spec, phot, model, covmodel, pbs, migrad_params,\
                     objname, outdir, specfile,\
-                    rvmodel=rvmodel, phot_dispersion=phot_dispersion,\
+                    phot_dispersion=phot_dispersion,\
                     samptype=samptype, ascale=ascale,\
                     ntemps=ntemps, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod,\
                     thin=thin, everyn=everyn,\
@@ -189,7 +189,7 @@ def main(inargs=None):
                     objname, outdir, specfile,\
                     model, covmodel, cont_model, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
-                    covtype=covtype, rvmodel=rvmodel, balmer=balmer,\
+                    covtype=covtype, balmer=balmer,\
                     ndraws=ndraws, everyn=everyn, savefig=savefig)
         model_spec, full_mod, model_mags = plot_out
 

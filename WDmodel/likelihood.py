@@ -57,17 +57,17 @@ class WDmodel_Likelihood(Model):
     """
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, rvmodel, covmodel, pbs, pixel_scale=1., phot_dispersion=0.):
+    def get_value(self, spec, phot, model, covmodel, pbs, pixel_scale=1., phot_dispersion=0.):
         """
         Returns the log likelihood of the data given the model
         """
         if phot is None:
             phot_chi = 0.
             mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm,\
-                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+                    spec.wave, rv=self.rv, pixel_scale=pixel_scale)
         else:
             mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
-                    spec.wave, rv=self.rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+                    spec.wave, rv=self.rv, pixel_scale=pixel_scale)
             mod_mags = get_model_synmags(full, pbs, mu=self.mu)
             phot_res = phot.mag - mod_mags.mag
             phot_chi = np.sum(phot_res**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
@@ -87,7 +87,6 @@ class WDmodel_Posterior(object):
         model: a WDmodel instance to get the model spectrum in the presence
         of reddening and through some instrument
         covmodel: a WDmodel_CovModel instance
-        rvmodel: The form of the reddening law to be used to redden the spectrum
         pbs: a model of the throughput of the different passbands
         lnlike: a WDmodel_Likelihood instance that can return the log likelihood
 
@@ -115,13 +114,12 @@ class WDmodel_Posterior(object):
 
     Call returns the sum of log likelihood and log prior - the log posterior
     """
-    def __init__(self, spec, phot, model, covmodel, rvmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
+    def __init__(self, spec, phot, model, covmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
         self.spec      = spec
         self.wavescale = spec.wave.ptp()
         self.phot      = phot
         self.model     = model
         self.covmodel  = covmodel
-        self.rvmodel   = rvmodel
         self.pbs       = pbs
         self._lnlike   = lnlike
         self.pixscale  = pixel_scale
@@ -145,7 +143,7 @@ class WDmodel_Posterior(object):
         if prior:
             return out
 
-        loglike = self._lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
+        loglike = self._lnlike.get_value(self.spec, self.phot, self.model, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         if likelihood:
             return loglike
@@ -161,7 +159,7 @@ class WDmodel_Posterior(object):
         cannot be pickled
         """
         self._lnlike.set_parameter_vector(theta)
-        out = self._lnlike.get_value(self.spec, self.phot, self.model, self.rvmodel, self.covmodel, self.pbs,\
+        out = self._lnlike.get_value(self.spec, self.phot, self.model, self.covmodel, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 

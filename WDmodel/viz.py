@@ -18,7 +18,7 @@ import corner
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
 
-def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, model, result, rvmodel='od94', save=True):
+def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, model, result, save=True):
     """
     Quick plot to show the output from the limited Minuit fit of the spectrum.
     This fit doesn't try to account for the covariance in the data, and is not
@@ -33,7 +33,6 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
         scale_factor: factor by which the flux was scaled
         model: WDmodel.WDmodel instance
         result: dict of parameters with keywords value, fixed, scale, bounds for each
-        rvmodel: keyword allows a different model for the reddening law (default O'Donnell '94)
         save: if True, save the file
 
     Returns a matplotlib figure instance
@@ -90,7 +89,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
 
     pixel_scale = 1./np.median(np.gradient(spec.wave))
 
-    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+    mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, pixel_scale=pixel_scale)
     smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
 
     ax_spec.plot(spec.wave, smoothedmod, color='red', linestyle='-',marker='None', label=outlabel)
@@ -113,7 +112,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
 
 
 def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmodel, result, param_names, samples,\
-        rvmodel='od94', ndraws=21, everyn=1):
+        ndraws=21, everyn=1):
     """
     Plot the full spectrum of the DA White Dwarf
     """
@@ -149,7 +148,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
         fw   = this_draw['fw']['value']
 
         mod, full_mod = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
-                rv=rv, rvmodel=rvmodel, pixel_scale=pixel_scale)
+                rv=rv, pixel_scale=pixel_scale)
         smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
 
         res = spec.flux - smoothedmod
@@ -475,7 +474,7 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         objname, outdir, specfile,\
         model, covmodel, cont_model, pbs,\
         params, param_names, samples, samples_lnprob,\
-        covtype='White', rvmodel='od94', balmer=None, save=True, ndraws=21, everyn=1, savefig=False):
+        covtype='White', balmer=None, save=True, ndraws=21, everyn=1, savefig=False):
     """
     Plot the full fit of the DA White Dwarf
     """
@@ -488,7 +487,7 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         # plot spectrum and model
         fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor,\
                 model, covmodel, params, param_names, samples,\
-                rvmodel=rvmodel, ndraws=ndraws, everyn=everyn)
+                ndraws=ndraws, everyn=everyn)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum.pdf')
             fig.savefig(outfile)
