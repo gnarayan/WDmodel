@@ -1,7 +1,6 @@
 import warnings
 import numpy as np
 from . import io
-from . import _interpolate3d
 import scipy.interpolate as spinterp
 from astropy import units as u
 import extinction
@@ -79,27 +78,6 @@ class WDmodel(object):
     def reddening(self, wave, flux, av, rv=3.1):
         """ Apply extinction Av, Rv to flux values flux at wavelengths wave (Angstrom) in place"""
         return extinction.apply(self.extinction(wave, av, rv), flux, inplace=True)
-
-
-    def _get_model_cython(self, teff, logg, wave, log=False):
-        """
-        Returns the model flux given temperature and logg at wavelengths wave
-        """
-        nwave = len(wave)
-        t     = np.tile(teff, nwave)
-        g     = np.tile(logg, nwave)
-        lwave = np.log10(wave)
-        out   = np.empty(nwave, dtype=np.float64)
-        _interpolate3d.interpolate3d(nwave,
-                                 t, g, lwave,
-                                 self._ntemp, self._tgrid,
-                                 self._ngrav, self._ggrid,
-                                 self._nwave, self._lwave,
-                                 self._lflux,
-                                 out)
-        if log:
-            return out
-        return (10.**out)
 
 
     def _get_model(self, teff, logg, wave, log=False):
