@@ -1,7 +1,7 @@
+""" DA White Dwarf Model Atmosphere Clas s"""
 import warnings
 import numpy as np
 from . import io
-import scipy.interpolate as spinterp
 from astropy import units as u
 import extinction
 from scipy.ndimage.filters import gaussian_filter1d
@@ -50,13 +50,6 @@ class WDmodel(object):
         self._ngrav = len(self._ggrid)
         self._nwave = len(self._wave)
 
-        # pre-init the interpolation and do it in log-space
-        # note that we do the interpolation in log-log
-        # this is because the profiles are linear, redward of the Balmer break in log-log
-        # and the regular grid interpolator is just doing linear interpolation under the hood
-        self._model = spinterp.RegularGridInterpolator((self._tgrid, self._ggrid),\
-                self._lflux)
-
 
     def __init__rvmodel(self, rvmodel='od94'):
         if rvmodel == 'ccm89':
@@ -80,15 +73,44 @@ class WDmodel(object):
         return extinction.apply(self.extinction(wave, av, rv), flux, inplace=True)
 
 
-    def _get_model(self, teff, logg, wave, log=False):
+    def _get_model(self, teff, logg, wave=None, log=False):
         """
         Returns the model flux given temperature and logg at wavelengths wave
         """
-        xi = (teff, logg)
-        mod = self._model(xi)
-        out = np.interp(wave, self._wave, mod)
+        thigh = self._ntemp - 1
+        tlow = 0
+        while(thigh > tlow + 1) :
+            mid_ind = int(np.floor((thigh-tlow)/2))+tlow
+            if (teff > self._tgrid[mid_ind]) :
+                tlow  = mid_ind
+            else :
+                thigh = mid_ind
+
+        ghigh = self._ngrav - 1
+        glow = 0
+        while(ghigh > glow + 1) :
+            mid_ind = int(np.floor((ghigh-glow)/2))+glow
+            if (logg > self._ggrid[mid_ind]) :
+                glow  = mid_ind
+            else :
+                ghigh = mid_ind
+
+        tfac  = (teff - self._tgrid[tlow])/(self._tgrid[thigh] - self._tgrid[tlow])
+        gfac  = (logg - self._ggrid[glow])/(self._ggrid[ghigh] - self._ggrid[glow])
+        otfac = 1.-tfac
+
+        v00   = self._lflux[tlow,  glow,  :]
+        v01   = self._lflux[tlow,  ghigh, :]
+        v10   = self._lflux[thigh, glow,  :]
+        v11   = self._lflux[thigh, ghigh, :]
+        out  = (v00*otfac + v10*tfac)*(1.-gfac) + (v01*otfac + v11*tfac)*gfac
+
+        if wave is not None:
+            out = np.interp(np.log10(wave), self._lwave, out)
+
         if log:
             return out
+
         return (10.**out)
 
 
@@ -127,9 +149,10 @@ class WDmodel(object):
         Convenience function that does the same thing as _get_obs_model, but
         also returns the full SED without any instrumental broadening applied
         """
-        mod = self._get_model(teff, logg, self._wave)
-        mod = self.reddening(self._wave, mod, av, rv=rv)
-        omod = np.interp(wave, self._wave, np.log10(mod))
+        mod  = self._get_model(teff, logg)
+        mod  = self.reddening(self._wave, mod, av, rv=rv)
+        omod = np.interp(np.log10(wave), self._lwave, np.log10(mod))
+        omod = 10.**omod
         gsig = fwhm/self._fwhm_to_sigma * pixel_scale
         omod = gaussian_filter1d(omod, gsig, order=0, mode='nearest')
         if log:
