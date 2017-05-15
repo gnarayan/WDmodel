@@ -154,6 +154,8 @@ def get_options(args=None):
             help="Save only every nth point in the chain - only works with PTSampler and Gibbs")
     mcmc.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
+    mcmc.add_argument('--resume',  required=False, action="store_true", default=False,\
+            help="Resume the MCMC from the last stored location")
 
     # visualization options
     viz = parser.add_argument_group('viz', 'Visualization options')
