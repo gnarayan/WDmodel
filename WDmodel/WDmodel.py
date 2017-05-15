@@ -4,6 +4,7 @@ import numpy as np
 from . import io
 from astropy import units as u
 import extinction
+import scipy.interpolate as spinterp
 from scipy.ndimage.filters import gaussian_filter1d
 
 
@@ -43,13 +44,19 @@ class WDmodel(object):
         self._fluxnorm = 1. #LEGACY CRUFT
 
         ingrid = io.read_model_grid(grid_file, grid_name)
-        self._grid_file, self._grid_name, self._wave, self._ggrid, self._tgrid, self._flux = ingrid
+        self._grid_file, self._grid_name, self._wave, self._ggrid, self._tgrid, _flux = ingrid
         self._lwave = np.log10(self._wave, dtype=np.float64)
-        self._lflux  = np.log10(self._flux.T)
+        self._lflux  = np.log10(_flux.T)
         self._ntemp = len(self._tgrid)
         self._ngrav = len(self._ggrid)
         self._nwave = len(self._wave)
 
+        # pre-init the interpolation and do it in log-space
+        # note that we do the interpolation in log-log
+        # this is because the profiles are linear, redward of the Balmer break in log-log
+        # and the regular grid interpolator is just doing linear interpolation under the hood
+        self._model = spinterp.RegularGridInterpolator((self._tgrid, self._ggrid),\
+                self._lflux)
 
     def __init__rvmodel(self, rvmodel='od94'):
         if rvmodel == 'ccm89':
@@ -73,7 +80,7 @@ class WDmodel(object):
         return extinction.apply(self.extinction(wave, av, rv), flux, inplace=True)
 
 
-    def _get_model(self, teff, logg, wave=None, log=False):
+    def _get_model_nosp(self, teff, logg, wave=None, log=False):
         """
         Returns the model flux given temperature and logg at wavelengths wave
         """
@@ -105,6 +112,21 @@ class WDmodel(object):
         v11   = self._lflux[thigh, ghigh, :]
         out  = (v00*otfac + v10*tfac)*(1.-gfac) + (v01*otfac + v11*tfac)*gfac
 
+        if wave is not None:
+            out = np.interp(np.log10(wave), self._lwave, out)
+
+        if log:
+            return out
+
+        return (10.**out)
+
+
+    def _get_model(self, teff, logg, wave=None, log=False):
+        """
+        Returns the model flux given temperature and logg at wavelengths wave
+        """
+        xi = (teff, logg)
+        out = self._model(xi)
         if wave is not None:
             out = np.interp(np.log10(wave), self._lwave, out)
 
