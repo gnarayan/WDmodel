@@ -8,6 +8,7 @@ from iminuit import Minuit
 from astropy.constants import c as _C
 import emcee
 import h5py
+import cPickle as pickle
 from clint.textui import progress
 progress.STREAM = sys.stdout
 from . import io
@@ -486,7 +487,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             phot_dispersion=0.,\
             samptype='ensemble', ascale=2.0,\
             ntemps=1, nwalkers=300, nburnin=50, nprod=1000, everyn=1, thin=1, pool=None,\
-            redo=False):
+            resume=False, redo=False):
     """
     Models the spectrum using the white dwarf model and a Gaussian process with
     an exponential squared kernel to account for any flux miscalibration
@@ -514,6 +515,26 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     Incrementally saves the chain if run single-threaded
     """
 
+    if not resume:
+        # create a HDF5 file to hold the chain data
+        outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5', check=True, redo=redo)
+        outf = h5py.File(outfile, 'w')
+    else:
+        # restore some attributes from the HDF5 file to make sure the state is consistent
+        outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5', redo=redo)
+        outf = h5py.File(outfile, 'a')
+        chain = outf['chain']
+        ntemps      = chain.attrs["ntemps"]
+        nwalkers    = chain.attrs["nwalkers"]
+        everyn      = chain.attrs["everyn"]
+        thin        = chain.attrs["thin"]
+        samptype    = chain.attrs["samptype"]
+        ascale      = chain.attrs["ascale"]
+
+    # create a state file to periodically save the state of the chain
+    statefile = io.get_outfile(outdir, specfile, '_state.pkl', redo=redo)
+
+    # setup the likelihood function
     lnlike = likelihood.setup_likelihood(params)
     nparam   = lnlike.vector_size
 
@@ -569,102 +590,134 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         lnprob0 = lnprob0.reshape(ntemps, nwalkers)
         sampler_kwargs = {'gibbs':gibbs, 'thin':thin, 'lnprob0':lnprob0}
 
+
     # do a short burn-in
-    with progress.Bar(label="Burn-in", expected_size=thin*nburnin, hide=False) as bar:
-        bar.show(0)
-        for i, result in enumerate(sampler.sample(pos, iterations=thin*nburnin, **sampler_kwargs)):
-            bar.show(i+1)
+    if not resume:
+        with progress.Bar(label="Burn-in", expected_size=thin*nburnin, hide=False) as bar:
+            bar.show(0)
+            for i, result in enumerate(sampler.sample(pos, iterations=thin*nburnin, **sampler_kwargs)):
+                bar.show(i+1)
 
-    # find the MAP position after the burnin
-    samples        = sampler.flatchain
-    samples_lnprob = sampler.lnprobability
-    map_samples        = samples.reshape(ntemps, nwalkers, nburnin, nparam)
-    map_samples_lnprob = samples_lnprob.reshape(ntemps, nwalkers, nburnin)
-    max_ind        = np.argmax(map_samples_lnprob)
-    max_ind        = np.unravel_index(max_ind, (ntemps, nwalkers, nburnin))
-    max_ind        = tuple(max_ind)
-    p1        = map_samples[max_ind]
+        # find the MAP position after the burnin
+        samples        = sampler.flatchain
+        samples_lnprob = sampler.lnprobability
+        map_samples        = samples.reshape(ntemps, nwalkers, nburnin, nparam)
+        map_samples_lnprob = samples_lnprob.reshape(ntemps, nwalkers, nburnin)
+        max_ind        = np.argmax(map_samples_lnprob)
+        max_ind        = np.unravel_index(max_ind, (ntemps, nwalkers, nburnin))
+        max_ind        = tuple(max_ind)
+        p1        = map_samples[max_ind]
 
-    # reset the sampler
-    sampler.reset()
+        # reset the sampler
+        sampler.reset()
 
-    lnlike.set_parameter_vector(p1)
-    print "\nMAP Parameters after Burn-in"
-    for k, v in lnlike.get_parameter_dict().items():
-        print "{} = {:f}".format(k,v)
+        lnlike.set_parameter_vector(p1)
+        print "\nMAP Parameters after Burn-in"
+        for k, v in lnlike.get_parameter_dict().items():
+            print "{} = {:f}".format(k,v)
 
-    # adjust the walkers to start around the MAP position from burnin
-    pos = emcee.utils.sample_ball(p1, std, size=ntemps*nwalkers)
-    pos = fix_pos(pos, free_param_names, params)
-    if samptype != 'ensemble':
-        pos = pos.reshape(ntemps, nwalkers, nparam)
+        # adjust the walkers to start around the MAP position from burnin
+        pos = emcee.utils.sample_ball(p1, std, size=ntemps*nwalkers)
+        pos = fix_pos(pos, free_param_names, params)
+        if samptype != 'ensemble':
+            pos = pos.reshape(ntemps, nwalkers, nparam)
 
-    # create a HDF5 file to hold the chain data
-    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5',check=True, redo=redo)
+        # setup incremental chain saving
+        chain = outf.create_group("chain")
 
-    # setup incremental chain saving
-    outf = h5py.File(outfile, 'w')
-    chain = outf.create_group("chain")
+        # last saved position of the chain
+        laststep = 0
 
-    # save some other attributes about the chain
-    chain.attrs["nwalkers"] = nwalkers
-    chain.attrs["nprod"]    = nprod
-    chain.attrs["nparam"]   = nparam
-    chain.attrs["everyn"]   = everyn
-    chain.attrs["ascale"]   = ascale
-    chain.attrs["samptype"] = samptype
-    chain.attrs["ntemps"]   = ntemps
-    chain.attrs["thin"]     = thin
+        # save some other attributes about the chain
+        chain.attrs["nwalkers"] = nwalkers
+        chain.attrs["nprod"]    = nprod
+        chain.attrs["nparam"]   = nparam
+        chain.attrs["everyn"]   = everyn
+        chain.attrs["ascale"]   = ascale
+        chain.attrs["samptype"] = samptype
+        chain.attrs["ntemps"]   = ntemps
+        chain.attrs["thin"]     = thin
+        chain.attrs["laststep"] = laststep
 
-    # save the parameter names corresponding to the chain
-    free_param_names = np.array(free_param_names)
-    dt = free_param_names.dtype.str.lstrip('|')
-    chain.create_dataset("names",data=free_param_names, dtype=dt)
+        # save the parameter names corresponding to the chain
+        free_param_names = np.array(free_param_names)
+        dt = free_param_names.dtype.str.lstrip('|')
+        chain.create_dataset("names",data=free_param_names, dtype=dt)
 
-    # save the parameter configuration as well
-    # this is redundant, since it is saved in the JSON file, but having it one place is nice
-    names = lnlike.get_parameter_names(include_frozen=True)
-    names = np.array(names)
-    dt = names.dtype.str.lstrip('|')
-    par_grp = outf.create_group("params")
-    par_grp.create_dataset("names",data=names, dtype=dt)
-    for param in params:
-        this_par = par_grp.create_group(param)
-        this_par.attrs["value"]  = params[param]["value"]
-        this_par.attrs["fixed"]  = params[param]["fixed"]
-        this_par.attrs["scale"]  = params[param]["scale"]
-        this_par.attrs["bounds"] = params[param]["bounds"]
+        # save the parameter configuration as well
+        # this is redundant, since it is saved in the JSON file, but having it one place is nice
+        names = lnlike.get_parameter_names(include_frozen=True)
+        names = np.array(names)
+        dt = names.dtype.str.lstrip('|')
+        par_grp = outf.create_group("params")
+        par_grp.create_dataset("names",data=names, dtype=dt)
+        for param in params:
+            this_par = par_grp.create_group(param)
+            this_par.attrs["value"]  = params[param]["value"]
+            this_par.attrs["fixed"]  = params[param]["fixed"]
+            this_par.attrs["scale"]  = params[param]["scale"]
+            this_par.attrs["bounds"] = params[param]["bounds"]
 
-    # write to disk before we start
-    outf.flush()
+        # write to disk before we start
+        outf.flush()
+
+        # production
+        dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
+        dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
+    else:
+        # if we are resuming, we only need to make sure we can write the
+        # resumed chain to the chain file (i.e. the arrays are properly
+        # resized)
+        laststep    = chain.attrs["laststep"]
+        dset_chain  = chain["position"]
+        dset_lnprob = chain["lnprob"]
+        dset_chain.resize((ntemps*nwalkers*(laststep+nprod),nparam))
+        dset_lnprob.resize((ntemps*nwalkers*(laststep+nprod),))
+
+        # and that we have the state of the chain when we ended
+        with open(statefile) as f:
+            position, lnpost, rstate = pickle.load(f)
+        sampler_kwargs['rstate0']=rstate
+        sampler_kwargs['lnprob0']=lnpost
+        pos = position
+
+        print "Resuming from iteration {} for {} steps".format(laststep, nprod)
 
     # since we're going to save the chain in HDF5, we don't need to save it in memory elsewhere
     sampler_kwargs['storechain']=False
 
-    # production
-    dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
-    dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
-    with progress.Bar(label="Production", expected_size=thin*nprod, hide=False) as bar:
-        bar.show(0)
+
+    # run the production chain
+    with progress.Bar(label="Production", expected_size=thin*(laststep+nprod), hide=False) as bar:
+        bar.show(laststep)
         for i, result in enumerate(sampler.sample(pos, iterations=thin*nprod, **sampler_kwargs)):
             position = result[0]
             lnpost   = result[1]
             position = position.reshape((-1, nparam))
             lnpost   = lnpost.reshape(ntemps*nwalkers)
+            i += laststep
             dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
             dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
             if (i > 0) & (i%100 == 0):
-                rstate   = result[2]
+                # make sure we know how many steps we've taken so that we can resize arrays appropriately
+                chain.attrs["laststep"] = i
                 outf.flush()
+
+                # save the state of the chain
+                with open(statefile, 'w') as f:
+                    pickle.dump(result, f, -1)
             bar.show(i+1)
+        chain.attrs["nprod"]    = laststep+nprod
+        chain.attrs["laststep"] = laststep+nprod
 
     # save the acceptance fraction
+    if resume:
+        del chain["afrac"]
+        if samptype != 'ensemble':
+            del chain["tswap_afrac"]
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
     if samptype != 'ensemble':
         chain.create_dataset("tswap_afrac", data=sampler.tswap_acceptance_fraction)
-
-    # TODO save the rstate of the chain to allow us to restore state and
-    # increase length of chain if we want
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
@@ -674,10 +727,10 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         pool.close()
 
     # find the MAP value after production
-    map_samples = samples.reshape(ntemps, nwalkers, nprod, nparam)
-    map_samples_lnprob = samples_lnprob.reshape(ntemps, nwalkers, nprod)
+    map_samples = samples.reshape(ntemps, nwalkers, laststep+nprod, nparam)
+    map_samples_lnprob = samples_lnprob.reshape(ntemps, nwalkers, laststep+nprod)
     max_ind = np.argmax(map_samples_lnprob)
-    max_ind = np.unravel_index(max_ind, (ntemps, nwalkers, nprod))
+    max_ind = np.unravel_index(max_ind, (ntemps, nwalkers, laststep+nprod))
     max_ind = tuple(max_ind)
     p_final = map_samples[max_ind]
     lnlike.set_parameter_vector(p_final)
@@ -686,7 +739,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     for k, v in lnlike.get_parameter_dict().items():
         print "{} = {:f}".format(k,v)
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
-    return  free_param_names, samples, samples_lnprob
+    return  free_param_names, samples, samples_lnprob, (ntemps, nwalkers, laststep+nprod, nparam)
 
 
 def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
