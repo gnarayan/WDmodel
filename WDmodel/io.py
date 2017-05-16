@@ -15,7 +15,7 @@ import h5py
 _PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw", "mu")
 
 
-def get_options(args=None):
+def get_options(args, comm):
     """
     Get command line options for the WDmodel fitter
     """
@@ -176,7 +176,15 @@ def get_options(args=None):
     output.add_argument('-o', '--outdir', required=False,\
             help="Specify a custom output directory. Overrides outroot.")
 
-    args = parser.parse_args(args=remaining_argv)
+    args = None
+    try:
+        if comm.Get_rank() == 0:
+            args = parser.parse_args(args=remaining_argv)
+    finally:
+        args = comm.bcast(args, root=0)
+
+    if args is None:
+        sys.exit(0)
 
     # some sanity checking for option values
     balmer = args.balmerlines

@@ -1,4 +1,5 @@
 import sys
+from mpi4py import MPI
 import numpy as np
 from . import io
 from . import WDmodel
@@ -9,12 +10,15 @@ from . import viz
 
 
 def main(inargs=None):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
 
     if inargs is None:
         inargs = sys.argv[1:]
 
     # parse the arguments
-    args, pool= io.get_options(inargs)
+    args, pool= io.get_options(inargs, comm)
 
     specfile  = args.specfile
     spectable = args.spectable
