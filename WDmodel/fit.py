@@ -515,13 +515,12 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     Incrementally saves the chain if run single-threaded
     """
 
+    outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5', check=True, redo=redo, resume=resume)
     if not resume:
         # create a HDF5 file to hold the chain data
-        outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5', check=True, redo=redo)
         outf = h5py.File(outfile, 'w')
     else:
         # restore some attributes from the HDF5 file to make sure the state is consistent
-        outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5', redo=redo)
         outf = h5py.File(outfile, 'a')
         chain = outf['chain']
         ntemps      = chain.attrs["ntemps"]

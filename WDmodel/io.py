@@ -154,8 +154,11 @@ def get_options(args=None):
             help="Save only every nth point in the chain - only works with PTSampler and Gibbs")
     mcmc.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
-    mcmc.add_argument('--resume',  required=False, action="store_true", default=False,\
+    clobber = mcmc.add_mutually_exclusive_group()
+    clobber.add_argument('--resume',  required=False, action="store_true", default=False,\
             help="Resume the MCMC from the last stored location")
+    clobber.add_argument('--redo',  required=False, action="store_true", default=False,\
+            help="Clobber existing fits")
 
     # visualization options
     viz = parser.add_argument_group('viz', 'Visualization options')
@@ -172,8 +175,6 @@ def get_options(args=None):
             help="Specify a custom output root directory. Directories go under outroot/objname/subdir.")
     output.add_argument('-o', '--outdir', required=False,\
             help="Specify a custom output directory. Overrides outroot.")
-    output.add_argument('--redo',  required=False, action="store_true", default=False,\
-            help="Clobber existing fits")
 
     args = parser.parse_args(args=remaining_argv)
 
@@ -531,12 +532,13 @@ def get_phot_for_obj(objname, filename):
     return out_phot
 
 
-def make_outdirs(dirname, redo=False):
+def make_outdirs(dirname, redo=False, resume=False):
     """
-    Checks if output directory exists, else creates it
+    Checks if output directory exists, and if it does, and we are resuming or
+    redoing, simply return else creates it.
     """
     if os.path.isdir(dirname):
-        if redo:
+        if resume or redo:
             return
         else:
             message = "Output directory {} already exists. Specify --redo to clobber.".format(dirname)
@@ -549,7 +551,7 @@ def make_outdirs(dirname, redo=False):
         raise OSError(message)
 
 
-def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False):
+def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False, resume=False):
     """
     Accepts a spectrum filename (and optionally a preset output directory) or
     an output root directory, and determines the objname.
@@ -568,11 +570,11 @@ def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=Fa
         dirname = os.path.join(outroot, objname, basespec)
     else:
         dirname = outdir
-    make_outdirs(dirname, redo=redo)
+    make_outdirs(dirname, redo=redo, resume=resume)
     return objname, dirname
 
 
-def get_outfile(outdir, specfile, ext, check=False, redo=False):
+def get_outfile(outdir, specfile, ext, check=False, redo=False, resume=False):
     """
     Returns the full path to a file given outdir, specfile
     Replaces .flm at the end of specfile with extension ext (i.e. you need to include the period)
@@ -581,7 +583,7 @@ def get_outfile(outdir, specfile, ext, check=False, redo=False):
     """
     outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm', ext)))
     if check:
-        if os.path.exists(outfile) and (not redo):
+        if os.path.exists(outfile) and not (resume or redo):
             message = "Output file {} already exists. Specify --redo to clobber.".format(outfile)
             raise IOError(message)
     return outfile

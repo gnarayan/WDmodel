@@ -27,7 +27,6 @@ def main(inargs=None):
 
     outdir    = args.outdir
     outroot   = args.outroot
-    resume    = args.resume
 
     photfile  = args.photfile
     rvmodel   = args.reddeningmodel
@@ -49,6 +48,7 @@ def main(inargs=None):
     everyn    = args.everyn
     thin      = args.thin
     redo      = args.redo
+    resume    = args.resume
 
     discard   = args.discard
 
@@ -61,7 +61,8 @@ def main(inargs=None):
 
 
     # set the object name and create output directories
-    objname, outdir = io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot, redo=redo)
+    objname, outdir = io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot,\
+                        redo=redo, resume=resume)
     print "Writing to outdir {}".format(outdir)
 
     # init the model
@@ -117,11 +118,11 @@ def main(inargs=None):
             phot = None
 
         # save the inputs to the fitter
-        outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
+        outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo, resume=resume)
         io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
                rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile)
     else:
-        outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=False, redo=redo)
+        outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=False, redo=redo, resume=resume)
         spec, cont_model, linedata, continuumdata, phot, fit_config = io.read_fit_inputs(outfile)
         rvmodel  = fit_config['rvmodel']
         covtype  = fit_config['covtype']
@@ -139,7 +140,7 @@ def main(inargs=None):
     ##### MINUIT #####
 
 
-    outfile = io.get_outfile(outdir, specfile, '_params.json')
+    outfile = io.get_outfile(outdir, specfile, '_params.json', check=True, redo=redo, resume=resume)
     if not resume:
         # to avoid minuit messing up inputs, it can be skipped entirely to force the MCMC to start at a specific position
         if not args.skipminuit:
