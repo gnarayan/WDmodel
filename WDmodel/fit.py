@@ -697,6 +697,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             i += laststep
             dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
             dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
+
+            # save state every 100 steps
             if (i+1)%100 == 0:
                 # make sure we know how many steps we've taken so that we can resize arrays appropriately
                 chain.attrs["laststep"] = i+1
@@ -705,9 +707,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
                 # save the state of the chain
                 with open(statefile, 'w') as f:
                     pickle.dump(result, f, -1)
+
             bar.show(i+1)
+
+        # save the final state of the chain and nprod, laststep
         chain.attrs["nprod"]    = laststep+nprod
         chain.attrs["laststep"] = laststep+nprod
+        with open(statefile, 'w') as f:
+            pickle.dump(result, f, -1)
 
     # save the acceptance fraction
     if resume:
@@ -720,6 +727,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
     samples         = np.array(dset_chain)
     samples_lnprob  = np.array(dset_lnprob)
+
+    # finalize the chain file, close it and close the pool
     outf.flush()
     outf.close()
     if pool is not None:
