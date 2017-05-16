@@ -636,6 +636,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         chain.attrs["samptype"] = samptype
         chain.attrs["ntemps"]   = ntemps
         chain.attrs["thin"]     = thin
+        chain.attrs["nprod"]    = nprod
         chain.attrs["laststep"] = laststep
 
         # save the parameter names corresponding to the chain
@@ -657,9 +658,6 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             this_par.attrs["scale"]  = params[param]["scale"]
             this_par.attrs["bounds"] = params[param]["bounds"]
 
-        # write to disk before we start
-        outf.flush()
-
         # production
         dset_chain  = chain.create_dataset("position",(ntemps*nwalkers*nprod,nparam),maxshape=(None,nparam))
         dset_lnprob = chain.create_dataset("lnprob",(ntemps*nwalkers*nprod,),maxshape=(None,))
@@ -672,6 +670,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         dset_lnprob = chain["lnprob"]
         dset_chain.resize((ntemps*nwalkers*(laststep+nprod),nparam))
         dset_lnprob.resize((ntemps*nwalkers*(laststep+nprod),))
+        chain.attrs["nprod"] = laststep+nprod
 
         # and that we have the state of the chain when we ended
         with open(statefile) as f:
@@ -682,9 +681,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         print "Resuming from iteration {} for {} steps".format(laststep, nprod)
 
+    # write to disk before we start
+    outf.flush()
+
     # since we're going to save the chain in HDF5, we don't need to save it in memory elsewhere
     sampler_kwargs['storechain']=False
-
 
     # run the production chain
     with progress.Bar(label="Production", expected_size=thin*(laststep+nprod), hide=False) as bar:
@@ -697,10 +698,9 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             i += laststep
             dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
             dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
-            if (i > 0) & (i%100 == 0):
+            if (i+1)%100 == 0:
                 # make sure we know how many steps we've taken so that we can resize arrays appropriately
-                chain.attrs["nprod"] = i
-                chain.attrs["laststep"] = i
+                chain.attrs["laststep"] = i+1
                 outf.flush()
 
                 # save the state of the chain
@@ -739,6 +739,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     for k, v in lnlike.get_parameter_dict().items():
         print "{} = {:f}".format(k,v)
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+
+    # return the parameter names of the chain, the positions, posterior, and the shape of the chain
     return  free_param_names, samples, samples_lnprob, (ntemps, nwalkers, laststep+nprod, nparam)
 
 
@@ -782,8 +784,11 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
     in_samp = in_samp.reshape((-1, ndim))
     in_lnprob = in_lnprob.reshape(in_samp.shape[0])
 
+    # only select entries with finite log posterior
+    # if this isn't all, something is wrong
     mask = np.isfinite(in_lnprob)
 
+    # update the parameter dict
     for i, param in enumerate(param_names):
         x = in_samp[mask,i]
         q_16, q_50, q_84 = np.percentile(x, [16., 50., 84.])
@@ -792,12 +797,13 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
         params[param]['errors_pm'] = (q_84 - q_50, q_50 - q_16)
         params[param]['scale']  = float(np.std(x))
 
+    # make sure the output for fixed parameters is fixed
     fixed_params = set(params.keys()) - set(param_names)
     for param in fixed_params:
         if params[param]['fixed']:
             params[param]['scale'] = 0.
             params[param]['errors_pm'] = (0., 0.)
         else:
-            # this should never happen, unless we did something stupid between fit_WDmodel and mpifit_WDmodel
+            # this should never happen, unless the state of the files was changed
             print "Huh.... {} not marked as fixed but was not fit for...".format(param)
     return params, in_samp[mask,:], in_lnprob[mask]
