@@ -630,7 +630,6 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         # save some other attributes about the chain
         chain.attrs["nwalkers"] = nwalkers
-        chain.attrs["nprod"]    = nprod
         chain.attrs["nparam"]   = nparam
         chain.attrs["everyn"]   = everyn
         chain.attrs["ascale"]   = ascale
@@ -700,6 +699,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
             if (i > 0) & (i%100 == 0):
                 # make sure we know how many steps we've taken so that we can resize arrays appropriately
+                chain.attrs["nprod"] = i
                 chain.attrs["laststep"] = i
                 outf.flush()
 
