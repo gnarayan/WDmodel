@@ -33,7 +33,11 @@ Follow instructions [here](https://astroconda.readthedocs.io/en/latest/)
 (Make sure you added the conda/bin dir to your path!)
 
 ### install eigen3:
-if it isn't on your system - for OS X do:
+if it isn't on your system, install it with conda:
+
+* `condai install eigen`
+
+or for OS X do:
 
 * `brew install eigen`
 
@@ -85,7 +89,7 @@ ______
 
 ## Notes from installing on the Odyssey cluster at Harvard
 These may be of use to get the code up and running with MPI on some other
-cluster. Good luck. 
+cluster. Good luck.
 
 ### git clone the repository and install anaconda/astroconda/miniconda
 Follow the regular instructions above until install eigen3
@@ -127,25 +131,31 @@ If there is no photometry data for the object, the fitter will barf unless
 only constrained by the spectroscopy.
 
 The fitter runs minuit to refine initial supplied guesses for teff, logg, av
-and dl. This can be disabled with the `--skipminuit` option. If `--skipminuit` is
-used, a dl guess __MUST__ be specified.
+and dl. This can be disabled with the `--skipminuit` option. If `--skipminuit`
+is used, a dl guess __MUST__ be specified.
 
 All of the parameter files can be supplied via a JSON parameter file supplied
-via the `--param_file` option, or using individual parameter options. An example
-parameter file is available in the module directory.
+via the `--param_file` option, or using individual parameter options. An
+example parameter file is available in the module directory.
 
 You can change the number of walkers, burn in steps, production steps, and
 proposal scale for the MCMC. You can also choose to use only every nth point in
 computing the log likelihood with `--everyn` - this is only intended for
 testing purposes, and should probably not be used for any final analysis. Note
-that the uncertainities increase as you'd expect with fewer points.
+that the uncertainties increase as you'd expect with fewer points. If the
+sampling needs to be interrupted, or crashes for whatever reason, the state is
+saved every 100 steps, and the sampling can be restarted with `--resume`. Note
+that you must have run at least the burnin and 100 steps for it to be possible
+to resume, and the state of the data, parameters, or chain configuration should
+not be changed externally (if they need to be use `--redo`).
 
 Occasionally, you might see very low-acceptance fractions, accompanied with
-weird spikes in the fsig parameter. We've noticed this on the odyssey cluster,
-but aren't yet sure why it is happening. It appears to be the HODLR solver that
-is the default. The problem goes away completely with `--usebasic`, which forces
-the basic solver, at the cost of runtime. We have not seen the problem, with
-the exact same data and settings on a linux desktop or Macbook Pro.
+weird spikes in the fsig/fw parameter. We've noticed this on the odyssey
+cluster, but aren't yet sure why it is happening. It appears to be the HODLR
+solver that is the default. The problem goes away completely with `--usehodlr
+False`, which forces the basic solver, at the cost of runtime. We have not seen
+the problem, with the exact same data and settings on a linux desktop or
+Macbook Pro.
 
 You can get a summary of all available options with `--help`
 ______
@@ -163,4 +173,4 @@ You can read the first version of our analysis of four of the Cycle 20 objects
 
 That analysis used custom IDL routines from Jay Holberg (U. Arizona) to infer
 DA intrinsic parameters and custom python code to fit the reddening parameters.
-This code is inteded to (significantly) improve on that analysis
+This code is intended to (significantly) improve on that analysis
