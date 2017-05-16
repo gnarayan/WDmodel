@@ -2,7 +2,6 @@
 import warnings
 import numpy as np
 from . import io
-from astropy import units as u
 import extinction
 import scipy.interpolate as spinterp
 from scipy.ndimage.filters import gaussian_filter1d
