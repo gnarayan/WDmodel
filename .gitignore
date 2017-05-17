@@ -94,7 +94,10 @@ data/
 out*/
 *.flm
 *.phot
-profile.dat
 Hubeny_models/
+
+# tempfiles/scripts
+profile.dat
 scripts/
 tmp.sh
+nohup.out
