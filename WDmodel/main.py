@@ -130,7 +130,7 @@ def main(inargs=None):
         try:
             spec, cont_model, linedata, continuumdata, phot, fit_config = io.read_fit_inputs(outfile)
         except IOError as e:
-            message = '{}\nMust run fit to generate inputs before attempting to resume'
+            message = '{}\nMust run fit to generate inputs before attempting to resume'.format(e)
             raise RuntimeError(message)
         rvmodel  = fit_config['rvmodel']
         covtype  = fit_config['covtype']
@@ -177,7 +177,7 @@ def main(inargs=None):
         try:
             migrad_params = io.read_params(outfile)
         except (OSError,IOError) as e:
-            message = '{}\nMust run fit to generate inputs before attempting to resume'
+            message = '{}\nMust run fit to generate inputs before attempting to resume'.format(e)
             raise RuntimeError(message)
 
     # init a covariance model instance that's used to model the residuals

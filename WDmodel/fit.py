@@ -681,7 +681,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             with open(statefile) as f:
                 position, lnpost, rstate = pickle.load(f)
         except (IOError, OSError) as e:
-            message = '{}\nMust run fit to generate mcmc chain state pickle before attempting to resume'
+            message = '{}\nMust run fit to generate mcmc chain state pickle before attempting to resume'.format(e)
             raise RuntimeError(message)
 
         sampler_kwargs['rstate0']=rstate
