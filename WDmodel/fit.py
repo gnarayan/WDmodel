@@ -684,7 +684,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             message = '{}\nMust run fit to generate mcmc chain state pickle before attempting to resume'.format(e)
             raise RuntimeError(message)
 
-        sampler_kwargs['rstate0']=rstate
+        if samptype in ('pt', 'gibbs'):
+            # PTsampler doesn't include rstate0 in the release version of emcee
+            # this is apparently fixed on git, but not in release yet it is
+            # included in run_mcmc which simply sets the sampler random_state
+            # attribute - do the same thing here
+            sampler.random_state = rstate
+        else:
+            sampler_kwargs['rstate0']=rstate
         sampler_kwargs['lnprob0']=lnpost
         pos = position
 
