@@ -127,7 +127,11 @@ def main(inargs=None):
                rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile)
     else:
         outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=False, redo=redo, resume=resume)
-        spec, cont_model, linedata, continuumdata, phot, fit_config = io.read_fit_inputs(outfile)
+        try:
+            spec, cont_model, linedata, continuumdata, phot, fit_config = io.read_fit_inputs(outfile)
+        except IOError as e:
+            message = '{}\nMust run fit to generate inputs before attempting to resume'
+            raise RuntimeError(message)
         rvmodel  = fit_config['rvmodel']
         covtype  = fit_config['covtype']
         usehodlr = fit_config['usehodlr']
@@ -170,7 +174,11 @@ def main(inargs=None):
         # if skipmcmc is set, you can now run the code with MPI
         io.write_params(migrad_params, outfile)
     else:
-        migrad_params = io.read_params(outfile)
+        try:
+            migrad_params = io.read_params(outfile)
+        except (OSError,IOError) as e:
+            message = '{}\nMust run fit to generate inputs before attempting to resume'
+            raise RuntimeError(message)
 
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model

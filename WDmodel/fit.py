@@ -521,8 +521,13 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         outf = h5py.File(outfile, 'w')
     else:
         # restore some attributes from the HDF5 file to make sure the state is consistent
-        outf = h5py.File(outfile, 'a')
-        chain = outf['chain']
+        try:
+            outf = h5py.File(outfile, 'a')
+            chain = outf['chain']
+        except (IOError, OSError, KeyError) as e:
+            message = '{}\nMust run fit to generate mcmc chain before attempting to resume'
+            raise RuntimeError(message)
+
         ntemps      = chain.attrs["ntemps"]
         nwalkers    = chain.attrs["nwalkers"]
         everyn      = chain.attrs["everyn"]
@@ -672,8 +677,13 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         chain.attrs["nprod"] = laststep+nprod
 
         # and that we have the state of the chain when we ended
-        with open(statefile) as f:
-            position, lnpost, rstate = pickle.load(f)
+        try:
+            with open(statefile) as f:
+                position, lnpost, rstate = pickle.load(f)
+        except (IOError, OSError) as e:
+            message = '{}\nMust run fit to generate mcmc chain state pickle before attempting to resume'
+            raise RuntimeError(message)
+
         sampler_kwargs['rstate0']=rstate
         sampler_kwargs['lnprob0']=lnpost
         pos = position
@@ -718,9 +728,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
     # save the acceptance fraction
     if resume:
-        del chain["afrac"]
+        if "afrac" in chain.keys():
+            del chain["afrac"]
         if samptype != 'ensemble':
-            del chain["tswap_afrac"]
+            if "tswap_afrac" in chain.keys():
+                del chain["tswap_afrac"]
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
     if samptype != 'ensemble':
         chain.create_dataset("tswap_afrac", data=sampler.tswap_acceptance_fraction)
