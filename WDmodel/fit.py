@@ -704,7 +704,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     sampler_kwargs['storechain']=False
 
     # run the production chain
-    with progress.Bar(label="Production", expected_size=laststep+thin*nprod, hide=False) as bar:
+    with progress.Bar(label="Production", expected_size=laststep+nprod, hide=False) as bar:
         bar.show(laststep)
         for i, result in enumerate(sampler.sample(pos, iterations=thin*nprod, **sampler_kwargs)):
             position = result[0]
