@@ -706,26 +706,30 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     # run the production chain
     with progress.Bar(label="Production", expected_size=laststep+nprod, hide=False) as bar:
         bar.show(laststep)
+        j = 0
         for i, result in enumerate(sampler.sample(pos, iterations=thin*nprod, **sampler_kwargs)):
+            if i%thin != 0:
+                continue
             position = result[0]
             lnpost   = result[1]
             position = position.reshape((-1, nparam))
             lnpost   = lnpost.reshape(ntemps*nwalkers)
-            i += laststep
-            dset_chain[ntemps*nwalkers*i:ntemps*nwalkers*(i+1),:] = position
-            dset_lnprob[ntemps*nwalkers*i:ntemps*nwalkers*(i+1)] = lnpost
+            j += laststep
+            dset_chain[ntemps*nwalkers*j:ntemps*nwalkers*(j+1),:] = position
+            dset_lnprob[ntemps*nwalkers*j:ntemps*nwalkers*(j+1)] = lnpost
 
             # save state every 100 steps
-            if (i+1)%100 == 0:
+            if (j+1)%100 == 0:
                 # make sure we know how many steps we've taken so that we can resize arrays appropriately
-                chain.attrs["laststep"] = i+1
+                chain.attrs["laststep"] = j+1
                 outf.flush()
 
                 # save the state of the chain
                 with open(statefile, 'w') as f:
                     pickle.dump(result, f, -1)
 
-            bar.show(i+1)
+            bar.show(j+1)
+            j+=1
 
         # save the final state of the chain and nprod, laststep
         chain.attrs["nprod"]    = laststep+nprod
