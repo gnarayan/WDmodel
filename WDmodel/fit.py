@@ -708,7 +708,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         bar.show(laststep)
         j = 0
         for i, result in enumerate(sampler.sample(pos, iterations=thin*nprod, **sampler_kwargs)):
-            if i%thin != 0:
+            if (i+1)%thin != 0:
                 continue
             position = result[0]
             lnpost   = result[1]
