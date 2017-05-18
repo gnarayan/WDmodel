@@ -597,10 +597,13 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
     # do a short burn-in
     if not resume:
-        with progress.Bar(label="Burn-in", expected_size=thin*nburnin, hide=False) as bar:
+        with progress.Bar(label="Burn-in", expected_size=nburnin, hide=False) as bar:
             bar.show(0)
+            j = 0
             for i, result in enumerate(sampler.sample(pos, iterations=thin*nburnin, **sampler_kwargs)):
-                bar.show(i+1)
+                if (i+1)%thin == 0:
+                    bar.show(j+1)
+                    j+=1
 
         # find the MAP position after the burnin
         samples        = sampler.flatchain
@@ -714,7 +717,6 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             lnpost   = result[1]
             position = position.reshape((-1, nparam))
             lnpost   = lnpost.reshape(ntemps*nwalkers)
-            j += laststep
             dset_chain[ntemps*nwalkers*j:ntemps*nwalkers*(j+1),:] = position
             dset_lnprob[ntemps*nwalkers*j:ntemps*nwalkers*(j+1)] = lnpost
 
@@ -728,7 +730,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
                 with open(statefile, 'w') as f:
                     pickle.dump(result, f, -1)
 
-            bar.show(j+1)
+            bar.show(laststep+j+1)
             j+=1
 
         # save the final state of the chain and nprod, laststep
