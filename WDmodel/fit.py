@@ -709,7 +709,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     # run the production chain
     with progress.Bar(label="Production", expected_size=laststep+nprod, hide=False) as bar:
         bar.show(laststep)
-        j = 0
+        j = laststep
         for i, result in enumerate(sampler.sample(pos, iterations=thin*nprod, **sampler_kwargs)):
             if (i+1)%thin != 0:
                 continue
@@ -730,7 +730,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
                 with open(statefile, 'w') as f:
                     pickle.dump(result, f, -1)
 
-            bar.show(laststep+j+1)
+            bar.show(j+1)
             j+=1
 
         # save the final state of the chain and nprod, laststep

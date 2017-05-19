@@ -53,7 +53,7 @@ class WDmodel_CovModel(object):
         # configure the kernel
         self._ndim = 3
         self._k1   = george.kernels.ConstantKernel # amplitude of the covariance kernel
-        self._k3   = george.kernels.ConstantKernel # amplitude of the white noise kernel 
+        self._k3   = george.kernels.ConstantKernel # amplitude of the white noise kernel
         if covtype == 'White':
             self._k1 = None
             self._k2 = None
