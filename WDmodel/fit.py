@@ -774,7 +774,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
 
     # return the parameter names of the chain, the positions, posterior, and the shape of the chain
-    return  free_param_names, samples, samples_lnprob, (ntemps, nwalkers, laststep+nprod, nparam)
+    return  free_param_names, samples, samples_lnprob, everyn, (ntemps, nwalkers, laststep+nprod, nparam)
 
 
 def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
