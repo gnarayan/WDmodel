@@ -58,8 +58,8 @@
         "fixed": false,
         "scale": 0.1,
         "bounds": [
-            1e-4,
-            1e3
+            0.0,
+            20.0
         ]
     },
     "tau": {
