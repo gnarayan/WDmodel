@@ -1,5 +1,6 @@
 import numpy as np
 import celerite
+import warnings
 
 class WDmodel_CovModel(object):
     """
@@ -8,7 +9,7 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    def __init__(self, errscale, covtype='ExpSquared', tol=1e-12):
+    def __init__(self, errscale, covtype='Matern32', tol=1e-12):
         """
         Sets the covariance model and covariance model scale
         Accepts
@@ -51,7 +52,9 @@ class WDmodel_CovModel(object):
             self._logQ = np.log(1./np.sqrt(2.))
         else:
             message = 'Do not understand kernel type {}'.format(covtype)
-            raise RuntimeError(message)
+            warnings.warn(message, RuntimeWarning)
+            self._k1 = celerite.terms.Matern32Term
+            self._covtype = 'Matern32'
 
 
     def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw):
@@ -66,9 +69,6 @@ class WDmodel_CovModel(object):
             scale of the stationary kernel, and the white noise
         """
         gp = self.getgp(wave, flux_err, fsig, tau, fw)
-        # TODO - we should probably add a factor based on tau here as well
-        if ((fsig*self._errscale)**2. < 10.*self._tol):
-            return -np.inf
         return gp.log_likelihood(res)
 
 
@@ -108,10 +108,10 @@ class WDmodel_CovModel(object):
         log_sigma_fw = np.log(fw*self._errscale)
         kw = self._k2(log_sigma_fw)
         if self._ndim != 1:
-            log_sigma_fsig = np.log(fsig*self_errscale)
+            log_sigma_fsig = np.log(fsig*self._errscale)
             if self._covtype == 'Matern32':
                 log_rho = np.log(tau)
-                ku = self._k1(log_sigma_fsig, log_rho, self._tol)
+                ku = self._k1(log_sigma_fsig, log_rho, eps=self._tol)
             else:
                 log_omega0 = np.log((2.*np.pi)/tau)
                 ku = self._k1(log_sigma_fsig, self._logQ, log_omega0)
@@ -119,6 +119,6 @@ class WDmodel_CovModel(object):
         else:
             kernel = kw
 
-        gp = GP(kernel, mean=0., **self._solverkwargs)
+        gp = celerite.GP(kernel, mean=0.)
         gp.compute(wave, flux_err, check_sorted=False)
         return gp
