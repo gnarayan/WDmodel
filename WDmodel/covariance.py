@@ -1,6 +1,7 @@
 import numpy as np
 from george import GP, HODLRSolver, BasicSolver
 import george.kernels
+import warnings
 
 class WDmodel_CovModel(object):
     """
@@ -9,7 +10,7 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    def __init__(self, errscale, covtype='ExpSquared', nleaf=500, tol=1e-12, usehodlr=True):
+    def __init__(self, errscale, covtype='Matern32', nleaf=500, tol=1e-12, usehodlr=True):
         """
         Sets the covariance model and covariance model scale
         Accepts
@@ -68,7 +69,9 @@ class WDmodel_CovModel(object):
             self._k2 = george.kernels.ExpKernel
         else:
             message = 'Do not understand kernel type {}'.format(covtype)
-            raise RuntimeError(message)
+            warnings.warn(message, RuntimeWarning)
+            self._k2 = george.kernels.Matern32Kernel
+            self._covtype = 'Matern32'
 
 
     def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw):
@@ -106,30 +109,6 @@ class WDmodel_CovModel(object):
         """
         gp = self.getgp(wave, flux_err, fsig, tau, fw)
         return gp.predict(res, wave, mean_only)
-
-
-    def optimize(self, wave, res, flux_err, fsig, tau, fw, bounds, dims=None):
-        """
-        Optimize the kernel hyperparameters given the data The george
-        documentation describes the call to optimize as "not terribly robust"
-
-        Accepts
-            wave: the wavelength array
-            res: the residuals between flux and the model flux
-            flux_err: the uncertainty on the flux measurements - added to the
-            diagonal of the covariance matrix
-            fsig, tau, fw: the kernel hyperparameters defining the amplitude and
-            scale of the stationary kernel, and the white noise
-            bounds: sequence of tuples with lower, upper bounds for each parameter
-            dims: (optional) array of parameter indices to optimize
-        Returns
-            pars: list of optimized parameters
-            result: scipy.optimize.minimze object
-
-        """
-        gp = self.getgp(wave, flux_err, fsig, tau, fw)
-        pars, result = gp.optimize(wave, res, flux_err, dims=dims, sort=False, verbose=True)
-        return pars, result
 
 
     def getgp(self, wave, flux_err, fsig, tau, fw):
