@@ -4,7 +4,7 @@ import numpy as np
 from . import io
 from . import WDmodel
 from . import passband
-from . import covariance
+from . import covariance_celerite as covariance
 from . import fit
 from . import viz
 
@@ -183,7 +183,7 @@ def main(inargs=None):
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
     errscale = np.median(spec.flux_err)
-    covmodel = covariance.WDmodel_CovModel(errscale, covtype, nleaf, tol, usehodlr)
+    covmodel = covariance.WDmodel_CovModel(errscale, covtype, tol)
 
     ##### MCMC #####
 
