@@ -36,7 +36,7 @@ def main():
             script_file = WDmodel.io.get_outfile("scripts", specfile,'.sh')
             outlines.append("#SBATCH -o {}".format(stdout_file))
             outlines.append("#SBATCH -e {}".format(stderr_file))
-            outlines.append("mpirun -np 32 ./fit_WDmodel.py --mpi --specfile {} --trimspec 3700 5200 --photfile data/photometry/WDphot_C22.dat --samptype pt --nprod 1000 --nwalkers 100 --phot_dispersion 0.001 --thin 10 --redo --rescale".format(specfile))
+            outlines.append("mpirun -np 32 ./fit_WDmodel.py --mpi --specfile {} --trimspec 3700 5200 --photfile data/photometry/WDphot_C22.dat --samptype pt --ntemps 4 --nprod 1000 --nwalkers 100 --phot_dispersion 0.001 --thin 10 --redo --rescale".format(specfile))
             out = addnewlines((lines+outlines))
             with open(script_file,'w') as f:
                 f.writelines(out)
@@ -54,7 +54,7 @@ def main():
         script_file = WDmodel.io.get_outfile("scripts/ignorephot", specfile,'.sh')
         outlines.append("#SBATCH -o {}".format(stdout_file))
         outlines.append("#SBATCH -e {}".format(stderr_file))
-        outlines.append("mpirun -np 32 ./fit_WDmodel.py --mpi --specfile {} --trimspec 3700 5200 --ignorephot --redo --rescale --samptype pt --nprod 1000 --nwalkers 100 --thin 10 --outroot out/ignorephot".format(specfile))
+        outlines.append("mpirun -np 32 ./fit_WDmodel.py --mpi --specfile {} --trimspec 3700 5200 --ignorephot --redo --rescale --samptype pt --ntemps 4 --nprod 1000 --nwalkers 100 --thin 10 --outroot out/ignorephot".format(specfile))
         out = addnewlines((lines+outlines))
         with open(script_file,'w') as f:
             f.writelines(out)
