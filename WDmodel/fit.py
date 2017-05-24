@@ -747,7 +747,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             if "tswap_afrac" in chain.keys():
                 del chain["tswap_afrac"]
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
-    if samptype != 'ensemble':
+    if samptype != 'ensemble' and ntemps > 1:
         chain.create_dataset("tswap_afrac", data=sampler.tswap_acceptance_fraction)
 
     samples         = np.array(dset_chain)
