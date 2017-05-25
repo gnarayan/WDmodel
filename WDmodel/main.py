@@ -11,8 +11,6 @@ from . import viz
 
 def main(inargs=None):
     comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
 
     if inargs is None:
         inargs = sys.argv[1:]
