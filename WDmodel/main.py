@@ -4,7 +4,7 @@ import numpy as np
 from . import io
 from . import WDmodel
 from . import passband
-from . import covariance_celerite as covariance
+from . import covariance
 from . import fit
 from . import viz
 
@@ -37,9 +37,7 @@ def main(inargs=None):
     ignorephot= args.ignorephot
 
     covtype   = args.covtype
-    usehodlr  = args.usehodlr
-    tol       = args.hodlr_tol
-    nleaf     = args.hodlr_nleaf
+    coveps    = args.coveps
 
     samptype  = args.samptype
     ascale    = args.ascale
@@ -122,7 +120,7 @@ def main(inargs=None):
         # save the inputs to the fitter
         outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo, resume=resume)
         io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-               rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile)
+               rvmodel, covtype, coveps, phot_dispersion, scale_factor, outfile)
     else:
         outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=False, redo=redo, resume=resume)
         try:
@@ -132,9 +130,7 @@ def main(inargs=None):
             raise RuntimeError(message)
         rvmodel  = fit_config['rvmodel']
         covtype  = fit_config['covtype']
-        usehodlr = fit_config['usehodlr']
-        nleaf    = fit_config['nleaf']
-        tol      = fit_config['tol']
+        coveps   = fit_config['coveps']
         scale_factor    = fit_config['scale_factor']
         phot_dispersion = fit_config['phot_dispersion']
         pbnames = list(phot.pb)
@@ -181,7 +177,7 @@ def main(inargs=None):
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
     errscale = np.median(spec.flux_err)
-    covmodel = covariance.WDmodel_CovModel(errscale, covtype, tol)
+    covmodel = covariance.WDmodel_CovModel(errscale, covtype, coveps)
 
     ##### MCMC #####
 
