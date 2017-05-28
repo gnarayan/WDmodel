@@ -570,7 +570,6 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     if samptype == 'ensemble':
         sampler = emcee.EnsembleSampler(nwalkers, nparam, lnpost,\
                 a=ascale,  pool=pool)
-        thin = 1
         ntemps = 1
     else:
         logpkwargs = {'prior':True}
@@ -592,8 +591,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         lnprob0 = np.array(lnprob0)
         lnprob0 = lnprob0.reshape(ntemps, nwalkers)
-        sampler_kwargs = {'gibbs':gibbs, 'thin':thin, 'lnprob0':lnprob0}
-
+        sampler_kwargs = {'gibbs':gibbs,'lnprob0':lnprob0}
+    sampler_kwargs['thin'] = thin
 
     # do a short burn-in
     if not resume:

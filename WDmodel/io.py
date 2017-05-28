@@ -241,10 +241,6 @@ def get_options(args, comm):
         message = 'Thin must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.thin)
         raise ValueError(message)
 
-    if (args.thin > 1) and (args.samptype == 'ensemble'):
-        message = 'Chain thinning only available with PTSampler or Gibbs Sampler: ({})'.format(args.thin)
-        raise ValueError(message)
-
     # Wait for instructions from the master process if we are running MPI
     pool = None
     if args.mpi or args.mpil:
