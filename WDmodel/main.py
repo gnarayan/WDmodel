@@ -1,5 +1,5 @@
 import sys
-from mpi4py import MPI
+import mpi4py
 import numpy as np
 from . import io
 from . import WDmodel
@@ -8,9 +8,16 @@ from . import covariance
 from . import fit
 from . import viz
 
+sys_excepthook = sys.excepthook
+def mpi_excepthook(excepttype, exceptvalue, traceback):
+    sys_excepthook(excepttype, exceptvalue, traceback)
+    mpi4py.MPI.COMM_WORLD.Abort(1)
 
 def main(inargs=None):
-    comm = MPI.COMM_WORLD
+    comm = mpi4py.MPI.COMM_WORLD
+    size = comm.Get_size()
+    if size > 1:
+        sys.excepthook = mpi_excepthook
 
     if inargs is None:
         inargs = sys.argv[1:]
