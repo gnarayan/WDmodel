@@ -121,15 +121,11 @@ def get_options(args, comm):
 
     # covariance model options
     covmodel = parser.add_argument_group('covariance model', 'Covariance model options')
-    cov_choices=('White','ExpSquared','Matern32','Matern52','Exp','SHO')
+    cov_choices=('White','Matern32','Exp','SHO')
     covmodel.add_argument('--covtype', required=False, choices=cov_choices,\
                 default='Matern32', help='Specify parametric form of the covariance function to model the spectrum')
-    covmodel.add_argument('--usehodlr',  required=False, type="bool", default="True",\
-            help="Use the HODLR solver over the Basic Solver - faster, but approximate")
-    covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-12,\
-            help="Specify tolerance for HODLR solver")
-    covmodel.add_argument('--hodlr_nleaf',  required=False, type=int, default=200,\
-            help="Specify size of smallest matrix blocks before HODLR solves system directly")
+    covmodel.add_argument('--coveps', required=False, type=float, default=1e-12,\
+            help="Specify accuracy of Matern32 kernel approximation")
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
@@ -205,12 +201,8 @@ def get_options(args, comm):
         message = 'Photometric dispersion must be GE 0. ({:g})'.format(args.phot_dispersion)
         raise ValueError(message)
 
-    if args.hodlr_tol <= 0:
-        message = 'HODLR Solver tolerance must be greater than 0. ({:g})'.format(args.hodlr_tol)
-        raise ValueError(message)
-
-    if args.hodlr_nleaf <= 0:
-        message = 'HODLR Solver nleaf must be greater than zero ({})'.format(args.hodlr_nleaf)
+    if args.coveps <= 0:
+        message = 'Matern32 approximation eps must be greater than 0. ({:g})'.format(args.coveps)
         raise ValueError(message)
 
     if args.nwalkers <= 0:
@@ -611,7 +603,7 @@ def get_pkgfile(infile):
 
 
 def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-        rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile):
+        rvmodel, covtype, coveps, phot_dispersion, scale_factor, outfile):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
@@ -637,9 +629,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
         continuumdata: data used to generate the continuum model (wave, flux, flux_err)
         rvmodel: string specifying which RV law was used to redden the spectrum
         covtype: string specifying which kernel was used to model the spectrum covariance
-        usehodlr: bool specifying if the user requested that we use the HODLR solver
-        nleaf: minimum matrix size before HODLR attempts to directly solve system with Eigen Cholesky
-        tol: HODLR tolerance
+        coveps: accuracy of covariance kernel Matern32 approximation
         phot_dispersion: amount of photometric dispersion to add in quadrature with the reported uncertainties
         scale_factor: how the spectrum flux and flux_err was scaled
         outfile: output filename
@@ -669,9 +659,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
 
     dset_fit_config = outf.create_group("fit_config")
     dset_fit_config.attrs["covtype"]=np.string_(covtype)
-    dset_fit_config.attrs["usehodlr"]=usehodlr
-    dset_fit_config.attrs["nleaf"]=nleaf
-    dset_fit_config.attrs["tol"]=tol
+    dset_fit_config.attrs["coveps"]=coveps
     dset_fit_config.attrs["rvmodel"]=np.string_(rvmodel)
 
     if phot is not None:
@@ -703,7 +691,7 @@ def read_fit_inputs(input_file):
         [phot]
             pb, mag, mag_err
         the fit_config group must have the following HDF5 attributes
-            covtype, usehodlr, nleaf, tol, rvmodel
+            covtype, coveps, rvmodel
 
     Returns a tuple of recarrays and dictionary
         spec, cont_model, linedata, continuumdata, phot[=None if absent], fit_config
@@ -734,23 +722,13 @@ def read_fit_inputs(input_file):
 
         fit_config = {}
         fit_config['covtype'] = d['fit_config'].attrs['covtype']
-        fit_config['nleaf'] = d['fit_config'].attrs['nleaf']
-        fit_config['tol'] = d['fit_config'].attrs['tol']
+        fit_config['coveps'] = d['fit_config'].attrs['coveps']
         fit_config['rvmodel'] = d['fit_config'].attrs['rvmodel']
         fit_config['scale_factor'] = scale_factor
 
     except Exception as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
         raise IOError(message)
-    try:
-        fit_config['usehodlr'] = d['fit_config'].attrs['usehodlr']
-    except Exception as e:
-        try:
-            fit_config['usehodlr'] = ~d['fit_config'].attrs['usebasic']
-        except Exception as e:
-            message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
-            raise IOError(message)
-
 
     phot = None
     if 'phot' in d.keys():
