@@ -4,7 +4,6 @@ clint==0.5.1
 corner==2.0.1
 emcee==2.2.1
 extinction==0.3.0
-george==0.2.1
 h5py==2.6.0
 iminuit==1.2
 matplotlib==2.0.2
