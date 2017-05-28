@@ -1,6 +1,5 @@
 import numpy as np
-from george import GP, HODLRSolver, BasicSolver
-import george.kernels
+import celerite
 import warnings
 
 class WDmodel_CovModel(object):
@@ -10,7 +9,7 @@ class WDmodel_CovModel(object):
     hyperparameters. This is defined so the kernel is only set in a single
     location.
     """
-    def __init__(self, errscale, covtype='Matern32', nleaf=500, tol=1e-12, usehodlr=True):
+    def __init__(self, errscale, covtype='Matern32', coveps=1e-12):
         """
         Sets the covariance model and covariance model scale
         Accepts
@@ -19,15 +18,13 @@ class WDmodel_CovModel(object):
             covtype: type of covariance model
                 choices are White, ExpSquared, Matern32, Matern52, Exp
 
-                All choices except White are represented by three paramters -
+                All choices except White are represented by three parameters -
                 fsig, tau, fw: the kernel hyperparameters defining the amplitude and
                     scale of the stationary kernel, and the white noise
                 White just uses fw
 
-        These options are only used if usehodlr is set
-            nleaf: mimimum matrix block size for the HODLR solver
-            tol: tolerance for the HODLR solver
-            usehodlr: use the HODLR solver over the Basic Solver
+            coveps: precision for the Matern kernel approximation
+                    Not used if kernel is not Matern32
 
         Returns
             a WDmodel_CovModel instance
@@ -36,42 +33,30 @@ class WDmodel_CovModel(object):
         # if we rescale the problem, errscale should be 1.
         # if not, it is the median error of the data
         self._errscale = errscale
-        self._tol  = tol
-
-        # configure the solver
-        if usehodlr:
-            message = "Using HODLR solver with tol={:g}, nleaf={:n}".format(tol, nleaf)
-            self._solver = HODLRSolver
-            self._solverkwargs = {'nleaf':nleaf, 'tol':tol}
-            self._computekwargs = {'seed':1}
-        else:
-            message = "Using Basic solver"
-            self._solver = BasicSolver
-            self._solverkwargs = {}
-            self._computekwargs = {}
-        print message
+        self._coveps  = coveps
+        self._covtype = covtype
 
         # configure the kernel
         self._ndim = 3
-        self._k1   = george.kernels.ConstantKernel # amplitude of the covariance kernel
-        self._k3   = george.kernels.ConstantKernel # amplitude of the white noise kernel
+        self._k2   = celerite.terms.JitterTerm # amplitude of the white noise kernel
         if covtype == 'White':
             self._k1 = None
-            self._k2 = None
             self._ndim = 1
-        elif covtype == 'ExpSquared':
-            self._k2 = george.kernels.ExpSquaredKernel
         elif covtype == 'Matern32':
-            self._k2 = george.kernels.Matern32Kernel
-        elif covtype == 'Matern52':
-            self._k2 = george.kernels.Matern52Kernel
+            self._k1 = celerite.terms.Matern32Term
+        elif covtype == 'SHO':
+            self._k1 = celerite.terms.SHOTerm
+            self._logQ = np.log(1./np.sqrt(2.))
         elif covtype == 'Exp':
-            self._k2 = george.kernels.ExpKernel
+            self._k1 = celerite.terms.RealTerm
         else:
             message = 'Do not understand kernel type {}'.format(covtype)
             warnings.warn(message, RuntimeWarning)
-            self._k2 = george.kernels.Matern32Kernel
+            self._k1 = celerite.terms.Matern32Term
             self._covtype = 'Matern32'
+
+        message = "Parametrizing covariance with {} kernel and using Cholesky Solver".format(covtype)
+        print message
 
 
     def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw):
@@ -86,10 +71,7 @@ class WDmodel_CovModel(object):
             scale of the stationary kernel, and the white noise
         """
         gp = self.getgp(wave, flux_err, fsig, tau, fw)
-        # TODO - we should probably add a factor based on tau here as well
-        if ((fsig*self._errscale)**2. < 10.*self._tol):
-            return -np.inf
-        return gp.lnlikelihood(res, quiet=True)
+        return gp.log_likelihood(res)
 
 
     def predict(self, wave, res, flux_err, fsig, tau, fw, mean_only=False):
@@ -108,7 +90,8 @@ class WDmodel_CovModel(object):
 
         """
         gp = self.getgp(wave, flux_err, fsig, tau, fw)
-        return gp.predict(res, wave, mean_only)
+        return_cov = not(mean_only)
+        return gp.predict(res, wave, return_cov)
 
 
     def getgp(self, wave, flux_err, fsig, tau, fw):
@@ -124,9 +107,23 @@ class WDmodel_CovModel(object):
         Returns
             gp: the george GP object
         """
-        kernel = self._k3((fw*self._errscale)**2.)
+        log_sigma_fw = np.log(fw*self._errscale)
+        kw = self._k2(log_sigma_fw)
         if self._ndim != 1:
-            kernel = self._k1((fsig*self._errscale)**2.)*self._k2(tau) + kernel
-        gp = GP(kernel, mean=0., solver=self._solver, **self._solverkwargs)
-        gp.compute(wave, flux_err, sort=False, **self._computekwargs)
+            log_sigma_fsig = np.log(fsig*self._errscale)
+            if self._covtype == 'Matern32':
+                log_rho = np.log(tau)
+                ku = self._k1(log_sigma_fsig, log_rho, eps=self._coveps)
+            elif self._covtype == 'SHO':
+                log_omega0 = np.log((2.*np.pi)/tau)
+                ku = self._k1(log_sigma_fsig, self._logQ, log_omega0)
+            else:
+                log_c = 1./np.log(tau)
+                ku = self._k1(log_sigma_fsig, log_c)
+            kernel = ku + kw
+        else:
+            kernel = kw
+
+        gp = celerite.GP(kernel, mean=0.)
+        gp.compute(wave, flux_err, check_sorted=False)
         return gp
