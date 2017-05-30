@@ -727,6 +727,7 @@ def read_fit_inputs(input_file):
         raise IOError(message)
 
     phot = None
+    fit_config['phot_dispersion'] = 0.001
     if 'phot' in d.keys():
         try:
             pb  = d['phot']['pb'].value
