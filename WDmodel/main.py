@@ -140,7 +140,10 @@ def main(inargs=None):
         coveps   = fit_config['coveps']
         scale_factor    = fit_config['scale_factor']
         phot_dispersion = fit_config['phot_dispersion']
-        pbnames = list(phot.pb)
+        if phot is not None:
+            pbnames = list(phot.pb)
+        else:
+            pbnames = []
 
     # get the throughput model
     pbs = passband.get_pbmodel(pbnames, model)
