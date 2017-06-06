@@ -58,16 +58,16 @@
         "fixed": false,
         "scale": 0.1,
         "bounds": [
-            1e-4,
-            1e3
+            0.0,
+            50.0
         ]
     },
     "tau": {
-        "value": 10000.0,
-        "fixed": true,
+        "value": 5000.0,
+        "fixed": false,
         "scale": 100.0,
         "bounds": [
-            2000.0,
+            500.0,
             20000.0
         ]
     },

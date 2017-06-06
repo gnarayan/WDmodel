@@ -1,4 +1,5 @@
 import sys
+import mpi4py
 import numpy as np
 from . import io
 from . import WDmodel
@@ -7,14 +8,22 @@ from . import covariance
 from . import fit
 from . import viz
 
+sys_excepthook = sys.excepthook
+def mpi_excepthook(excepttype, exceptvalue, traceback):
+    sys_excepthook(excepttype, exceptvalue, traceback)
+    mpi4py.MPI.COMM_WORLD.Abort(1)
 
 def main(inargs=None):
+    comm = mpi4py.MPI.COMM_WORLD
+    size = comm.Get_size()
+    if size > 1:
+        sys.excepthook = mpi_excepthook
 
     if inargs is None:
         inargs = sys.argv[1:]
 
     # parse the arguments
-    args, pool= io.get_options(inargs)
+    args, pool= io.get_options(inargs, comm)
 
     specfile  = args.specfile
     spectable = args.spectable
@@ -35,9 +44,7 @@ def main(inargs=None):
     ignorephot= args.ignorephot
 
     covtype   = args.covtype
-    usehodlr  = args.usehodlr
-    tol       = args.hodlr_tol
-    nleaf     = args.hodlr_nleaf
+    coveps    = args.coveps
 
     samptype  = args.samptype
     ascale    = args.ascale
@@ -48,6 +55,7 @@ def main(inargs=None):
     everyn    = args.everyn
     thin      = args.thin
     redo      = args.redo
+    resume    = args.resume
 
     discard   = args.discard
 
@@ -60,63 +68,82 @@ def main(inargs=None):
 
 
     # set the object name and create output directories
-    objname, outdir = io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot, redo=redo)
+    objname, outdir = io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot,\
+                        redo=redo, resume=resume)
     print "Writing to outdir {}".format(outdir)
-
-    # parse the parameter keywords in the argparse Namespace into a dictionary
-    params = io.get_params_from_argparse(args)
-
-    # get resolution - by default, this is None, since it depends on instrument settings for each spectra
-    # we can look it up from a lookup table provided by Tom Matheson for our spectra
-    # a custom argument from the command line overrides the lookup
-    fwhm = params['fwhm']['value']
-    fwhm = io.get_spectrum_resolution(specfile, spectable, fwhm=fwhm)
-    params['fwhm']['value'] = fwhm
-
-    # read spectrum
-    spec = io.read_spec(specfile)
 
     # init the model
     model = WDmodel.WDmodel(rvmodel=rvmodel)
 
-    # pre-process spectrum
-    out = fit.pre_process_spectrum(spec, bluelim, redlim, model, params,\
-            rebin=rebin, lamshift=lamshift, vel=vel, blotch=blotch, rescale=rescale)
-    spec, cont_model, linedata, continuumdata, scale_factor, params  = out
+    if not resume:
+        # parse the parameter keywords in the argparse Namespace into a dictionary
+        params = io.get_params_from_argparse(args)
 
-    # get photometry
-    if not ignorephot:
-        phot = io.get_phot_for_obj(objname, photfile)
+        # get resolution - by default, this is None, since it depends on instrument settings for each spectra
+        # we can look it up from a lookup table provided by Tom Matheson for our spectra
+        # a custom argument from the command line overrides the lookup
+        fwhm = params['fwhm']['value']
+        fwhm = io.get_spectrum_resolution(specfile, spectable, fwhm=fwhm)
+        params['fwhm']['value'] = fwhm
+
+        # read spectrum
+        spec = io.read_spec(specfile)
+
+
+        # pre-process spectrum
+        out = fit.pre_process_spectrum(spec, bluelim, redlim, model, params,\
+                rebin=rebin, lamshift=lamshift, vel=vel, blotch=blotch, rescale=rescale)
+        spec, cont_model, linedata, continuumdata, scale_factor, params  = out
+
+        # get photometry
+        if not ignorephot:
+            phot = io.get_phot_for_obj(objname, photfile)
+        else:
+            params['mu']['value'] = 0.
+            params['mu']['fixed'] = True
+            phot = None
+
+        # exclude passbands that we want excluded
+        pbnames = []
+        if phot is not None:
+            pbnames = np.unique(phot.pb)
+            if excludepb is not None:
+                pbnames = list(set(pbnames) - set(excludepb))
+
+            # filter the photometry recarray to use only the passbands we want
+            useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
+            useind = np.array(useind)
+            phot = phot.take(useind)
+
+            # set the pbnames from the trimmed photometry recarray to preserve order
+            pbnames = list(phot.pb)
+
+        # if we cut out out all the passbands, force mu to be fixed
+        if len(pbnames) == 0:
+            params['mu']['value'] = 0.
+            params['mu']['fixed'] = True
+            phot = None
+
+        # save the inputs to the fitter
+        outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo, resume=resume)
+        io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
+               rvmodel, covtype, coveps, phot_dispersion, scale_factor, outfile)
     else:
-        params['mu']['value'] = 0.
-        params['mu']['fixed'] = True
-        phot = None
-
-    # exclude passbands that we want excluded
-    pbnames = []
-    if phot is not None:
-        pbnames = np.unique(phot.pb)
-        if excludepb is not None:
-            pbnames = list(set(pbnames) - set(excludepb))
-
-        # filter the photometry recarray to use only the passbands we want
-        useind = [x for x, pb in enumerate(phot.pb) if pb in pbnames]
-        useind = np.array(useind)
-        phot = phot.take(useind)
-
-        # set the pbnames from the trimmed photometry recarray to preserve order
-        pbnames = list(phot.pb)
-
-    # if we cut out out all the passbands, force mu to be fixed
-    if len(pbnames) == 0:
-        params['mu']['value'] = 0.
-        params['mu']['fixed'] = True
-        phot = None
-
-    # save the inputs to the fitter
-    outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo)
-    io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-           rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile)
+        outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=False, redo=redo, resume=resume)
+        try:
+            spec, cont_model, linedata, continuumdata, phot, fit_config = io.read_fit_inputs(outfile)
+        except IOError as e:
+            message = '{}\nMust run fit to generate inputs before attempting to resume'.format(e)
+            raise RuntimeError(message)
+        rvmodel  = fit_config['rvmodel']
+        covtype  = fit_config['covtype']
+        coveps   = fit_config['coveps']
+        scale_factor    = fit_config['scale_factor']
+        phot_dispersion = fit_config['phot_dispersion']
+        if phot is not None:
+            pbnames = list(phot.pb)
+        else:
+            pbnames = []
 
     # get the throughput model
     pbs = passband.get_pbmodel(pbnames, model)
@@ -125,35 +152,42 @@ def main(inargs=None):
     ##### MINUIT #####
 
 
-    # to avoid minuit messing up inputs, it can be skipped entirely to force the MCMC to start at a specific position
-    if not args.skipminuit:
-        # do a quick fit to refine the input params
-        migrad_params  = fit.quick_fit_spec_model(spec, model, params)
+    outfile = io.get_outfile(outdir, specfile, '_params.json', check=True, redo=redo, resume=resume)
+    if not resume:
+        # to avoid minuit messing up inputs, it can be skipped entirely to force the MCMC to start at a specific position
+        if not args.skipminuit:
+            # do a quick fit to refine the input params
+            migrad_params  = fit.quick_fit_spec_model(spec, model, params)
 
-        # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
-        viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor,\
-            model, migrad_params, save=True)
+            # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
+            viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor,\
+                model, migrad_params, save=True)
+        else:
+            # we didn't run minuit, so we'll assume the user intended to start us at some specific position
+            migrad_params = io.copy_params(params)
+
+        if covtype == 'White':
+            migrad_params['fsig']['value'] = 0.
+            migrad_params['fsig']['fixed'] = True
+            migrad_params['tau']['fixed']  = True
+
+        # If we don't have a user supplied initial guess of mu, get a guess
+        migrad_params = fit.hyper_param_guess(spec, phot, model, pbs, migrad_params)
+
+        # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
+        # if skipmcmc is set, you can now run the code with MPI
+        io.write_params(migrad_params, outfile)
     else:
-        # we didn't run minuit, so we'll assume the user intended to start us at some specific position
-        migrad_params = io.copy_params(params)
+        try:
+            migrad_params = io.read_params(outfile)
+        except (OSError,IOError) as e:
+            message = '{}\nMust run fit to generate inputs before attempting to resume'.format(e)
+            raise RuntimeError(message)
 
     # init a covariance model instance that's used to model the residuals
     # between the systematic residuals between data and model
     errscale = np.median(spec.flux_err)
-    covmodel = covariance.WDmodel_CovModel(errscale, covtype, nleaf, tol, usehodlr)
-    if covtype == 'White':
-        migrad_params['fsig']['value'] = 0.
-        migrad_params['fsig']['fixed'] = True
-        migrad_params['tau']['fixed']  = True
-
-    # If we don't have a user supplied initial guess of mu, get a guess
-    migrad_params = fit.hyper_param_guess(spec, phot, model, pbs, migrad_params)
-
-    # write out the migrad params - note that if you skipminuit, you are expected to provide the dl value
-    # if skipmcmc is set, you can now run the code with MPI
-    outfile = io.get_outfile(outdir, specfile, '_params.json')
-    io.write_params(migrad_params, outfile)
-
+    covmodel = covariance.WDmodel_CovModel(errscale, covtype, coveps)
 
     ##### MCMC #####
 
@@ -168,10 +202,11 @@ def main(inargs=None):
                     samptype=samptype, ascale=ascale,\
                     ntemps=ntemps, nwalkers=nwalkers, nburnin=nburnin, nprod=nprod,\
                     thin=thin, everyn=everyn,\
-                    redo=redo,\
+                    redo=redo, resume=resume,\
                     pool=pool)
 
-        param_names, samples, samples_lnprob = result
+        param_names, samples, samples_lnprob, everyn, shape = result
+        ntemps, nwalkers, nprod, nparam = shape
         mcmc_params = io.copy_params(migrad_params)
 
         # parse the samples in the chain and get the result

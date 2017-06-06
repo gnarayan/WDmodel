@@ -15,7 +15,7 @@ import h5py
 _PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw", "mu")
 
 
-def get_options(args=None):
+def get_options(args, comm):
     """
     Get command line options for the WDmodel fitter
     """
@@ -121,14 +121,11 @@ def get_options(args=None):
 
     # covariance model options
     covmodel = parser.add_argument_group('covariance model', 'Covariance model options')
-    covmodel.add_argument('--covtype', required=False, choices=('White','ExpSquared','Matern32','Matern52','Exp'),\
-                default='ExpSquared', help='Specify parametric form of the covariance function to model the spectrum')
-    covmodel.add_argument('--usehodlr',  required=False, type="bool", default="True",\
-            help="Use the HODLR solver over the Basic Solver - faster, but approximate")
-    covmodel.add_argument('--hodlr_tol', required=False, type=float, default=1e-12,\
-            help="Specify tolerance for HODLR solver")
-    covmodel.add_argument('--hodlr_nleaf',  required=False, type=int, default=200,\
-            help="Specify size of smallest matrix blocks before HODLR solves system directly")
+    cov_choices=('White','Matern32','Exp','SHO')
+    covmodel.add_argument('--covtype', required=False, choices=cov_choices,\
+                default='Matern32', help='Specify parametric form of the covariance function to model the spectrum')
+    covmodel.add_argument('--coveps', required=False, type=float, default=1e-12,\
+            help="Specify accuracy of Matern32 kernel approximation")
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')
@@ -154,6 +151,11 @@ def get_options(args=None):
             help="Save only every nth point in the chain - only works with PTSampler and Gibbs")
     mcmc.add_argument('--discard',  required=False, type=float, default=5,\
             help="Specify percentage of steps to be discarded")
+    clobber = mcmc.add_mutually_exclusive_group()
+    clobber.add_argument('--resume',  required=False, action="store_true", default=False,\
+            help="Resume the MCMC from the last stored location")
+    clobber.add_argument('--redo',  required=False, action="store_true", default=False,\
+            help="Clobber existing fits")
 
     # visualization options
     viz = parser.add_argument_group('viz', 'Visualization options')
@@ -170,10 +172,16 @@ def get_options(args=None):
             help="Specify a custom output root directory. Directories go under outroot/objname/subdir.")
     output.add_argument('-o', '--outdir', required=False,\
             help="Specify a custom output directory. Overrides outroot.")
-    output.add_argument('--redo',  required=False, action="store_true", default=False,\
-            help="Clobber existing fits")
 
-    args = parser.parse_args(args=remaining_argv)
+    args = None
+    try:
+        if comm.Get_rank() == 0:
+            args = parser.parse_args(args=remaining_argv)
+    finally:
+        args = comm.bcast(args, root=0)
+
+    if args is None:
+        sys.exit(0)
 
     # some sanity checking for option values
     balmer = args.balmerlines
@@ -193,12 +201,8 @@ def get_options(args=None):
         message = 'Photometric dispersion must be GE 0. ({:g})'.format(args.phot_dispersion)
         raise ValueError(message)
 
-    if args.hodlr_tol <= 0:
-        message = 'HODLR Solver tolerance must be greater than 0. ({:g})'.format(args.hodlr_tol)
-        raise ValueError(message)
-
-    if args.hodlr_nleaf <= 0:
-        message = 'HODLR Solver nleaf must be greater than zero ({})'.format(args.hodlr_nleaf)
+    if args.coveps <= 0:
+        message = 'Matern32 approximation eps must be greater than 0. ({:g})'.format(args.coveps)
         raise ValueError(message)
 
     if args.nwalkers <= 0:
@@ -235,10 +239,6 @@ def get_options(args=None):
 
     if args.thin < 1:
         message = 'Thin must be integer GE 1. Note that 1 does nothing. ({:g})'.format(args.thin)
-        raise ValueError(message)
-
-    if (args.thin > 1) and (args.samptype == 'ensemble'):
-        message = 'Chain thinning only available with PTSampler or Gibbs Sampler: ({})'.format(args.thin)
         raise ValueError(message)
 
     # Wait for instructions from the master process if we are running MPI
@@ -529,12 +529,13 @@ def get_phot_for_obj(objname, filename):
     return out_phot
 
 
-def make_outdirs(dirname, redo=False):
+def make_outdirs(dirname, redo=False, resume=False):
     """
-    Checks if output directory exists, else creates it
+    Checks if output directory exists, and if it does, and we are resuming or
+    redoing, simply return else creates it.
     """
     if os.path.isdir(dirname):
-        if redo:
+        if resume or redo:
             return
         else:
             message = "Output directory {} already exists. Specify --redo to clobber.".format(dirname)
@@ -547,7 +548,7 @@ def make_outdirs(dirname, redo=False):
         raise OSError(message)
 
 
-def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False):
+def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False, resume=False):
     """
     Accepts a spectrum filename (and optionally a preset output directory) or
     an output root directory, and determines the objname.
@@ -566,11 +567,11 @@ def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=Fa
         dirname = os.path.join(outroot, objname, basespec)
     else:
         dirname = outdir
-    make_outdirs(dirname, redo=redo)
+    make_outdirs(dirname, redo=redo, resume=resume)
     return objname, dirname
 
 
-def get_outfile(outdir, specfile, ext, check=False, redo=False):
+def get_outfile(outdir, specfile, ext, check=False, redo=False, resume=False):
     """
     Returns the full path to a file given outdir, specfile
     Replaces .flm at the end of specfile with extension ext (i.e. you need to include the period)
@@ -579,7 +580,7 @@ def get_outfile(outdir, specfile, ext, check=False, redo=False):
     """
     outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm', ext)))
     if check:
-        if os.path.exists(outfile) and (not redo):
+        if os.path.exists(outfile) and not (resume or redo):
             message = "Output file {} already exists. Specify --redo to clobber.".format(outfile)
             raise IOError(message)
     return outfile
@@ -598,7 +599,7 @@ def get_pkgfile(infile):
 
 
 def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
-        rvmodel, covtype, usehodlr, nleaf, tol, phot_dispersion, scale_factor, outfile):
+        rvmodel, covtype, coveps, phot_dispersion, scale_factor, outfile):
     """
     Save the spectrum, photometry (raw fit inputs) as well as a
     pseudo-continuum model and line data (visualization only inputs) to a file.
@@ -624,9 +625,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
         continuumdata: data used to generate the continuum model (wave, flux, flux_err)
         rvmodel: string specifying which RV law was used to redden the spectrum
         covtype: string specifying which kernel was used to model the spectrum covariance
-        usehodlr: bool specifying if the user requested that we use the HODLR solver
-        nleaf: minimum matrix size before HODLR attempts to directly solve system with Eigen Cholesky
-        tol: HODLR tolerance
+        coveps: accuracy of covariance kernel Matern32 approximation
         phot_dispersion: amount of photometric dispersion to add in quadrature with the reported uncertainties
         scale_factor: how the spectrum flux and flux_err was scaled
         outfile: output filename
@@ -656,9 +655,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
 
     dset_fit_config = outf.create_group("fit_config")
     dset_fit_config.attrs["covtype"]=np.string_(covtype)
-    dset_fit_config.attrs["usehodlr"]=usehodlr
-    dset_fit_config.attrs["nleaf"]=nleaf
-    dset_fit_config.attrs["tol"]=tol
+    dset_fit_config.attrs["coveps"]=coveps
     dset_fit_config.attrs["rvmodel"]=np.string_(rvmodel)
 
     if phot is not None:
@@ -690,7 +687,7 @@ def read_fit_inputs(input_file):
         [phot]
             pb, mag, mag_err
         the fit_config group must have the following HDF5 attributes
-            covtype, usehodlr, nleaf, tol, rvmodel
+            covtype, coveps, rvmodel
 
     Returns a tuple of recarrays and dictionary
         spec, cont_model, linedata, continuumdata, phot[=None if absent], fit_config
@@ -721,25 +718,16 @@ def read_fit_inputs(input_file):
 
         fit_config = {}
         fit_config['covtype'] = d['fit_config'].attrs['covtype']
-        fit_config['nleaf'] = d['fit_config'].attrs['nleaf']
-        fit_config['tol'] = d['fit_config'].attrs['tol']
+        fit_config['coveps'] = d['fit_config'].attrs['coveps']
         fit_config['rvmodel'] = d['fit_config'].attrs['rvmodel']
         fit_config['scale_factor'] = scale_factor
 
     except Exception as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
         raise IOError(message)
-    try:
-        fit_config['usehodlr'] = d['fit_config'].attrs['usehodlr']
-    except Exception as e:
-        try:
-            fit_config['usehodlr'] = ~d['fit_config'].attrs['usebasic']
-        except Exception as e:
-            message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
-            raise IOError(message)
-
 
     phot = None
+    fit_config['phot_dispersion'] = 0.001
     if 'phot' in d.keys():
         try:
             pb  = d['phot']['pb'].value
