@@ -35,11 +35,11 @@ We recommend using the anaconda python distribution.
 
 If you elect to use your system python, or some other distribution, skip ahead to step3_.
 
-a) To install with miniconda/anaconda, follow instructions `here <https://conda.io/docs/install/quick.html#linux-miniconda-install>`__
+1. To install with miniconda/anaconda, follow instructions `here <https://conda.io/docs/install/quick.html#linux-miniconda-install>`__
 
 **Make sure you added the conda/bin dir to your path!**
 
-b) Edit your condarc to have channels for all the packages. 
+2. Edit your condarc to have channels for all the packages. 
   
 We've included an example version which you can copy to your home directory,
 else edit your own appropriately. Note that in an ideal world, the same package
@@ -48,7 +48,7 @@ ideal.
 
 - ``cp WDmodel/docs/condarc.example ~/.condarc``
 
-c) Create a new environment from specification
+3. Create a new environment from specification
 
 - ``conda env create -f WDmodel/docs/conda_environment_py27.yml``
 
@@ -56,14 +56,14 @@ You can now skip over step 5!
 
 *or*  
     
-c) Create a new environment
+Create a new environment from scratch
 
 - ``conda create -n WDmodel``
 - ``source activate WDmodel``
 
 *or*
 
-c) Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
+Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
 
 -  ``source activate astroconda``
 
