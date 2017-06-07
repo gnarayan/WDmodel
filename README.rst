@@ -46,8 +46,15 @@ else edit your own appropriately. Note that in an ideal world, the same package
 version from a different channel will work identically. The world is seldom
 ideal.
 
-- ``cp WDmodel/condarc.example ~/.condarc``
+- ``cp WDmodel/docs/condarc.example ~/.condarc``
 
+c) Create a new environment from specification
+
+- ``conda env create -f WDmodel/docs/conda_environment_py27.yml``
+
+You can now skip over step 5!
+
+*or*  
     
 c) Create a new environment
 
@@ -56,7 +63,7 @@ c) Create a new environment
 
 *or*
 
-d) Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
+c) Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
 
 -  ``source activate astroconda``
 
@@ -83,6 +90,9 @@ Yes, we got email about this step, so we are including it explictly.
 
 5. Install other requirements:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you did not create your environment with the ``conda_environment_py27.yml``
+file, then you will need to install the other requirements.
 
 Install all the packages with conda
 

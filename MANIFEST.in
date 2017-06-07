@@ -2,8 +2,9 @@ include WDmodel/TlustGrids.hdf5
 include WDmodel/WDmodel_param_defaults.json
 include data/spectable_resolution.dat
 include data/test.flm
-include README.md
+include README.rst
 include LICENSE
+include docs/
 exclude docs/_build
 exclude docs/api
 exclude build/
