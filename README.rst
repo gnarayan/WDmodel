@@ -50,7 +50,7 @@ If you elect to use your system python, or some other distribution, skip ahead t
 
 3. Create a new environment from specification
 
-    - ``conda env create -f WDmodel/docs/conda_environment_py27.yml``
+    - ``conda env create -f WDmodel/docs/conda_environment_py27_[osx64|i686].yml``
 
     You can now skip over step 5!
 
