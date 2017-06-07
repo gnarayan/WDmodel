@@ -37,11 +37,11 @@ If you elect to use your system python, or some other distribution, skip ahead t
 
 1. To install with miniconda/anaconda, follow instructions `here <https://conda.io/docs/install/quick.html#linux-miniconda-install>`__
 
-    - **Make sure you added the conda/bin dir to your path!**
+**Make sure you added the conda/bin dir to your path!**
 
 2. Edit your condarc to have channels for all the packages. 
   
-    - We've included an example version which you can copy to your home directory,
+    We've included an example version which you can copy to your home directory,
     else edit your own appropriately. Note that in an ideal world, the same package
     version from a different channel will work identically. The world is seldom
     ideal.
@@ -52,18 +52,18 @@ If you elect to use your system python, or some other distribution, skip ahead t
 
     - ``conda env create -f WDmodel/docs/conda_environment_py27.yml``
 
-       You can now skip over step 5!
+    You can now skip over step 5!
 
-*or*  
+    *or*  
     
-Create a new environment from scratch
+    Create a new environment from scratch
 
     - ``conda create -n WDmodel``
     - ``source activate WDmodel``
 
-*or*
+    *or*
 
-Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
+    Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
 
     -  ``source activate astroconda``
 
@@ -98,7 +98,7 @@ Install all the packages with conda
 
     - ``conda install --yes --file requirements.txt``
 
-*or*
+    *or*
 
     - install eigen3 headers and your favorite flavor of mpi. See the notes_ at end.
     - ``pip install -r requirements.txt``
