@@ -6,10 +6,15 @@
 Welcome to WDmodel's documentation!
 ===================================
 
+.. automodule:: WDmodel
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+   :titlesonly:
 
+   Installation <installation>
+   Usage Notes <usage>
 
 
 Indices and tables
