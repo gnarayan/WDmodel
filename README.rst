@@ -41,31 +41,31 @@ If you elect to use your system python, or some other distribution, skip ahead t
 
 2. Edit your condarc to have channels for all the packages. 
   
-We've included an example version which you can copy to your home directory,
-else edit your own appropriately. Note that in an ideal world, the same package
-version from a different channel will work identically. The world is seldom
-ideal.
+    We've included an example version which you can copy to your home directory,
+    else edit your own appropriately. Note that in an ideal world, the same package
+    version from a different channel will work identically. The world is seldom
+    ideal.
 
-- ``cp WDmodel/docs/condarc.example ~/.condarc``
+    - ``cp WDmodel/docs/condarc.example ~/.condarc``
 
 3. Create a new environment from specification
 
-- ``conda env create -f WDmodel/docs/conda_environment_py27.yml``
+    - ``conda env create -f WDmodel/docs/conda_environment_py27.yml``
 
-You can now skip over step 5!
+    You can now skip over step 5!
 
-*or*  
+    *or*  
     
-Create a new environment from scratch
+    Create a new environment from scratch
 
-- ``conda create -n WDmodel``
-- ``source activate WDmodel``
+    - ``conda create -n WDmodel``
+    - ``source activate WDmodel``
 
-*or*
+    *or*
 
-Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
+    Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
 
--  ``source activate astroconda``
+    -  ``source activate astroconda``
 
 
 3. Get the latest HST CDBS files:
@@ -96,12 +96,12 @@ file, then you will need to install the other requirements.
 
 Install all the packages with conda
 
-- ``conda install --yes --file requirements.txt``
+    - ``conda install --yes --file requirements.txt``
 
-*or*
+    *or*
 
-- install eigen3 headers and your favorite flavor of mpi. See the notes_ at end.
-- ``pip install -r requirements.txt``
+    - install eigen3 headers and your favorite flavor of mpi. See the notes_ at end.
+    - ``pip install -r requirements.txt``
 
 
 6. GET THE DATA:
