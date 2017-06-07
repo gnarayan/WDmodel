@@ -46,19 +46,19 @@ else edit your own appropriately. Note that in an ideal world, the same package
 version from a different channel will work identically. The world is seldom
 ideal.
 
- - ``cp WDmodel/condarc.example ~/.condarc``
+- ``cp WDmodel/condarc.example ~/.condarc``
 
     
 c) Create a new environment
 
- - ``conda create -n WDmodel``
- - ``source activate WDmodel``
+- ``conda create -n WDmodel``
+- ``source activate WDmodel``
 
 *or*
 
 d) Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
 
- -  ``source activate astroconda``
+-  ``source activate astroconda``
 
 
 3. Get the latest HST CDBS files:
