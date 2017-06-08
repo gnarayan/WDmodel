@@ -48,7 +48,7 @@ def main(inargs=None):
     pbs = pbs.split(',')
 
     for specfile in specfiles:
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=args.outdir)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=args.outdir, resume=True)
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
         try:
             phot = WDmodel.io.read_phot(outfile)
