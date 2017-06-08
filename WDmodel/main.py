@@ -1,3 +1,7 @@
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import sys
 import mpi4py
 import numpy as np
@@ -8,15 +12,18 @@ from . import covariance
 from . import fit
 from . import viz
 
+
 sys_excepthook = sys.excepthook
 def mpi_excepthook(excepttype, exceptvalue, traceback):
     sys_excepthook(excepttype, exceptvalue, traceback)
     mpi4py.MPI.COMM_WORLD.Abort(1)
 
+
 def main(inargs=None):
     comm = mpi4py.MPI.COMM_WORLD
     size = comm.Get_size()
     if size > 1:
+        # force all MPI processes to terminate if we are running with --mpi and an exception is raised
         sys.excepthook = mpi_excepthook
 
     if inargs is None:
@@ -70,7 +77,8 @@ def main(inargs=None):
     # set the object name and create output directories
     objname, outdir = io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot,\
                         redo=redo, resume=resume)
-    print "Writing to outdir {}".format(outdir)
+    message = "Writing to outdir {}".format(outdir)
+    print(message)
 
     # init the model
     model = WDmodel.WDmodel(rvmodel=rvmodel)

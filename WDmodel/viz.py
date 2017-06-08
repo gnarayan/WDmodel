@@ -1,6 +1,10 @@
 """
 Routines to visualize the DA White Dwarf model atmosphere fit
 """
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import numpy as np
 from scipy.stats import norm
 from itertools import cycle
@@ -12,11 +16,13 @@ from astropy.visualization import hist
 from . import io
 from . import passband
 import corner
+from six.moves import range
 #from matplotlib import rc
 #rc('text', usetex=True)
 #rc('font', family='serif')
 #rc('ps', usedistiller='xpdf')
 #rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
+
 
 def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, model, result, save=True):
     """
@@ -271,7 +277,7 @@ def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
     # label the axes
     ax_resid.set_xlim(-0.5,npb-0.5)
     ax_resid.set_xticks(pbind)
-    ax_resid.set_xticklabels(pbs.keys())
+    ax_resid.set_xticklabels(list(pbs.keys()))
     ax_resid.set_xlabel('Passband',fontproperties=font_m, ha='center')
     ax_phot.set_xlabel('Wavelength',fontproperties=font_m, ha='center')
     ax_phot.set_ylabel('Magnitude (Photometric dispersion = {})'.format(phot_dispersion), fontproperties=font_m)
@@ -357,7 +363,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     ax_lines  = fig.add_subplot(gs[0])
 
     if balmer is None:
-        balmer = model._lines.keys()
+        balmer = list(model._lines.keys())
 
     # create another figure with separate axes for each of the lines
     uselines = set(np.unique(linedata.line_mask)) & set(balmer)
@@ -525,7 +531,8 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
             outfile = io.get_outfile(outdir, specfile, '_mcmc_corner.pdf')
             fig.savefig(outfile)
         pdf.savefig(fig)
-        print "Wrote output plot file {}".format(outfilename)
+        message = "Wrote output plot file {}".format(outfilename)
+        print(message)
         #endwith
 
     smoothedmod, wres, wres_err, full_mod, best_params = draws[-1]
@@ -547,9 +554,11 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
     sigma_spec = mad_spec/scaling
     sigma_mod  = mad_mod/scaling
 
-    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, sigma_spec, smoothedmod),\
-            names='wave,flux,flux_err,norm_flux')
-    SED_model  = np.rec.fromarrays((full_mod.wave, full_mod.flux, sigma_mod), names='wave,flux,flux_err')
+
+    names=str('wave,flux,flux_err,norm_flux')
+    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, sigma_spec, smoothedmod), names=names)
+    names=str('wave,flux,flux_err')
+    SED_model  = np.rec.fromarrays((full_mod.wave, full_mod.flux, sigma_mod), names=names)
 
     if mag_draws is not None:
         _, model_mags, _ = mag_draws[-1]

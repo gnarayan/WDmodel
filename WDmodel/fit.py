@@ -1,3 +1,7 @@
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import sys
 import warnings
 import numpy as np
@@ -8,8 +12,11 @@ from iminuit import Minuit
 from astropy.constants import c as _C
 import emcee
 import h5py
-import cPickle as pickle
+import six.moves.cPickle as pickle
 from clint.textui import progress
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 progress.STREAM = sys.stdout
 from . import io
 from . import passband
@@ -64,7 +71,8 @@ def polyfit_continuum(continuumdata, wave):
 
     # get the continuum model at the requested wavelengths
     out = poly.polyval(wave, coeff)
-    cont_model = np.rec.fromarrays([wave, out], names='wave,flux')
+    names=str("wave,flux")
+    cont_model = np.rec.fromarrays([wave, out], names=names)
     return cont_model
 
 
@@ -107,9 +115,10 @@ def orig_cut_lines(spec, model):
     # continuum data is just the spectrum with the Balmer lines removed
     continuumdata  = (np.delete(wave, line_ind), np.delete(flux, line_ind), np.delete(fluxerr, line_ind))
     linedata = (line_wave, line_flux, line_fluxerr, line_number)
-
-    linedata = np.rec.fromarrays(linedata, names='wave,flux,flux_err,line_mask')
-    continuumdata = np.rec.fromarrays(continuumdata, names='wave,flux,flux_err')
+    names=str('wave,flux,flux_err,line_mask')
+    linedata = np.rec.fromarrays(linedata, names=names)
+    names=str('wave,flux,flux_err')
+    continuumdata = np.rec.fromarrays(continuumdata, names=names)
 
     return linedata, continuumdata
 
@@ -197,13 +206,14 @@ def rebin_spec_by_int_factor(spec, f=1):
                              weights=1./ispec.flux_err[f*x:f*x+f]**2.,\
                              returned=True))\
                  for x in range(rnwave)]
-    rwave, rf = zip(*rf)
-    rflux, rw = zip(*rf)
+    rwave, rf = list(zip(*rf))
+    rflux, rw = list(zip(*rf))
     rw = np.array(rw)
     rflux_err = 1./(rw**0.5)
     rwave = np.array(rwave)
     rflux  = np.array(rflux)
-    rspec = np.rec.fromarrays((rwave, rflux, rflux_err),names='wave,flux,flux_err')
+    names=str('wave,flux,flux_err')
+    rspec = np.rec.fromarrays((rwave, rflux, rflux_err),names=names)
     return rspec
 
 
@@ -270,7 +280,8 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
         if scale_factor == 0:
             message = 'Uhhhh. This spectrum has incredibly weird errors with a median of 0'
             raise RuntimeError(message)
-        print "Scaling the spectrum by {:.10g}".format(scale_factor)
+        message = "Scaling the spectrum by {:.10g}".format(scale_factor)
+        print(message)
         spec.flux /= scale_factor
         spec.flux_err /= scale_factor
         if out_params['dl']['value'] is not None:
@@ -544,8 +555,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
     # get the starting position and the scales for each parameter
     init_p0  = lnlike.get_parameter_dict()
-    p0       = init_p0.values()
-    free_param_names = init_p0.keys()
+    p0       = list(init_p0.values())
+    free_param_names = list(init_p0.keys())
     std = [params[x]['scale'] for x in free_param_names]
 
     # create a sample ball
@@ -585,7 +596,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     if samptype != 'ensemble':
         inpos = pos.reshape(ntemps*nwalkers, nparam)
         if pool is None:
-            lnprob0 = map(lnpost, inpos)
+            lnprob0 = list(map(lnpost, inpos))
         else:
             lnprob0 = pool.map(lnpost, inpos)
 
@@ -618,9 +629,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         sampler.reset()
 
         lnlike.set_parameter_vector(p1)
-        print "\nMAP Parameters after Burn-in"
+        message = "\nMAP Parameters after Burn-in"
+        print(message)
         for k, v in lnlike.get_parameter_dict().items():
-            print "{} = {:f}".format(k,v)
+            message = "{} = {:f}".format(k,v)
+            print(message)
 
         # adjust the walkers to start around the MAP position from burnin
         pos = emcee.utils.sample_ball(p1, std, size=ntemps*nwalkers)
@@ -646,14 +659,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         chain.attrs["laststep"] = laststep
 
         # save the parameter names corresponding to the chain
-        free_param_names = np.array(free_param_names)
+        free_param_names = np.array([str(x) for x in free_param_names])
         dt = free_param_names.dtype.str.lstrip('|')
         chain.create_dataset("names",data=free_param_names, dtype=dt)
 
         # save the parameter configuration as well
         # this is redundant, since it is saved in the JSON file, but having it one place is nice
         names = lnlike.get_parameter_names(include_frozen=True)
-        names = np.array(names)
+        names = np.array([str(x) for x in names])
         dt = names.dtype.str.lstrip('|')
         par_grp = outf.create_group("params")
         par_grp.create_dataset("names",data=names, dtype=dt)
@@ -697,7 +710,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         sampler_kwargs['lnprob0']=lnpost
         pos = position
 
-        print "Resuming from iteration {} for {} steps".format(laststep, nprod)
+        message = "Resuming from iteration {} for {} steps".format(laststep, nprod)
+        print(message)
 
     # write to disk before we start
     outf.flush()
@@ -740,10 +754,10 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
     # save the acceptance fraction
     if resume:
-        if "afrac" in chain.keys():
+        if "afrac" in list(chain.keys()):
             del chain["afrac"]
         if samptype != 'ensemble':
-            if "tswap_afrac" in chain.keys():
+            if "tswap_afrac" in list(chain.keys()):
                 del chain["tswap_afrac"]
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
     if samptype != 'ensemble' and ntemps > 1:
@@ -766,11 +780,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     max_ind = tuple(max_ind)
     p_final = map_samples[max_ind]
     lnlike.set_parameter_vector(p_final)
-    print "\nMAP Parameters after Production"
+    message = "\nMAP Parameters after Production"
+    print(message)
 
     for k, v in lnlike.get_parameter_dict().items():
-        print "{} = {:f}".format(k,v)
-    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+        message = "{} = {:f}".format(k,v)
+        print(message)
+    message = "Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction))
+    print(message)
 
     # return the parameter names of the chain, the positions, posterior, and the shape of the chain
     return  free_param_names, samples, samples_lnprob, everyn, (ntemps, nwalkers, laststep+nprod, nparam)
@@ -837,5 +854,6 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
             params[param]['errors_pm'] = (0., 0.)
         else:
             # this should never happen, unless the state of the files was changed
-            print "Huh.... {} not marked as fixed but was not fit for...".format(param)
+            message = "Huh.... {} not marked as fixed but was not fit for...".format(param)
+            print(message)
     return params, in_samp[mask,:], in_lnprob[mask]

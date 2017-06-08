@@ -1,7 +1,11 @@
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import numpy as np
 import pysynphot as S
 from . import io
 from collections import OrderedDict
+from six.moves import zip
 
 def synflux(spec, ind, pb):
     """
@@ -65,7 +69,8 @@ def get_model_synmags(model_spec, pbs, mu=0.):
         pbsynmag = synphot(model_spec, ind, transmission, zp) + mu
         outmag.append(pbsynmag)
         outpb.append(pbname)
-    out = np.rec.fromarrays((outpb, outmag), names='pb,mag')
+    names=str('pb,mag')
+    out = np.rec.fromarrays((outpb, outmag), names=names)
     return out
 
 
@@ -96,7 +101,8 @@ def chop_syn_spec_pb(spec, model_mag, pb, model):
     mask = np.nonzero(pb.throughput)
     pwave = pb.wave[mask]
     ptput = pb.throughput[mask]
-    outpb = np.rec.fromarrays((pwave, ptput), names='wave,throughput')
+    names = str('wave,throughput')
+    outpb = np.rec.fromarrays((pwave, ptput), names=names)
 
     # interpolate the transmission onto the overlapping wavelengths of the spectrum
     transmission, ind = interp_passband(spec.wave, outpb, model)
@@ -147,7 +153,7 @@ def get_pbmodel(pbnames, model, pbfile=None):
         pbfile = 'WDmodel_pb_obsmode_map.txt'
         pbfile = io.get_pkgfile(pbfile)
     pbdata = io.read_pbmap(pbfile)
-    pbmap  = dict(zip(pbdata.pb, pbdata.obsmode))
+    pbmap  = dict(list(zip(pbdata.pb, pbdata.obsmode)))
 
     # setup the photometric system by defining the standard and corresponding magnitude system
     vega    = S.Vega

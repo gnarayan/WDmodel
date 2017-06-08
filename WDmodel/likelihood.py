@@ -1,3 +1,7 @@
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import numpy as np
 from celerite.modeling import Model
 from scipy.stats import norm, halfcauchy
@@ -31,7 +35,8 @@ def setup_likelihood(params):
     # freeze any parameters that we want fixed
     for param, val in fixed.items():
         if val:
-            print "Freezing {}".format(param)
+            message = "Freezing {}".format(param)
+            print(message)
             lnlike.freeze_parameter(param)
     return lnlike
 

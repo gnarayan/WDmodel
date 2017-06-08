@@ -1,10 +1,14 @@
-""" DA White Dwarf Model Atmosphere Clas s"""
+""" DA White Dwarf Model Atmosphere Class"""
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import warnings
 import numpy as np
 from . import io
 import extinction
 import scipy.interpolate as spinterp
 from scipy.ndimage.filters import gaussian_filter1d
+from six.moves import zip
 
 
 class WDmodel(object):
@@ -29,7 +33,7 @@ class WDmodel(object):
         H       = [6562.857, 4861.346, 4340.478 ,4101.745 , 3970.081 , 3889.056]
         D       = [ 130.0  ,  170.0  ,  125.0   ,  75.0   ,   50.0   ,   27.0  ]
         eps     = [  10.0  ,   10.0  ,   10.0   ,   8.0   ,    5.0   ,    3.0  ]
-        self._lines = dict(zip(lno, zip(lines, H, D, eps)))
+        self._lines = dict(list(zip(lno, list(zip(lines, H, D, eps)))))
         # we're passing grid_file so we know which model to init
         self._fwhm_to_sigma = np.sqrt(8.*np.log(2.))
         self.__init__tlusty(grid_file=grid_file)
@@ -40,8 +44,6 @@ class WDmodel(object):
         """
         Initialize the Tlusty Model <grid_name> from the grid file <grid_file>
         """
-        self._fluxnorm = 1. #LEGACY CRUFT
-
         ingrid = io.read_model_grid(grid_file, grid_name)
         self._grid_file, self._grid_name, self._wave, self._ggrid, self._tgrid, _flux = ingrid
         self._lwave = np.log10(self._wave, dtype=np.float64)
@@ -179,7 +181,8 @@ class WDmodel(object):
         if log:
             omod = np.log10(omod)
             mod  = np.log10(mod)
-        mod = np.rec.fromarrays((self._wave, mod), names='wave,flux')
+        names=str('wave,flux')
+        mod = np.rec.fromarrays((self._wave, mod), names=names)
         return omod, mod
 
 
@@ -295,23 +298,6 @@ class WDmodel(object):
         return modwave, modflux
 
 
-    def _normalize_model(self, spec, log=False):
-        """
-        Imprecise normalization for visualization only
-        If you want to normalize model and data, get the model, and the data,
-        compute the integrals and use the ratio to properly normalize
-        """
-        wave = spec.wave
-        flux = spec.flux
-        ind = np.where((self._wave >= wave.min()) & (self._wave <= wave.max()))[0]
-        modelmedian = np.median(self._model.values[:,:, ind])
-        if not log:
-            modelmedian = 10.**modelmedian
-        datamedian  = np.median(flux)
-        self._fluxnorm = modelmedian/datamedian
-        return self._fluxnorm
-
-
     @classmethod
     def _get_indices_in_range(cls, w, WA, WB, W0=None):
         """
@@ -356,7 +342,8 @@ class WDmodel(object):
         try:
             _, W0, WID, DW = self._lines[line]
         except KeyError:
-            message = 'Line name %s is not valid. Must be one of (%s)' %(str(line), ','.join(self._lines.keys()))
+            message = "Line name {} is not valid. Must be one of ({})".format(str(line),\
+                        ','.join(list(self._lines.keys())))
             raise ValueError(message)
 
         w  = np.atleast_1d(w)

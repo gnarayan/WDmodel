@@ -1,3 +1,7 @@
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import numpy as np
 import celerite
 import warnings
@@ -56,7 +60,7 @@ class WDmodel_CovModel(object):
             self._covtype = 'Matern32'
 
         message = "Parametrizing covariance with {} kernel and using Cholesky Solver".format(covtype)
-        print message
+        print(message)
 
 
     def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw):

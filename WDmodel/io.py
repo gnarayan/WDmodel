@@ -1,3 +1,7 @@
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import sys
 import os
 from emcee.utils import MPIPool
@@ -10,6 +14,7 @@ from collections import OrderedDict
 from matplotlib.mlab import rec2txt
 import json
 import h5py
+from six.moves import range
 
 # Declare this tuple to init the likelihood model, and to preserve order of parameters
 _PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw", "mu")
@@ -159,7 +164,7 @@ def get_options(args, comm):
 
     # visualization options
     viz = parser.add_argument_group('viz', 'Visualization options')
-    viz.add_argument('-b', '--balmerlines', nargs='+', type=int, default=range(1,7,1),\
+    viz.add_argument('-b', '--balmerlines', nargs='+', type=int, default=list(range(1,7,1)),\
             help="Specify Balmer lines to visualize [1:7]")
     viz.add_argument('--ndraws', required=False, type=int, default=21,\
             help="Specify number of draws from posterior to overplot for model")
@@ -391,9 +396,9 @@ def read_model_grid(grid_file=None, grid_name=None):
         # and you can pass grid_name to use them if you choose to
         try:
             grid = grids[grid_name]
-        except KeyError,e:
+        except KeyError as e:
             message = '{}\nGrid {} not found in grid_file {}. Accepted values are ({})'.format(e, grid_name,\
-                    grid_file, ','.join(grids.keys()))
+                    grid_file, ','.join(list(grids.keys())))
             raise ValueError(message)
 
         wave  = grid['wave'].value.astype('float64')
@@ -433,7 +438,7 @@ def get_spectrum_resolution(specfile, spectable, fwhm=None):
     if fwhm is None:
         try:
             spectable = read_spectable(spectable)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             message = '{}\nCould not get resolution from spectable {}'.format(e, spectable)
             warnings.warn(message, RuntimeWarning)
             spectable = None
@@ -455,7 +460,8 @@ def get_spectrum_resolution(specfile, spectable, fwhm=None):
     else:
         message = 'Smoothing factor specified on command line - overriding spectable file'
         warnings.warn(message, RuntimeWarning)
-    print('Using smoothing instrumental FWHM {}'.format(fwhm))
+    message = 'Using smoothing instrumental FWHM {}'.format(fwhm)
+    print(message)
     return fwhm
 
 
@@ -524,8 +530,8 @@ def get_phot_for_obj(objname, filename):
     if np.any(errs <= 0.):
         message = "Photometry uncertainties must all be positive."
         raise ValueError(message)
-
-    out_phot = np.rec.fromarrays([pbnames, mags, errs],names='pb,mag,mag_err')
+    names=str('pb,mag,mag_err')
+    out_phot = np.rec.fromarrays([pbnames, mags, errs],names=names)
     return out_phot
 
 
@@ -667,7 +673,8 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
         dset_phot.attrs["phot_dispersion"] =phot_dispersion
 
     outf.close()
-    print "Wrote inputs file {}".format(outfile)
+    message = "Wrote inputs file {}".format(outfile)
+    print(message)
 
 
 def read_fit_inputs(input_file):
@@ -699,22 +706,26 @@ def read_fit_inputs(input_file):
         spec_flux = d['spec']['flux'].value
         spec_ferr = d['spec']['flux_err'].value
         scale_factor = d['spec'].attrs['scale_factor']
-        spec = np.rec.fromarrays([spec_wave, spec_flux, spec_ferr], names='wave,flux,flux_err')
+        names=str('wave,flux,flux_err')
+        spec = np.rec.fromarrays([spec_wave, spec_flux, spec_ferr], names=names)
 
         cmod_wave = d['cont_model']['wave'].value
         cmod_flux = d['cont_model']['flux'].value
-        cont_model = np.rec.fromarrays([cmod_wave, cmod_flux], names='wave,flux')
+        names=str('wave,flux')
+        cont_model = np.rec.fromarrays([cmod_wave, cmod_flux], names=names)
 
         line_wave = d['linedata']['wave'].value
         line_flux = d['linedata']['flux'].value
         line_ferr = d['linedata']['flux_err'].value
         line_mask = d['linedata']['line_mask'].value
-        linedata = np.rec.fromarrays([line_wave, line_flux, line_ferr,line_mask], names='wave,flux,flux_err,line_mask')
+        names=str('wave,flux,flux_err,line_mask')
+        linedata = np.rec.fromarrays([line_wave, line_flux, line_ferr,line_mask], names=names)
 
         cont_wave = d['continuumdata']['wave'].value
         cont_flux = d['continuumdata']['flux'].value
         cont_ferr = d['continuumdata']['flux_err'].value
-        continuumdata = np.rec.fromarrays([cont_wave, cont_flux, cont_ferr], names='wave,flux,flux_err')
+        names=str('wave,flux,flux_err')
+        continuumdata = np.rec.fromarrays([cont_wave, cont_flux, cont_ferr], names=names)
 
         fit_config = {}
         fit_config['covtype'] = d['fit_config'].attrs['covtype']
@@ -728,12 +739,13 @@ def read_fit_inputs(input_file):
 
     phot = None
     fit_config['phot_dispersion'] = 0.001
-    if 'phot' in d.keys():
+    if 'phot' in list(d.keys()):
         try:
             pb  = d['phot']['pb'].value
             mag = d['phot']['mag'].value
             mag_err = d['phot']['mag_err'].value
-            phot = np.rec.fromarrays([pb, mag, mag_err], names='pb,mag,mag_err')
+            names=str('pb,mag,mag_err')
+            phot = np.rec.fromarrays([pb, mag, mag_err], names=names)
             phot_dispersion = d['phot'].attrs['phot_dispersion']
             fit_config['phot_dispersion'] = phot_dispersion
         except KeyError as e:
@@ -784,10 +796,12 @@ def write_spectrum_model(spec, model_spec, outfile):
     out = (spec.wave, spec.flux, spec.flux_err,\
             model_spec.norm_flux, model_spec.flux, model_spec.flux_err,\
             spec.flux-model_spec.flux)
-    out = np.rec.fromarrays(out, names='wave,flux,flux_err,norm_flux,model_flux,model_flux_err,res_flux')
+    names=str('wave,flux,flux_err,norm_flux,model_flux,model_flux_err,res_flux')
+    out = np.rec.fromarrays(out, names=names)
     with open(outfile, 'w') as f:
         f.write(rec2txt(out, precision=8)+'\n')
-    print "Wrote spec model file {}".format(outfile)
+    message = "Wrote spec model file {}".format(outfile)
+    print(message)
 
 
 def write_phot_model(phot, model_mags, outfile):
@@ -799,10 +813,12 @@ def write_phot_model(phot, model_mags, outfile):
         outfile: output filename
     """
     out = (phot.pb, phot.mag, phot.mag_err, model_mags.mag, phot.mag-model_mags.mag)
-    out = np.rec.fromarrays(out, names='pb,mag,mag_err,model_mag,res_mag')
+    names=str('pb,mag,mag_err,model_mag,res_mag')
+    out = np.rec.fromarrays(out, names=names)
     with open(outfile, 'w') as f:
         f.write(rec2txt(out, precision=6)+'\n')
-    print "Wrote phot model file {}".format(outfile)
+    message= "Wrote phot model file {}".format(outfile)
+    print(message)
 
 
 def write_full_model(full_model, outfile):
@@ -818,4 +834,5 @@ def write_full_model(full_model, outfile):
     dset_model.create_dataset("flux",data=full_model.flux)
     dset_model.create_dataset("flux_err",data=full_model.flux_err)
     outf.close()
-    print "Wrote full model file {}".format(outfile)
+    message = "Wrote full model file {}".format(outfile)
+    print(message)
