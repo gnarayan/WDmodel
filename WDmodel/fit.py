@@ -264,10 +264,16 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
         spec.wave *= (1. +(vel*1000./_C.value))
 
     # clip the spectrum to whatever range is requested
+    if bluelimit is None:
+        bluelimit = spec.wave.min()
+
     if bluelimit > 0:
         bluelimit = float(bluelimit)
     else:
         bluelimit = spec.wave.min()
+
+    if redlimit is None:
+        redlimit = spec.wave.max()
 
     if redlimit > 0:
         redlimit = float(redlimit)
