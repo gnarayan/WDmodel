@@ -414,7 +414,17 @@ def _read_ascii(filename, **kwargs):
     Read space separated ascii file, with column names provided on first line (# optional)
     kwargs are passed along to genfromtxt
     """
-    return np.recfromtxt(filename, names=True, **kwargs)
+    indata = np.recfromtxt(filename, names=True, **kwargs)
+    # force bytestrings into ascii encoding and recreate the recarray
+    out = []
+    for name in indata.dtype.names:
+        thistype =  indata[name].dtype.str.lstrip('|')
+        if thistype.startswith('S'):
+            out.append(np.array([str(x.decode('ascii')) for x in indata[name]]))
+        else:
+            out.append(indata[name])
+    out = np.rec.fromarrays(out, names=indata.dtype.names)
+    return out
 
 
 # create some aliases
@@ -666,8 +676,8 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
 
     if phot is not None:
         dset_phot = outf.create_group("phot")
-        dt = phot.pb.dtype.str.lstrip('|')
-        dset_phot.create_dataset("pb", data=phot.pb, dtype=dt)
+        dt = phot.pb.dtype.str.lstrip('|').replace('U','S')
+        dset_phot.create_dataset("pb", data=phot.pb.astype(np.string_), dtype=dt)
         dset_phot.create_dataset("mag",data=phot.mag)
         dset_phot.create_dataset("mag_err",data=phot.mag_err)
         dset_phot.attrs["phot_dispersion"] =phot_dispersion
@@ -728,9 +738,9 @@ def read_fit_inputs(input_file):
         continuumdata = np.rec.fromarrays([cont_wave, cont_flux, cont_ferr], names=names)
 
         fit_config = {}
-        fit_config['covtype'] = d['fit_config'].attrs['covtype']
+        fit_config['covtype'] = d['fit_config'].attrs['covtype'].decode('ascii')
         fit_config['coveps'] = d['fit_config'].attrs['coveps']
-        fit_config['rvmodel'] = d['fit_config'].attrs['rvmodel']
+        fit_config['rvmodel'] = d['fit_config'].attrs['rvmodel'].decode('ascii')
         fit_config['scale_factor'] = scale_factor
 
     except Exception as e:
@@ -742,6 +752,7 @@ def read_fit_inputs(input_file):
     if 'phot' in list(d.keys()):
         try:
             pb  = d['phot']['pb'].value
+            pb  = np.array([str(x.decode('ascii')) for x in pb])
             mag = d['phot']['mag'].value
             mag_err = d['phot']['mag_err'].value
             names=str('pb,mag,mag_err')
@@ -768,8 +779,10 @@ def read_mcmc(input_file):
         chain_params   = {}
         samples        = d['chain']['position'].value
         samples_lnprob = d['chain']['lnprob'].value
-        chain_params['param_names'] = d['chain']['names'].value
-        chain_params['samptype']    = d['chain'].attrs['samptype']
+        param_names                 = d['chain']['names'].value
+        param_names                 = np.array([str(x.decode('ascii')) for x in param_names])
+        chain_params['param_names'] = param_names
+        chain_params['samptype']    = d['chain'].attrs['samptype'].decode('ascii')
         chain_params['ntemps']      = d['chain'].attrs['ntemps']
         chain_params['nwalkers']    = d['chain'].attrs['nwalkers']
         chain_params['nprod']       = d['chain'].attrs['nprod']
