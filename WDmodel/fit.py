@@ -666,16 +666,16 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         # save the parameter names corresponding to the chain
         free_param_names = np.array([str(x) for x in free_param_names])
-        dt = free_param_names.dtype.str.lstrip('|')
-        chain.create_dataset("names",data=free_param_names, dtype=dt)
+        dt = free_param_names.dtype.str.lstrip('|').replace('U','S')
+        chain.create_dataset("names",data=free_param_names.astype(np.string_), dtype=dt)
 
         # save the parameter configuration as well
         # this is redundant, since it is saved in the JSON file, but having it one place is nice
         names = lnlike.get_parameter_names(include_frozen=True)
         names = np.array([str(x) for x in names])
-        dt = names.dtype.str.lstrip('|')
+        dt = names.dtype.str.lstrip('|').replace('U','S')
         par_grp = outf.create_group("params")
-        par_grp.create_dataset("names",data=names, dtype=dt)
+        par_grp.create_dataset("names",data=names.astype(np.string_), dtype=dt)
         for param in params:
             this_par = par_grp.create_group(param)
             this_par.attrs["value"]  = params[param]["value"]
@@ -699,8 +699,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         # and that we have the state of the chain when we ended
         try:
-            with open(statefile) as f:
-                position, lnpost, rstate = pickle.load(f)
+            with open(statefile, 'rb') as f:
+                pickle_kwargs = {}
+                if sys.version_info[0] > 2:
+                    pickle_kwargs['encoding'] = 'latin-1'
+                position, lnpost, rstate = pickle.load(f, **pickle_kwargs)
         except (IOError, OSError) as e:
             message = '{}\nMust run fit to generate mcmc chain state pickle before attempting to resume'.format(e)
             raise RuntimeError(message)
@@ -746,8 +749,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
                 outf.flush()
 
                 # save the state of the chain
-                with open(statefile, 'w') as f:
-                    pickle.dump(result, f, -1)
+                with open(statefile, 'wb') as f:
+                    pickle.dump(result, f, 2)
 
             bar.show(j+1)
             j+=1
@@ -755,8 +758,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         # save the final state of the chain and nprod, laststep
         chain.attrs["nprod"]    = laststep+nprod
         chain.attrs["laststep"] = laststep+nprod
-        with open(statefile, 'w') as f:
-            pickle.dump(result, f, -1)
+        with open(statefile, 'wb') as f:
+            pickle.dump(result, f, 2)
 
     # save the acceptance fraction
     if resume:
