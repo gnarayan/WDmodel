@@ -47,7 +47,6 @@ class WDmodel(object):
         'f99'   Fitzpatrick (1999, PASP, 111, 63)
         ======= ==================================================
 
-
     Attributes
     ----------
     _lines : dict
@@ -87,7 +86,6 @@ class WDmodel(object):
     ------
     ValueError
         If the supplied rvmodel is unknown
-
 
     Notes
     -----

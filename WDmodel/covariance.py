@@ -2,12 +2,15 @@
 """
 Parametrizes the noise of the spectrum fit using a Gaussian process.
 """
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
 import numpy as np
 import celerite
 import warnings
+
+__all__=['WDmodel_CovModel']
 
 class WDmodel_CovModel(object):
     """
