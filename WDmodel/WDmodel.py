@@ -832,8 +832,10 @@ class WDmodel(object):
 
         Parameters
         ----------
-        w, f : array-like
-            Wavelength and flux array from which to extract indices `ZE`
+        w : array-like
+            Wavelength array from which to extract indices `ZE`
+        f : array-like
+            Flux array from which to extract indices `ZE`
         ZE : array-like
             indices to extract
         df : None or array-like, optional
@@ -862,9 +864,12 @@ class WDmodel(object):
 
         Parameters
         ----------
-        w, f : array-like
-            Wavelength and flux array from which to extract elements
-            corresponding to hydrogen Balmer `line`
+        w : array-like
+            Wavelength array from which to extract elements corresponding to
+            hydrogen Balmer `line`
+        f : array-like
+            Flux array from which to extract elements corresponding to hydrogen
+            Balmer `line`
         line : {'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'} str
             Name of hydrogen Balmer line to extract.
             Properties are pre-defined in :py:attr:`WDmodel.WDmodel.WDmodel._lines`
@@ -920,9 +925,12 @@ class WDmodel(object):
 
         Parameters
         ----------
-        w, f : array-like
-            Wavelength and flux array from which to extract elements
-            corresponding to hydrogen Balmer `line`
+        w : array-like
+            Wavelength array from which to extract elements corresponding to
+            hydrogen Balmer `line`
+        f : array-like
+            Flux array from which to extract elements corresponding to hydrogen
+            Balmer `line`
         line : {'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'} str
             Name of hydrogen Balmer line to extract.
             Properties are pre-defined in :py:attr:`WDmodel.WDmodel.WDmodel._lines`
