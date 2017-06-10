@@ -46,8 +46,24 @@ intersphinx_mapping = {
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
     'astropy': ('http://docs.astropy.org/en/stable/', None),
+    'emcee': ('https://emcee.readthedocs.io/en/stable/', None),
+    'mpi4py': ('https://mpi4py.readthedocs.io/en/stable/', None),
     'celerite': ('http://celerite.readthedocs.io/en/stable/', None)
 }
+
+
+def skip(app, what, name, obj, skip, options):
+    if name.startswith("_"):
+        if name.startswith("__init") or name == "__call__":
+            return False
+        if name.startswith("__"):
+            pass
+        else:
+            return False
+    return skip
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip)
 
 
 # Add any paths that contain templates here, relative to this directory.
