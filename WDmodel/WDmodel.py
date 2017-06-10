@@ -1,5 +1,11 @@
-""" DA White Dwarf Model Atmosphere Class"""
 # -*- coding: UTF-8 -*-
+"""
+DA White Dwarf Atmosphere Models and SED generator. 
+
+Model grid originally from J. Holberg using I. Hubeny's Tlusty code (v202) and
+custom Synspec routines, repackaged into HDF5 by G. Narayan.
+"""
+
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import warnings
@@ -10,24 +16,100 @@ import scipy.interpolate as spinterp
 from scipy.ndimage.filters import gaussian_filter1d
 from six.moves import zip
 
+__all__=['WDmodel']
 
 class WDmodel(object):
     """
+    DA White Dwarf Atmosphere Model and SED generator
+
     Base class defines the routines to generate and work with DA White Dwarf
-    model spectra. Requires the grid file - TlustyGrids.hdf5, or a custom
-    user-specified grid. Look at the package level help for description on the
-    grid file. There are various convenience methods that begin with an
-    underscore (_) that will  not be imported by default These are intended for
-    internal use, and do not have the sanity checking of the public methods.
+    model spectra. Requires a grid file of DA White Dwarf atmospheres. This
+    grid file is included along with the package - TlustyGrids.hdf5 - and is
+    the default.
+
+    Parameters
+    ----------
+    grid_file : str, optional
+        Filename of the HDF5 grid file to read. See
+        :py:func:`WDmodel.io.read_model_grid` for format of the grid file.
+        Default is TlustyGrids.hdf5, included with the `WDmodel` package.
+    grid_name : str, optional 
+        Name of the HDF5 group containing the white dwarf model atmosphere
+        grids in `grid_file`. Default is "default"
+    rvmodel : {'ccm89','od94','f99'}, optional
+        Specify parametrization of the reddening law. Default is od94.
+
+        ======= ==================================================
+        rvmodel                 parametrization
+        ======= ==================================================
+        'ccm89' Cardelli, Clayton and Mathis (1989, ApJ, 345, 245)
+        'od94'  O'Donnell (1994, ApJ, 422, 158)
+        'f99'   Fitzpatrick (1999, PASP, 111, 63)
+        ======= ==================================================
+    
+
+    Attributes
+    ----------
+    _lines : dict
+        dictionary mapping Hydrogen Balmer series line names to line number,
+        central wavelength in Angstrom, approximate line width and continuum
+        region width around line. Used to extract Balmer lines from spectra for
+        visualization.
+    _grid_file : str
+        Filename of the HDF5 grid file that was read.
+    _grid_name : str
+        Name of the HDF5 group containing the white dwarf model atmosphere
+    _wave : array-like
+        Array of model grid wavelengths in Angstroms, sorted in ascending order
+    _ggrid : array-like
+        Array of model grid surface gravity values in dex, sorted in ascending order
+    _tgrid : array-like
+        Array of model grid temperature values in Kelvin, sorted in ascending order
+    _nwave : int
+        Size of the model grid wavelength array, `_wave`
+    _ngrav : int
+        Size of the model grid surface gravity array, `_ggrid`
+    _ntemp : int
+        Size of the model grid temperature array, `_tgrid`
+    _flux : array-like
+        Array of model grid fluxes, shape (_nwave, _ntemp, _ngrav)
+    _lwave : array-like
+        Array of model grid log10 wavelengths for interpolation
+    _lflux : array-like
+        Array of model grid log10 fluxes for interpolation, shape (_ntemp, _ngrav, _nwave)
+    _law : extinction function corresponding to `rvmodel`
+
+
+    Raises
+    ------
+    ValueError
+        If the supplied rvmodel is unknown
+      
+
+    Returns
+    -------
+    out : :py:class:`WDmodel.WDmodel.WDmodel` instance 
+
+    
+    Notes
+    -----
+        Virtually none of the attributes should be used directly since it is
+        trivially possible to break the model by redefining them. Access to
+        them is best through the functions connected to the models.
+
+        A custom user-specified grid file can be specified. See
+        :py:func:`WDmodel.io.read_model_grid` for the format of the grid file. 
+
+        Uses :py:class:`scipy.interpolate.RegularGridInterpolator` to
+        interpolate the models.
+    
+        The class contains various convenience methods that begin with an
+        underscore (_) that will  not be imported by default. These are intended
+        for internal use, and do not have the sanity checking and associated
+        overhead of the public methods.
     """
 
     def __init__(self, grid_file=None, grid_name=None, rvmodel='od94'):
-        """
-        constructs a white dwarf model atmosphere object
-        Virtually none of the attributes should be used directly
-        since it is trivially possible to break the model by redefining them
-        Access to them is best through the functions connected to the models
-        """
         lno     = [   1    ,   2     ,    3     ,    4    ,   5      ,  6      ]
         lines   = ['alpha' , 'beta'  , 'gamma'  , 'delta' , 'zeta'   , 'eta'   ]
         H       = [6562.857, 4861.346, 4340.478 ,4101.745 , 3970.081 , 3889.056]
@@ -36,18 +118,15 @@ class WDmodel(object):
         self._lines = dict(list(zip(lno, list(zip(lines, H, D, eps)))))
         # we're passing grid_file so we know which model to init
         self._fwhm_to_sigma = np.sqrt(8.*np.log(2.))
-        self.__init__tlusty(grid_file=grid_file)
+        self.__init__tlusty(grid_file=grid_file, grid_name=grid_name)
         self.__init__rvmodel(rvmodel=rvmodel)
 
 
     def __init__tlusty(self, grid_file=None, grid_name=None):
-        """
-        Initialize the Tlusty Model <grid_name> from the grid file <grid_file>
-        """
         ingrid = io.read_model_grid(grid_file, grid_name)
         self._grid_file, self._grid_name, self._wave, self._ggrid, self._tgrid, _flux = ingrid
         self._lwave = np.log10(self._wave, dtype=np.float64)
-        self._lflux  = np.log10(_flux.T)
+        self._lflux = np.log10(_flux.T)
         self._ntemp = len(self._tgrid)
         self._ngrav = len(self._ggrid)
         self._nwave = len(self._wave)
@@ -72,18 +151,116 @@ class WDmodel(object):
 
 
     def extinction(self, wave, av, rv=3.1):
-        """ Return the extinction for Av, Rv at wavelengths wave (Angstrom)"""
+        """
+        Return the extinction for `av`, `rv` at wavelengths `wave`
+
+        Uses the extinction function corresponding to the `rvmodel`
+        parametrization set as
+        :py:attr:`WDmodel.WDmodel.WDmodel._law` to calculate the
+        extinction as a function of wavelength (in Angstroms),
+        :math:`A_{\lambda}`.
+
+        Parameters
+        ----------
+        wave : array-like
+            Array of wavelengths in Angstrom at which to compute extinction,
+            sorted in ascending order 
+        av : float
+            Extinction in the V band, :math:`A_V`
+        rv : float, optional
+            The reddening law parameter, :math:`R_V`, the ration of the V band
+            extinction :math:`A_V` to the reddening between the B and V bands,
+            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
+            Milky Way. 
+
+        Notes
+        -----
+        `av` should be >= 0.
+
+
+        Returns
+        -------
+        out : array-like
+            Extinction at wavelengths `wave` for `av` and `rv`
+        """
         return self._law(wave, av, rv, unit='aa')
 
 
     def reddening(self, wave, flux, av, rv=3.1):
-        """ Apply extinction Av, Rv to flux values flux at wavelengths wave (Angstrom) in place"""
+        """
+        Redden a 1-D spectrum (`wave`, `flux`) with extinction parametrized by `av`, `rv`
+
+        Uses the extinction function corresponding to the `rvmodel`
+        parametrization set in
+        :py:func:`WDmodel.WDmodel.WDmodel._WDmodel__init__rvmodel` to calculate the
+        extinction as a function of wavelength (in Angstroms),
+        :math:`A_{\lambda}`.
+
+        Parameters
+        ----------
+        wave : array-like
+            Array of wavelengths in Angstrom at which to compute extinction,
+            sorted in ascending order 
+        flux : array-like
+            Array of fluxes at `wave` at which to apply extinction
+        av : float
+            Extinction in the V band, :math:`A_V`
+        rv : float, optional
+            The reddening law parameter, :math:`R_V`, the ration of the V band
+            extinction :math:`A_V` to the reddening between the B and V bands,
+            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
+            Milky Way. 
+
+        Notes
+        -----
+        `av` and `flux` should be >= 0.
+
+        Returns
+        -------
+        out : array-like
+            The reddened spectrum
+        """
         return extinction.apply(self.extinction(wave, av, rv), flux, inplace=True)
 
 
     def _get_model_nosp(self, teff, logg, wave=None, log=False):
         """
-        Returns the model flux given temperature and logg at wavelengths wave
+        Returns the model flux given teff and logg at wavelengths wave
+
+        Simple 3-D interpolation of model grid. Computes unreddened,
+        unnormalized, unconvolved, interpolated model flux. Not used, but
+        serves as check of output of interpolation of
+        :py:class:`scipy.interpolate.RegularGridInterpolator` output.
+
+        Parameters
+        ----------
+        teff : float
+            Desired model white dwarf atmosphere temperature (in Kelvin)
+        logg : float
+            Desired model white dwarf atmosphere surface gravity (in dex)
+        wave : array-like, optional
+            Desired wavelengths at which to compute the model atmosphere flux.
+            If not supplied, the full model wavelength grid is returned.
+        log : bool, optional
+            Return the log10 flux, rather than the flux (what's actually interpolated)
+
+        Returns
+        -------
+        flux : array-like
+            Interpolated model flux at teff, logg and wavelengths wave
+
+        Notes
+        -----
+            `teff`, `logg` and `wave` must be within the bounds of the grid.
+            See :py:attr:`WDmodel.WDmodel.WDmodel._wave`,
+            :py:attr:`WDmodel.WDmodel.WDmodel._ggrid`,
+            :py:attr:`WDmodel.WDmodel.WDmodel._tgrid`, for grid locations and
+            limits.
+
+            This restriction is not imposed here for performance reasons, but
+            is implicitly set by routines that call this method. The user is
+            expected to verify this condition if this method is used outside
+            the context of the :py:mod:`WDmodel` package. Caveat emptor.
         """
         thigh = self._ntemp - 1
         tlow = 0
@@ -124,7 +301,38 @@ class WDmodel(object):
 
     def _get_model(self, teff, logg, wave=None, log=False):
         """
-        Returns the model flux given temperature and logg at wavelengths wave
+        Returns the model flux given teff and logg at wavelengths wave
+
+        Simple 3-D interpolation of model grid. Computes unreddened,
+        unnormalized, unconvolved, interpolated model flux. Uses
+        :py:class:`scipy.interpolate.RegularGridInterpolator` to generate the
+        interpolated model. This output has been tested against
+        :py:func:`WDmodel.WDmodel.WDmodel._get_model_nosp`.
+
+        Parameters
+        ----------
+        teff : float
+            Desired model white dwarf atmosphere temperature (in Kelvin)
+        logg : float
+            Desired model white dwarf atmosphere surface gravity (in dex)
+        wave : array-like, optional
+            Desired wavelengths at which to compute the model atmosphere flux.
+            If not supplied, the full model wavelength grid is returned.
+        log : bool, optional
+            Return the log10 flux, rather than the flux (what's actually interpolated)
+
+        Returns
+        -------
+        flux : array-like
+            Interpolated model flux at teff, logg and wavelengths wave
+
+        Notes
+        -----
+            `teff`, `logg` and `wave` must be within the bounds of the grid.
+            See :py:attr:`WDmodel.WDmodel.WDmodel._wave`,
+            :py:attr:`WDmodel.WDmodel.WDmodel._ggrid`,
+            :py:attr:`WDmodel.WDmodel.WDmodel._tgrid`, for grid locations and
+            limits.
         """
         xi = (teff, logg)
         out = self._model(xi)
@@ -141,6 +349,33 @@ class WDmodel(object):
         """
         Returns the reddened model flux given teff, logg, av, rv and
         wavelengths
+
+        Uses :py:func:`WDmodel.WDmodel.WDmodel._get_model` to get the
+        unreddened model, and reddens it with
+        :py:func:`WDmodel.WDmodel.WDmodel.reddening`
+
+        Parameters
+        ----------
+        teff : float
+            Desired model white dwarf atmosphere temperature (in Kelvin)
+        logg : float
+            Desired model white dwarf atmosphere surface gravity (in dex)
+        av : float
+            Extinction in the V band, :math:`A_V`
+        wave : array-like
+            Desired wavelengths at which to compute the model atmosphere flux.
+        rv : float, optional
+            The reddening law parameter, :math:`R_V`, the ration of the V band
+            extinction :math:`A_V` to the reddening between the B and V bands,
+            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
+            Milky Way. 
+        log : bool, optional
+            Return the log10 flux, rather than the flux (what's actually interpolated)
+
+        Returns
+        -------
+        flux : array-like
+            Interpolated model flux at teff, logg and wavelengths wave
         """
         mod = self._get_model(teff, logg, wave, log=log)
         if log:
