@@ -132,15 +132,6 @@ class WDmodel_CovModel(object):
         -------
         lnlike : float
             The log likelihood of the Gaussian process conditioned on the data.
-
-        Notes
-        -----
-            `fsig`, `tau` and `fw` all must be > 0. This constraint is not
-            checked here, but is instead imposed by the samplers/optimizers
-            used in the :py:mod:`WDmodel.fit` methods, and by bounds used to
-            construct the :py:class:`WDmodel.likelihood.WDmodel_Likelihood`
-            instance using the :py:func:`WDmodel.likelihood.setup_likelihood`
-            method.
         """
         gp = self.getgp(wave, flux_err, fsig, tau, fw)
         return gp.log_likelihood(res)
@@ -225,6 +216,15 @@ class WDmodel_CovModel(object):
         gp : :py:class:`celerite.GP` instance
             The Gaussian process with covariance matrix precomputed at the
             location of the data
+
+        Notes
+        -----
+            `fsig`, `tau` and `fw` all must be > 0. This constraint is not
+            checked here, but is instead imposed by the samplers/optimizers
+            used in the :py:mod:`WDmodel.fit` methods, and by bounds used to
+            construct the :py:class:`WDmodel.likelihood.WDmodel_Likelihood`
+            instance using the :py:func:`WDmodel.likelihood.setup_likelihood`
+            method.
         """
         log_sigma_fw = np.log(fw*self._errscale)
         kw = self._k2(log_sigma_fw)
