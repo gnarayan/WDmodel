@@ -412,7 +412,7 @@ class WDmodel(object):
             Milky Way.
         log : bool, optional
             Return the log10 flux, rather than the flux (what's actually interpolated)
-        pixel_scale : float
+        pixel_scale : float, optional
             Jacobian of the transformation between wavelength in Angstrom and
             pixels. In principle, this should be a vector, but virtually all
             spectral reduction packages resample the spectrum onto a uniform
@@ -477,7 +477,7 @@ class WDmodel(object):
             Milky Way.
         log : bool, optional
             Return the log10 flux, rather than the flux (what's actually interpolated)
-        pixel_scale : float
+        pixel_scale : float, optional
             Jacobian of the transformation between wavelength in Angstrom and
             pixels. In principle, this should be a vector, but virtually all
             spectral reduction packages resample the spectrum onto a uniform
@@ -718,7 +718,7 @@ class WDmodel(object):
             If strict, `teff` and `logg` out of model grid range raise a
             ValueError, otherwise raise a RuntimeWarning and set `teff`, `logg`
             to the nearest grid value.
-        pixel_scale : float
+        pixel_scale : float, optional
             Jacobian of the transformation between wavelength in Angstrom and
             pixels. In principle, this should be a vector, but virtually all
             spectral reduction packages resample the spectrum onto a uniform
