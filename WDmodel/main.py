@@ -15,11 +15,56 @@ from . import viz
 
 sys_excepthook = sys.excepthook
 def mpi_excepthook(excepttype, exceptvalue, traceback):
+    """
+    Overload :py:func:`sys.excepthook` when using :py:class:`mpi4py.MPI` to
+    terminate all MPI processes when an Exception is raised.
+    """
     sys_excepthook(excepttype, exceptvalue, traceback)
     mpi4py.MPI.COMM_WORLD.Abort(1)
 
 
 def main(inargs=None):
+    """
+    Entry point for the :py:mod:`WDmodel` fitter package.
+
+    Parameters
+    ----------
+    inargs : dict, optional
+        Input arguments to configure the fit. If not specified
+        :py:attr:`sys.argv` is used. inargs must be parseable by
+        :py:func:`WDmodel.io.get_options`.
+
+    Raises
+    ------
+    RuntimeError
+        If user attempts to resume the fit without having run it first
+
+    Notes
+    -----
+    The package is structured into several modules and classes
+
+    ================================================= ===================
+                         Module                         Model Component
+    ================================================= ===================
+    :py:mod:`WDmodel.io`                              I/O methods
+    :py:class:`WDmodel.WDmodel.WDmodel`               SED generator
+    :py:mod:`WDmodel.passband`                        Throughput model
+    :py:class:`WDmodel.covariance.WDmodel_CovModel`   Noise model
+    :py:class:`WDmodel.likelihood.WDmodel_Likelihood` Likelihood function
+    :py:class:`WDmodel.likelihood.WDmodel_Posterior`  Posterior function
+    :py:mod:`WDmodel.fit`                             "Fitting" methods
+    :py:mod:`WDmodel.viz`                             Viz methods
+    ================================================= ===================
+
+    This method implements our algorithm to infer the DA White Dwarf properties
+    and construct the SED model given the data using the methods and classes
+    listed above. Once the data is read, the model is configured, and the
+    liklihood and posterior functions constructed, the fitter methods evaluate
+    the model parameters given the data, using the samplers in :py:mod:`emcee`.
+    :py:mod:`WDmodel.mossampler` provides an overloaded
+    :py:class:`emcee.PTSampler` with a more reliable auto-correlation estimate.
+    Finally, the result is output along with various plots.
+    """
     comm = mpi4py.MPI.COMM_WORLD
     size = comm.Get_size()
     if size > 1:
