@@ -46,9 +46,12 @@ intersphinx_mapping = {
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
     'astropy': ('http://docs.astropy.org/en/stable/', None),
+    'iminuit': ('https://iminuit.readthedocs.io/en/stable/', None),
     'emcee': ('https://emcee.readthedocs.io/en/stable/', None),
     'mpi4py': ('https://mpi4py.readthedocs.io/en/stable/', None),
-    'celerite': ('http://celerite.readthedocs.io/en/stable/', None)
+    'celerite': ('http://celerite.readthedocs.io/en/stable/', None),
+    'matplotlib': ('https://matplotlib.org/', None),
+    'corner': ('http://corner.readthedocs.io/en/stable/', None)
 }
 
 
@@ -122,7 +125,10 @@ html_theme = 'sphinx_rtd_theme'
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'collapse_navigation': False,
+    'navigation_depth': 4,
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
