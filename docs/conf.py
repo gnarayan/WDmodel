@@ -46,6 +46,7 @@ intersphinx_mapping = {
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
     'astropy': ('http://docs.astropy.org/en/stable/', None),
+    'pysynphot': ('http://pysynphot.readthedocs.io/en/latest/', None),
     'iminuit': ('https://iminuit.readthedocs.io/en/stable/', None),
     'emcee': ('https://emcee.readthedocs.io/en/stable/', None),
     'mpi4py': ('https://mpi4py.readthedocs.io/en/stable/', None),
