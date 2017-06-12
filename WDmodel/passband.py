@@ -1,4 +1,8 @@
 # -*- coding: UTF-8 -*-
+"""
+Instrumental throughput models and calibration and synthetic photometry
+routines
+"""
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import numpy as np

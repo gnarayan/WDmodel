@@ -1,4 +1,9 @@
 # -*- coding: UTF-8 -*-
+"""
+The WDmodel package is designed to infer the SED of DA white dwarfs given
+spectra and photometry. This main module wraps all the other modules, and their
+classes and methods to implement the alogrithm.
+"""
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
@@ -31,7 +36,7 @@ def main(inargs=None):
     ----------
     inargs : dict, optional
         Input arguments to configure the fit. If not specified
-        :py:attr:`sys.argv` is used. inargs must be parseable by
+        :py:data:`sys.argv` is used. inargs must be parseable by
         :py:func:`WDmodel.io.get_options`.
 
     Raises

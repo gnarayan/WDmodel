@@ -30,27 +30,29 @@ class WDmodel_CovModel(object):
         the spectrum flux is rescaled, this must be set appropriately to get
         the correct uncertainties. The :py:mod:`WDmodel` package uses the
         median of the spectrum flux uncertainty internally.
-    covtype : {'Matern32', 'SHO', 'Exp', 'White} str
+    covtype : ``{'Matern32', 'SHO', 'Exp', 'White}``
         The model to use to parametrize the covariance.  Choices are defined in
-        :py:mod:`celerite.terms` All choices except 'White' parametrize the
+        :py:mod:`celerite.terms` All choices except ``'White'`` parametrize the
         covariance using a stationary kernel with a characteristic amplitude
-        `fsig` and scale `tau` + a white noise component with amplitude `fw`.
-        Only the white noise component is used to condition the Gaussian
-        process if covtype is 'White'. If not specified or unknown, 'Matern32'
-        is used and a RuntimeWarning is raised.
+        ``fsig`` and scale ``tau`` + a white noise component with amplitude
+        ``fw``.  Only the white noise component is used to condition the
+        Gaussian process if ``covtype`` is ``'White'``. If not specified or
+        unknown, ``'Matern32'`` is used and a :py:exc:`RuntimeWarning` is
+        raised.
     coveps : float
-        If covtype is 'Matern32' a :py:class:`celerite.terms.Matern32Term` is
-        used to approximate a Matern32 kernel with precision `coveps`. The
-        default is 1e-12. Ignored if any other `covtype` is specified.
+        If ``covtype`` is ``'Matern32'`` a
+        :py:class:`celerite.terms.Matern32Term` is used to approximate a
+        Matern32 kernel with precision `coveps`. The default is ``1e-12``.
+        Ignored if any other ``covtype`` is specified.
 
     Attributes
     ----------
     _errscale : float
-        The input `errscale`
+        The input ``errscale``
     _covtype : str
-        The input `covtype`
+        The input ``covtype``
     _coveps : float
-        The input `coveps`
+        The input ``coveps``
     _ndim : int
         The dimensionality of kernel used to parametrize the covariance
     _k1 : None or a term instance from :py:mod:`celerite.terms`
@@ -58,7 +60,7 @@ class WDmodel_CovModel(object):
     _k2 : :py:class:`celerite.terms.JitterTerm`
         The white noise component of the kernel
     _logQ : float, conditional
-        1/sqrt(2) - only set if `covtype` is 'SHO'
+        ``1/sqrt(2)`` - only set if ``covtype`` is ``'SHO'``
 
     Returns
     -------
@@ -135,6 +137,10 @@ class WDmodel_CovModel(object):
         -------
         lnlike : float
             The log likelihood of the Gaussian process conditioned on the data.
+
+        See Also
+        --------
+        :py:meth:`getgp`
         """
         gp = self.getgp(wave, flux_err, fsig, tau, fw)
         return gp.log_likelihood(res)
@@ -182,6 +188,10 @@ class WDmodel_CovModel(object):
             The computed covariance matrix of the Gaussian process using the
             parametrized stationary kernel evaluated at the locations of the
             data.
+
+        See Also
+        --------
+        :py:meth:`getgp`
         """
         gp = self.getgp(wave, flux_err, fsig, tau, fw)
         return_cov = not(mean_only)
@@ -190,7 +200,7 @@ class WDmodel_CovModel(object):
 
     def getgp(self, wave, flux_err, fsig, tau, fw):
         """
-        Return the celerite.GP instance
+        Return the :py:class:`celerite.GP` instance
 
         Precomputes the covariance matrix of the Gaussian process specified by
         the functional form of the stationary kernel and the current values of
@@ -201,7 +211,7 @@ class WDmodel_CovModel(object):
         wave : array-like, optional
             Wavelengths at which to condition the Gaussian process
         flux_err : array-like
-            Flux uncertaintyarray on which to condition the Gaussian process
+            Flux uncertainty array on which to condition the Gaussian process
         fsig : float
             The fractional amplitude of the non-trivial stationary kernel. The
             true amplitude is scaled by
@@ -222,7 +232,7 @@ class WDmodel_CovModel(object):
 
         Notes
         -----
-            `fsig`, `tau` and `fw` all must be > 0. This constraint is not
+            ``fsig``, ``tau`` and ``fw`` all must be > 0. This constraint is not
             checked here, but is instead imposed by the samplers/optimizers
             used in the :py:mod:`WDmodel.fit` methods, and by bounds used to
             construct the :py:class:`WDmodel.likelihood.WDmodel_Likelihood`

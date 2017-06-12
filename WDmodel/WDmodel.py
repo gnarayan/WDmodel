@@ -24,7 +24,7 @@ class WDmodel(object):
 
     Base class defines the routines to generate and work with DA White Dwarf
     model spectra. Requires a grid file of DA White Dwarf atmospheres. This
-    grid file is included along with the package - TlustyGrids.hdf5 - and is
+    grid file is included along with the package - ``TlustyGrids.hdf5`` - and is
     the default.
 
     Parameters
@@ -32,20 +32,21 @@ class WDmodel(object):
     grid_file : str, optional
         Filename of the HDF5 grid file to read. See
         :py:func:`WDmodel.io.read_model_grid` for format of the grid file.
-        Default is TlustyGrids.hdf5, included with the `WDmodel` package.
+        Default is ``TlustyGrids.hdf5``, included with the :py:mod:`WDmodel`
+        package.
     grid_name : str, optional
         Name of the HDF5 group containing the white dwarf model atmosphere
-        grids in `grid_file`. Default is "default"
-    rvmodel : {'ccm89','od94','f99'}, optional
-        Specify parametrization of the reddening law. Default is od94.
+        grids in ``grid_file``. Default is ``default``
+    rvmodel : ``{'ccm89','od94','f99'}``, optional
+        Specify parametrization of the reddening law. Default is ``'od94'``.
 
-        ======= ==================================================
-        rvmodel                 parametrization
-        ======= ==================================================
-        'ccm89' Cardelli, Clayton and Mathis (1989, ApJ, 345, 245)
-        'od94'  O'Donnell (1994, ApJ, 422, 158)
-        'f99'   Fitzpatrick (1999, PASP, 111, 63)
-        ======= ==================================================
+        =========== ==================================================
+          rvmodel                 parametrization
+        =========== ==================================================
+        ``'ccm89'`` Cardelli, Clayton and Mathis (1989, ApJ, 345, 245)
+        ``'od94'``  O'Donnell (1994, ApJ, 422, 158)
+        ``'f99'``   Fitzpatrick (1999, PASP, 111, 63)
+        =========== ==================================================
 
     Attributes
     ----------
@@ -65,18 +66,18 @@ class WDmodel(object):
     _tgrid : array-like
         Array of model grid temperature values in Kelvin, sorted in ascending order
     _nwave : int
-        Size of the model grid wavelength array, `_wave`
+        Size of the model grid wavelength array, ``_wave``
     _ngrav : int
-        Size of the model grid surface gravity array, `_ggrid`
+        Size of the model grid surface gravity array, ``_ggrid``
     _ntemp : int
-        Size of the model grid temperature array, `_tgrid`
+        Size of the model grid temperature array, ``_tgrid``
     _flux : array-like
-        Array of model grid fluxes, shape (_nwave, _ntemp, _ngrav)
+        Array of model grid fluxes, shape ``(_nwave, _ntemp, _ngrav)``
     _lwave : array-like
-        Array of model grid log10 wavelengths for interpolation
+        Array of model grid ``log10`` wavelengths for interpolation
     _lflux : array-like
-        Array of model grid log10 fluxes for interpolation, shape (_ntemp, _ngrav, _nwave)
-    _law : extinction function corresponding to `rvmodel`
+        Array of model grid ``log10`` fluxes for interpolation, shape ``(_ntemp, _ngrav, _nwave)``
+    _law : extinction function corresponding to ``rvmodel``
 
     Returns
     -------
@@ -148,9 +149,9 @@ class WDmodel(object):
 
     def extinction(self, wave, av, rv=3.1):
         """
-        Return the extinction for `av`, `rv` at wavelengths `wave`
+        Return the extinction for ``av``, ``rv`` at wavelengths ``wave``
 
-        Uses the extinction function corresponding to the `rvmodel`
+        Uses the extinction function corresponding to the ``rvmodel``
         parametrization set as
         :py:attr:`WDmodel.WDmodel.WDmodel._law` to calculate the
         extinction as a function of wavelength (in Angstroms),
@@ -166,26 +167,26 @@ class WDmodel(object):
         rv : float, optional
             The reddening law parameter, :math:`R_V`, the ration of the V band
             extinction :math:`A_V` to the reddening between the B and V bands,
-            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
+            :math:`E(B-V)`. Default is ``3.1``, appropriate for stellar SEDs in the
             Milky Way.
 
         Returns
         -------
         out : array-like
-            Extinction at wavelengths `wave` for `av` and `rv`
+            Extinction at wavelengths ``wave`` for ``av`` and ``rv``
 
         Notes
         -----
-            `av` should be >= 0.
+            ``av`` should be >= 0.
         """
         return self._law(wave, av, rv, unit='aa')
 
 
     def reddening(self, wave, flux, av, rv=3.1):
         """
-        Redden a 1-D spectrum (`wave`, `flux`) with extinction parametrized by `av`, `rv`
+        Redden a 1-D spectrum with extinction
 
-        Uses the extinction function corresponding to the `rvmodel`
+        Uses the extinction function corresponding to the ``rvmodel``
         parametrization set in
         :py:func:`WDmodel.WDmodel.WDmodel._WDmodel__init__rvmodel` to calculate the
         extinction as a function of wavelength (in Angstroms),
@@ -197,13 +198,13 @@ class WDmodel(object):
             Array of wavelengths in Angstrom at which to compute extinction,
             sorted in ascending order
         flux : array-like
-            Array of fluxes at `wave` at which to apply extinction
+            Array of fluxes at ``wave`` at which to apply extinction
         av : float
             Extinction in the V band, :math:`A_V`
         rv : float, optional
             The reddening law parameter, :math:`R_V`, the ration of the V band
             extinction :math:`A_V` to the reddening between the B and V bands,
-            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
+            :math:`E(B-V)`. Default is ``3.1``, appropriate for stellar SEDs in the
             Milky Way.
 
         Returns
@@ -213,14 +214,15 @@ class WDmodel(object):
 
         Notes
         -----
-            `av` and `flux` should be >= 0.
+            ``av`` and ``flux`` should be >= 0.
         """
         return extinction.apply(self.extinction(wave, av, rv), flux, inplace=True)
 
 
     def _get_model_nosp(self, teff, logg, wave=None, log=False):
         """
-        Returns the model flux given `teff` and `logg` at wavelengths `wave`
+        Returns the model flux given ``teff`` and ``logg`` at wavelengths
+        ``wave``
 
         Simple 3-D interpolation of model grid. Computes unreddened,
         unnormalized, unconvolved, interpolated model flux. Not used, but
@@ -237,16 +239,16 @@ class WDmodel(object):
             Desired wavelengths at which to compute the model atmosphere flux.
             If not supplied, the full model wavelength grid is returned.
         log : bool, optional
-            Return the log10 flux, rather than the flux (what's actually interpolated)
+            Return the log10 flux, rather than the flux.
 
         Returns
         -------
         flux : array-like
-            Interpolated model flux at `teff`, `logg` and wavelengths `wave`
+            Interpolated model flux at ``teff``, ``logg`` and wavelengths ``wave``
 
         Notes
         -----
-            `teff`, `logg` and `wave` must be within the bounds of the grid.
+            Inputs ``teff``, ``logg`` and ``wave`` must be within the bounds of the grid.
             See :py:attr:`WDmodel.WDmodel.WDmodel._wave`,
             :py:attr:`WDmodel.WDmodel.WDmodel._ggrid`,
             :py:attr:`WDmodel.WDmodel.WDmodel._tgrid`, for grid locations and
@@ -296,7 +298,7 @@ class WDmodel(object):
 
     def _get_model(self, teff, logg, wave=None, log=False):
         """
-        Returns the model flux given `teff` and `logg` at wavelengths `wave`
+        Returns the model flux given ``teff`` and ``logg`` at wavelengths ``wave``
 
         Simple 3-D interpolation of model grid. Computes unreddened,
         unnormalized, unconvolved, interpolated model flux. Uses
@@ -314,17 +316,17 @@ class WDmodel(object):
             Desired wavelengths at which to compute the model atmosphere flux.
             If not supplied, the full model wavelength grid is returned.
         log : bool, optional
-            Return the log10 flux, rather than the flux (what's actually interpolated)
-
+            Return the log10 flux rather than the flux.
+        
         Returns
         -------
         flux : array-like
-            Interpolated model flux at `teff`, `logg` and wavelengths `wave`
+            Interpolated model flux at ``teff``, ``logg`` and wavelengths ``wave``.
 
         Notes
         -----
-            `teff`, `logg` and `wave` must be within the bounds of the grid.
-            See :py:attr:`WDmodel.WDmodel.WDmodel._wave`,
+            Inputs ``teff``, ``logg`` and ``wave`` must be within the bounds of
+            the grid.  See :py:attr:`WDmodel.WDmodel.WDmodel._wave`,
             :py:attr:`WDmodel.WDmodel.WDmodel._ggrid`,
             :py:attr:`WDmodel.WDmodel.WDmodel._tgrid`, for grid locations and
             limits.
@@ -342,8 +344,8 @@ class WDmodel(object):
 
     def _get_red_model(self, teff, logg, av, wave, rv=3.1, log=False):
         """
-        Returns the reddened model flux given `teff`, `logg`, `av`, `rv` at
-        wavelengths `wave`
+        Returns the reddened model flux given ``teff``, ``logg``, ``av``, ``rv`` at
+        wavelengths ``wave``
 
         Uses :py:func:`WDmodel.WDmodel.WDmodel._get_model` to get the
         unreddened model, and reddens it with
@@ -370,8 +372,8 @@ class WDmodel(object):
         Returns
         -------
         flux : array-like
-            Interpolated model flux at `teff`, `logg` with reddening parametrized
-            by `av`, `rv` at wavelengths `wave`
+            Interpolated model flux at ``teff``, ``logg`` with reddening parametrized
+            by ``av``, ``rv`` at wavelengths ``wave``
         """
         mod = self._get_model(teff, logg, wave, log=log)
         if log:
@@ -384,8 +386,8 @@ class WDmodel(object):
 
     def _get_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, pixel_scale=1.):
         """
-        Returns the observed model flux given `teff`, `logg`, `av`, `rv`,
-        `fwhm` (for Gaussian instrumental broadening) and wavelengths `wave`
+        Returns the observed model flux given ``teff``, ``logg``, ``av``, ``rv``,
+        ``fwhm`` (for Gaussian instrumental broadening) and wavelengths ``wave``
 
         Uses :py:func:`WDmodel.WDmodel.WDmodel._get_model` to get the
         unreddened model, and reddens it with
@@ -417,18 +419,18 @@ class WDmodel(object):
             pixels. In principle, this should be a vector, but virtually all
             spectral reduction packages resample the spectrum onto a uniform
             wavelength scale that is close to the native pixel scale of the
-            spectrograph. Default is 1.
+            spectrograph. Default is ``1.``
 
         Returns
         -------
         flux : array-like
-            Interpolated model flux at `teff`, `logg` with reddening parametrized
-            by `av`, `rv` and broadened by a Gaussian kernel defined by `fwhm` at
-            wavelengths `wave`
+            Interpolated model flux at ``teff``, ``logg`` with reddening parametrized
+            by ``av``, ``rv`` and broadened by a Gaussian kernel defined by ``fwhm`` at
+            wavelengths ``wave``
 
         Notes
         -----
-            `fwhm` and `pixel_scale` must be > 0
+            ``fwhm`` and ``pixel_scale`` must be > 0
         """
         mod = self._get_model(teff, logg, wave, log=log)
         if log:
@@ -443,8 +445,8 @@ class WDmodel(object):
 
     def _get_full_obs_model(self, teff, logg, av, fwhm, wave, rv=3.1, log=False, pixel_scale=1.):
         """
-        Returns the observed model flux given `teff`, `logg`, `av`, `rv`,
-        `fwhm` (for Gaussian instrumental broadening) at wavelengths, `wave` as
+        Returns the observed model flux given ``teff``, ``logg``, ``av``, ``rv``,
+        ``fwhm`` (for Gaussian instrumental broadening) at wavelengths, ``wave`` as
         well as the full SED.
 
         Convenience function that does the same thing as
@@ -473,7 +475,7 @@ class WDmodel(object):
         rv : float, optional
             The reddening law parameter, :math:`R_V`, the ration of the V band
             extinction :math:`A_V` to the reddening between the B and V bands,
-            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
+            :math:`E(B-V)`. Default is ``3.1``, appropriate for stellar SEDs in the
             Milky Way.
         log : bool, optional
             Return the log10 flux, rather than the flux (what's actually interpolated)
@@ -482,21 +484,21 @@ class WDmodel(object):
             pixels. In principle, this should be a vector, but virtually all
             spectral reduction packages resample the spectrum onto a uniform
             wavelength scale that is close to the native pixel scale of the
-            spectrograph. Default is 1.
+            spectrograph. Default is ``1.``
 
         Returns
         -------
         flux : array-like
-            Interpolated model flux at `teff`, `logg` with reddening
-            parametrized by `av`, `rv` and broadened by a Gaussian kernel
-            defined by `fwhm` at wavelengths `wave`
-        mod : :py:class:`numpy.recarray` with dtype=[('wave', '<f8'), ('flux', '<f8')]
-            Full model SED at `teff`, `logg` with reddening parametrized by
-            `av`, `rv`
+            Interpolated model flux at ``teff``, ``logg`` with reddening
+            parametrized by ``av``, ``rv`` and broadened by a Gaussian kernel
+            defined by ``fwhm`` at wavelengths ``wave``
+        mod : :py:class:`numpy.recarray` with ``dtype=[('wave', '<f8'), ('flux', '<f8')]``
+            Full model SED at ``teff``, ``logg`` with reddening parametrized by
+            ``av``, ``rv``
 
         Notes
         -----
-            `fwhm` and `pixel_scale` must be > 0
+            ``fwhm`` and ``pixel_scale`` must be > 0
         """
         mod  = self._get_model(teff, logg)
         mod  = self.reddening(self._wave, mod, av, rv=rv)
@@ -546,7 +548,7 @@ class WDmodel(object):
 
     def get_model(self, teff, logg, wave=None, log=False, strict=True):
         """
-        Returns the model flux given `teff` and `logg` at wavelengths `wave`
+        Returns the model flux given ``teff`` and ``logg`` at wavelengths ``wave``
 
         Wraps :py:func:`WDmodel.WDmodel.WDmodel._get_model` adding checking of
         inputs.
@@ -561,21 +563,23 @@ class WDmodel(object):
             Desired wavelengths at which to compute the model atmosphere flux.
             If not supplied, the full model wavelength grid is returned.
         log : bool, optional
-            Return the log10 flux, rather than the flux (what's actually interpolated)
+            Return the log10 flux, rather than the flux
         strict: bool, optional
-            If strict, `teff` and `logg` out of model grid range raise a
-            ValueError, otherwise raise a RuntimeWarning and set `teff`, `logg`
-            to the nearest grid value.
+            If strict, ``teff`` and ``logg`` out of model grid range raise a
+            :py:exc:`ValueError`, otherwise raise a :py:exc:`RuntimeWarning`
+            and set ``teff``, ``logg`` to the nearest grid value.
 
         Returns
         -------
-        wave, flux : array-like
-            Interpolated model flux at `teff`, `logg` and wavelengths `wave`
+        wave : array-like
+            Valid output wavelengths
+        flux : array-like
+            Interpolated model flux at ``teff``, ``logg`` and wavelengths ``wave``
 
         Raises
         ------
         ValueError
-            If `teff` or `logg` are out of range of model grid and `strict` is True
+            If ``teff`` or ``logg`` are out of range of model grid and ``strict`` is True
             or
             if there are any invalid wavelengths, or the requested wavelengths
             to do not overlap with the model grid
@@ -624,8 +628,8 @@ class WDmodel(object):
 
     def get_red_model(self, teff, logg, av, rv=3.1, wave=None, log=False, strict=True):
         """
-        Returns the reddened model flux given `teff`, `logg`, `av`, `rv` at
-        wavelengths `wave`
+        Returns the reddened model flux given ``teff``, ``logg``, ``av``, ``rv`` at
+        wavelengths ``wave``
 
         Uses :py:func:`WDmodel.WDmodel.WDmodel.get_model` to get the unreddened
         model, and reddens it with :py:func:`WDmodel.WDmodel.WDmodel.reddening`
@@ -641,7 +645,7 @@ class WDmodel(object):
         rv : float, optional
             The reddening law parameter, :math:`R_V`, the ration of the V band
             extinction :math:`A_V` to the reddening between the B and V bands,
-            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
+            :math:`E(B-V)`. Default is ``3.1``, appropriate for stellar SEDs in the
             Milky Way.
         wave : array-like, optional
             Desired wavelengths at which to compute the model atmosphere flux.
@@ -649,20 +653,22 @@ class WDmodel(object):
         log : bool, optional
             Return the log10 flux, rather than the flux (what's actually interpolated)
         strict: bool, optional
-            If strict, `teff` and `logg` out of model grid range raise a
-            ValueError, otherwise raise a RuntimeWarning and set `teff`, `logg`
-            to the nearest grid value.
+            If strict, ``teff`` and ``logg`` out of model grid range raise a
+            :py:exc:`ValueError`, otherwise raise a :py:exc:`RuntimeWarning`
+            and set ``teff``, ``logg`` to the nearest grid value.
 
         Returns
         -------
-        wave, flux : array-like
-            Interpolated model flux at `teff`, `logg` with reddening parametrized
-            by `av`, `rv` at wavelengths `wave`
+        wave : array-like
+            Valid output wavelengths
+        flux : array-like
+            Interpolated model flux at ``teff``, ``logg`` with reddening parametrized
+            by ``av``, ``rv`` at wavelengths ``wave``
 
         Raises
         ------
         ValueError
-            If `av` < 0 or `rv` not in [1.7, 5.1]
+            If ``av  < 0`` or ``rv`` not in ``[1.7, 5.1]``
         """
         modwave, modflux = self.get_model(teff, logg, wave=wave, log=log, strict=strict)
         av = float(av)
@@ -687,8 +693,9 @@ class WDmodel(object):
     def get_obs_model(self, teff, logg, av, fwhm, rv=3.1, wave=None,\
             log=False, strict=True, pixel_scale=1.):
         """
-        Returns the observed model flux given `teff`, `logg`, `av`, `rv`,
-        `fwhm` (for Gaussian instrumental broadening) and wavelengths `wave`
+        Returns the observed model flux given ``teff``, ``logg``, ``av``,
+        ``rv``, ``fwhm`` (for Gaussian instrumental broadening) and wavelengths
+        ``wave``
 
         Uses :py:func:`WDmodel.WDmodel.WDmodel.get_red_model` to get the
         reddened model and convolves it with a Gaussian kernel using
@@ -707,34 +714,36 @@ class WDmodel(object):
         rv : float, optional
             The reddening law parameter, :math:`R_V`, the ration of the V band
             extinction :math:`A_V` to the reddening between the B and V bands,
-            :math:`E(B-V)`. Default is 3.1, appropriate for stellar SEDs in the
-            Milky Way.
+            :math:`E(B-V)`. Default is ``3.1``, appropriate for stellar SEDs in
+            the Milky Way.
         wave : array-like, optional
             Desired wavelengths at which to compute the model atmosphere flux.
             If not supplied, the full model wavelength grid is returned.
         log : bool, optional
             Return the log10 flux, rather than the flux (what's actually interpolated)
         strict: bool, optional
-            If strict, `teff` and `logg` out of model grid range raise a
-            ValueError, otherwise raise a RuntimeWarning and set `teff`, `logg`
-            to the nearest grid value.
+            If strict, ``teff`` and ``logg`` out of model grid range raise a
+            :py:exc:`ValueError`, otherwise raise a :py:exc:`RuntimeWarning` and set
+            ``teff``, ``logg`` to the nearest grid value.
         pixel_scale : float, optional
             Jacobian of the transformation between wavelength in Angstrom and
             pixels. In principle, this should be a vector, but virtually all
             spectral reduction packages resample the spectrum onto a uniform
             wavelength scale that is close to the native pixel scale of the
-            spectrograph. Default is 1.
+            spectrograph. Default is ``1.``
 
         Returns
         -------
-        wave, flux : array-like
-            Interpolated model flux at `teff`, `logg` with reddening
-            parametrized by `av`, `rv` broadened by a Gaussian kernel defined
-            by `fwhm` at wavelengths `wave`
+        wave : array-like
+            Valid output wavelengths
+        flux : array-like
+            Interpolated model flux at ``teff``, ``logg`` with reddening
+            parametrized by ``av``, ``rv`` broadened by a Gaussian kernel
+            defined by ``fwhm`` at wavelengths ``wave``
 
         Notes
         -----
-            `fwhm` and `pixel_scale` must be > 0
+            ``fwhm`` and ``pixel_scale`` must be ``> 0``
         """
         modwave, modflux = self.get_red_model(teff, logg, av, rv=rv,\
                 wave=wave, log=log, strict=strict)
@@ -773,16 +782,16 @@ class WDmodel(object):
         WB : float
             red limit of wavelenghts to extract
         W0 : float or None, optional
-            None or a central wavelength of range [`WA`,`WB`] to return.
-            If None, the central wavelength is computed, else the input is
+            ``None`` or a central wavelength of range ``[WA, WB]`` to return.
+            If ``None``, the central wavelength is computed, else the input is
             simply returned.
 
         Returns
         -------
         W0 : float
-            central wavelength of range [`WA`,`WB`]
+            central wavelength of range ``[WA, WB]``
         ZE : array-like
-            indices of `wave` in range [`WA`,`WB`]
+            indices of ``wave`` in range ``[WA, WB]``
         """
         if W0 is None:
             W0 = WA + (WB-WA)/2.
@@ -799,7 +808,7 @@ class WDmodel(object):
         ----------
         wave : array-like
             Wavelengths array from which to extract indices
-        line : {'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'} str
+        line : ``{'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'}``
             Name of hydrogen Balmer line to extract.
             Properties are pre-defined in :py:attr:`WDmodel.WDmodel.WDmodel._lines`
 
@@ -812,8 +821,8 @@ class WDmodel(object):
 
         Notes
         -----
-        No checking of input - will throw KeyError if line is not accepted
-        value
+        No checking of input - will throw :py:exc:`KeyError` if line is not
+        accepted value
         """
         _, W0, WID, DW = self._lines[line]
         WA  = W0 - WID - DW
@@ -825,15 +834,15 @@ class WDmodel(object):
         """
         Extracts slices of multiple arrays for the same set of indices.
 
-        Convenience function to extract elements of wavelength `w`, flux `f`
-        and optionally flux uncertainty `df` using indices `ZE`
+        Convenience function to extract elements of wavelength ``w``, flux ``f``
+        and optionally flux uncertainty ``df`` using indices ``ZE``
 
         Parameters
         ----------
         w : array-like
-            Wavelength array from which to extract indices `ZE`
+            Wavelength array from which to extract indices ``ZE``
         f : array-like
-            Flux array from which to extract indices `ZE`
+            Flux array from which to extract indices ``ZE``
         ZE : array-like
             indices to extract
         df : None or array-like, optional
@@ -841,8 +850,13 @@ class WDmodel(object):
 
         Returns
         -------
-        w, f, [df] : array-like
-            elements of input arrays at indices `ZE`
+        w : array-like
+            elements of input wavelength array at indices ``ZE``
+        f : array-like
+            elements of input flux array at indices ``ZE``
+        [df] : array-like
+            elements of input flux uncertainty array at indices ``ZE`` if
+            optional input ``df`` is supplied
         """
         if df is None:
             return w[ZE], f[ZE]
@@ -855,8 +869,8 @@ class WDmodel(object):
         Extracts slices of multiple arrays corresponding to a hydrogen Balmer
         line
 
-        Convenience function to extract elements of wavelength `w`, flux `f`
-        and optionally flux uncertainty `df` for a hydrogen Balmer line. Wraps
+        Convenience function to extract elements of wavelength ``w``, flux ``f``
+        and optionally flux uncertainty ``df`` for a hydrogen Balmer line. Wraps
         :py:func:`WDmodel.WDmodel.WDmodel._extract_spectral_line` adding
         checking of inputs.
 
@@ -864,11 +878,11 @@ class WDmodel(object):
         ----------
         w : array-like
             Wavelength array from which to extract elements corresponding to
-            hydrogen Balmer `line`
+            hydrogen Balmer ``line``
         f : array-like
             Flux array from which to extract elements corresponding to hydrogen
-            Balmer `line`
-        line : {'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'} str
+            Balmer ``line``
+        line : ``{'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'}``
             Name of hydrogen Balmer line to extract.
             Properties are pre-defined in :py:attr:`WDmodel.WDmodel.WDmodel._lines`
         df : None or array-like, optional
@@ -876,14 +890,22 @@ class WDmodel(object):
 
         Returns
         -------
-        w, f, [df] : array-like
-            elements of input arrays for hydrogen Balmer `line`
+        w : array-like
+            elements of input wavelength array for hydrogen Balmer feature
+            ``line``
+        f : array-like
+            elements of input flux array for hydrogen Balmer feature ``line``
+        [df] : array-like
+            elements of input flux uncertainty array for hydrogen Balmer
+            feature ``line`` if optional input ``df`` is supplied
 
         Raises
         ------
         ValueError
-            If line is not one of the first six of the Balmer series
+            If ``line`` is not one of the first six of the Balmer series
+            or 
             If wavelengths are invalid
+            of 
             If there's a difference in shape of any of the arrays
         """
         try:
@@ -915,8 +937,8 @@ class WDmodel(object):
         Extracts slices of multiple arrays corresponding to a hydrogen Balmer
         line
 
-        Convenience function to extract elements of wavelength `w`, flux `f`
-        and optionally flux uncertainty `df` for a hydrogen Balmer `line`.
+        Convenience function to extract elements of wavelength ``w``, flux ``f``
+        and optionally flux uncertainty ``df`` for a hydrogen Balmer ``line``.
         Wraps :py:func:`WDmodel.WDmodel.WDmodel._get_line_indices` and
         :py:func:`WDmodel.WDmodel.WDmodel._extract_from_indices`, both of which
         have their own reasons for existence as well.
@@ -925,11 +947,11 @@ class WDmodel(object):
         ----------
         w : array-like
             Wavelength array from which to extract elements corresponding to
-            hydrogen Balmer `line`
+            hydrogen Balmer ``line``
         f : array-like
             Flux array from which to extract elements corresponding to hydrogen
-            Balmer `line`
-        line : {'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'} str
+            Balmer ``line``
+        line : ``{'alpha', 'beta', 'gamma', 'delta', 'zeta', 'eta'}``
             Name of hydrogen Balmer line to extract.
             Properties are pre-defined in :py:attr:`WDmodel.WDmodel.WDmodel._lines`
         df : None or array-like, optional
@@ -937,8 +959,14 @@ class WDmodel(object):
 
         Returns
         -------
-        w, f, [df] : array-like
-            elements of input arrays for hydrogen Balmer `line`
+        w : array-like
+            elements of input wavelength array for hydrogen Balmer feature
+            ``line``
+        f : array-like
+            elements of input flux array for hydrogen Balmer feature ``line``
+        [df] : array-like
+            elements of input flux uncertainty array for hydrogen Balmer
+            feature ``line`` if optional input ``df`` is supplied
 
         Notes
         -----
