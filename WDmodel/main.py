@@ -4,6 +4,7 @@ The WDmodel package is designed to infer the SED of DA white dwarfs given
 spectra and photometry. This main module wraps all the other modules, and their
 classes and methods to implement the alogrithm.
 """
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals

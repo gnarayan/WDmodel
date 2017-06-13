@@ -3,6 +3,7 @@
 WDmodel: Bayesian inference of white dwarf properties from spectra and
 photometry to establish spectrophotometric standards
 """
+
 from __future__ import unicode_literals
 __author__     = "Gautham Narayan"
 __email__      = "gnarayan@noao.edu"

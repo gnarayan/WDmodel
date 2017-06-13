@@ -2,7 +2,7 @@
 """
 DA White Dwarf Atmosphere Models and SED generator.
 
-Model grid originally from J. Holberg using I. Hubeny's Tlusty code (v202) and
+Model grid originally from J. Holberg using I. Hubeny's Tlusty code (v200) and
 custom Synspec routines, repackaged into HDF5 by G. Narayan.
 """
 

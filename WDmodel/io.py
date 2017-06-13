@@ -1,4 +1,9 @@
 # -*- coding: UTF-8 -*-
+"""
+I/O methods. All the submodules of the WDmodel package use this module for
+almost all I/O operations.
+"""
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
@@ -22,7 +27,28 @@ _PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw
 
 def get_options(args, comm):
     """
-    Get command line options for the WDmodel fitter
+    Get command line options for the :py:mod:`WDmodel` fitter package
+
+    Parameters
+    ----------
+    args : array-like
+        list of the input command line arguments, typically from
+        :py:data:`sys.argv`
+    comm : None or :py:class:`mpi4py.mpi.MPI` instance
+        Used to communicate options to all child processes if running with mpi
+
+    Returns
+    -------
+    args : Namespace
+        Parsed command line options
+    pool : None or :py:class`emcee.utils.MPIPool`
+        If running with MPI, the pool object is used to distribute the
+        computations among the child process
+
+    Raises
+    ------
+    ValueError
+        If any input value is invalid
     """
 
     # create a config parser that will take a single option - param file
@@ -259,8 +285,26 @@ def get_options(args, comm):
 
 def copy_params(params):
     """
-    Returns a deep copy of a dictionary
+    Returns a deep copy of a dictionary. Necessary to ensure that dictionaries
+    that nest dictionaries are properly updated.
+
+    Parameters
+    ----------
+    params : dict or Object
+        Any python object for which a deepcopy needs to be created.  Typically
+        a parameter dictionary such as that from
+        :py:func:`WDmodel.io.read_params`
+        
+    Returns
+    -------
+    params : Object
+        A deepcopy of the object
+
+    Notes
+    -----
+        Simple wrapper around :py:func:`copy.deepcopy`
     """
+    
     return deepcopy(params)
 
 
@@ -268,15 +312,31 @@ def write_params(params, outfile):
     """
     Dumps the parameter dictionary params to a JSON file
 
-    params is a dict the parameter names, as defined with _PARAMETER_NAMES as keys
-    Each key must have a dictionary with keys
-        "value"   : value
-        "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
-        "scale"   : a scale parameter used to set the step size in this dimension
-        "bounds"  : An upper and lower limit on parameter values
-    Any extra keys are simply written as-is
+    Parameters
+    ----------
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+    outfile : str
+        Output filename to save the parameter dict as a JSON file.
 
-    Note that JSON doesn't preserve ordering necessarily - this is enforced by read_params
+    Notes
+    -----
+        params is a dict the parameter names, as defined with
+        :py:const:`WDmodel.io._PARAMETER_NAMES` as keys
+    
+        Each key must have a dictionary with keys:
+         * ``value`` : value
+         * ``fixed`` : a bool specifying if the parameter is fixed (``True``) or allowed to vary (``False``)
+         * ``scale``  : a scale parameter used to set the step size in this dimension
+         * ``bounds`` : An upper and lower limit on parameter values
+    
+        Any extra keys are simply written as-is JSON doesn't preserve ordering
+        necessarily. This is imposed by :py:func:`WDmodel.io.read_params`
+
+    See Also
+    --------
+    :py:func:`WDmodel.io.read_params`
     """
     for param in params:
         if not all (key in params[param] for key in ("value","fixed","scale", "bounds")):
@@ -290,25 +350,43 @@ def write_params(params, outfile):
 def read_params(param_file=None):
     """
     Read a JSON file that configures the default guesses and bounds for the
-    parameters, as well as if they should be fixed.  The JSON keys are the
-    parameter names, as defined in _PARAMETER_NAMES.
-    Each key must have a dictionary with keys
-        "value"   : value
-        "fixed"   : a bool specifying if the parameter is fixed (true) or allowed to vary (false)
-        "scale"   : a scale parameter used to set the step size in this dimension
-        "bounds"  : An upper and lower limit on parameter values.
-    And extra keys are simply loaded as-is
+    parameters, as well as if they should be fixed.
+    
+    Parameters
+    ----------
+    param_file : str, optional
+        The name of the input parameter file. If not the default file provided
+        with the package, ``WDmodel_param_defaults.json``, is read.
 
-    Note that the default bounds are set by the grids available for the DA
-    White Dwarf atmospheres, and by reasonable plausible ranges for the other
-    parameters. Don't muck with them unless you really have good reason to.
+    Returns
+    -------
+    params : dict
+        The dictionary with the parameter ``values``, ``bounds``, ``scale`` and
+        if ``fixed``. See notes for more detailed information on dictionary
+        format and ``WDmodel_param_defaults.json`` for an example file for
+        ``param_file``.
+    
+    Notes
+    -----
+        params is a dict the parameter names, as defined with
+        :py:const:`WDmodel.io._PARAMETER_NAMES` as keys
+    
+        Each key must have a dictionary with keys:
+         * ``value`` : value
+         * ``fixed`` : a bool specifying if the parameter is fixed (``True``) or allowed to vary (``False``)
+         * ``scale``  : a scale parameter used to set the step size in this dimension
+         * ``bounds`` : An upper and lower limit on parameter values
 
-    Note that this routine does not do any checking of types, values or bounds
-    This is done by get_params_from_argparse before the fit If you setup the
-    fit using an external code, you should check these values
+        The default bounds are set by the grids available for the DA White
+        Dwarf atmospheres, and by reasonable plausible ranges for the other
+        parameters. Don't muck with them unless you really have good reason to.
 
-    Returns the dictionary with the parameter defaults.
+        This routine does not do any checking of types, values or bounds This
+        is done by :py:func:`WDmodel.io.get_params_from_argparse` before the
+        fit. If you setup the fit using an external code, you should check
+        these values.
     """
+    
     if param_file is None:
         param_file = 'WDmodel_param_defaults.json'
         param_file = get_pkgfile(param_file)
@@ -333,15 +411,43 @@ def read_params(param_file=None):
 
 def get_params_from_argparse(args):
     """
-    Converts the argparse args Namespace back into an ordered parameter
-    dictionary. Assumes that the argument parser options were names
-        param_value  = Value of the parameter (float or None)
-        param_fix    = Bool specifying if the parameter
-        param_bounds = tuple with lower limit and upper limit
+    Converts an :py:class:`argparse.Namespace` into an ordered parameter
+    dictionary. 
+    
+    Parameters
+    ----------
+    args : :py:class:`argparse.Namespace`
+        The parsed command-line options from :py:func:`WDmodel.io.get_options`
 
-    Accepts Namespace from argparse
-    Returns OrderedDict of parameter keywords
+    Returns
+    -------
+    params : :py:class:`collections.OrderedDict`
+        The parameter dictionary
+
+    Raises
+    ------
+    RuntimeError
+         If format of :py:class:`argparse.Namespace` is invalid.
+         or
+         If parameter is ``fixed`` but ``value`` is ``None``.
+         or
+         If parameter ``value`` is out of ``bounds``.
+
+    Notes
+    -----
+        Assumes that the argument parser options were names
+         * ``<param>_value`` : Value of the parameter (float or ``None``)
+         * ``<param>_fix`` : Bool specifying if the parameter
+         * ``<param>_bounds`` : tuple with lower limit and upper limit
+
+        where <param> is one of :py:data:`WDmodel.io._PARAMETER_NAMES`
+
+    See Also
+    --------
+    :py:func:`WDmodel.io.read_params`
+    :py:func:`WDmodel.io.get_options`
     """
+    
     kwargs = vars(args)
     out = OrderedDict()
     for param in _PARAMETER_NAMES:
@@ -372,10 +478,47 @@ def get_params_from_argparse(args):
 
 def read_model_grid(grid_file=None, grid_name=None):
     """
-    Read the Tlusty/Hubeny grid file (via Jay Holberg)
-    NLTE grid is from an older version of Tlusty (200 vs 202 current)
-    J. Holberg is working on updating the models
+    Read the Tlusty/Hubeny grid file
+
+
+    Parameters
+    ----------
+    grid_file : None or str
+        Filename of the Tlusty model grid HDF5 file. If ``None`` reads the
+        ``TlustyGrids.hdf5`` file included with the :py:mod:`WDmodel`
+        package.
+    grid_name : None or str
+        Name of the group name in the HDF5 file to read the grid from. If
+        ``None`` uses ``default``
+
+    Returns
+    -------
+    grid_file : str
+        Filename of the HDF5 grid file
+    grid_name : str
+        Name of the group within the HDF5 grid file with the grid arrays
+    wave : array-like
+        The wavelength array of the grid with shape ``(nwave,)``
+    ggrid : array-like
+        The surface gravity array of the grid with shape ``(ngrav,)``
+    tgrid : array-like
+        The temperature array of the grid with shape ``(ntemp,)``
+    flux : array-like
+        The DA white dwarf model atmosphere flux array of the grid.
+        Has shape ``(nwave, ngrav, ntemp)``
+
+    Notes
+    -----
+        There are no easy command line options to change this deliberately
+        because changing the grid file essentially changes the entire model,
+        and should not be done lightly, without careful comparison of the grids
+        to quantify differences.
+
+    See Also
+    --------
+    :py:class:`WDmodel.WDmodel` 
     """
+
     if grid_file is None:
         grid_file = 'TlustyGrids.hdf5'
     grid_file = get_pkgfile(grid_file)
@@ -411,9 +554,32 @@ def read_model_grid(grid_file=None, grid_name=None):
 
 def _read_ascii(filename, **kwargs):
     """
-    Read space separated ascii file, with column names provided on first line (# optional)
-    kwargs are passed along to genfromtxt
+    Read ASCII files
+
+    Read space separated ASCII file, with column names provided on first line
+    (leading ``#`` optional). ``kwargs`` are passed along to
+    :py:func:`numpy.genfromtxt`. Forces any string column data to be encoded in
+    ASCII, rather than Unicode.
+
+    Parameters
+    ----------
+    filename : str
+        Filename of the ASCII file. Column names must be provided on the first
+        line.
+    kwargs : dict
+        Extra options, passed directly to :py:func:`numpy.genfromtxt`
+
+    Returns
+    -------
+    out : :py:class:`numpy.recarray`
+        Record array with the data. Field names correspond to column names in
+        the file.
+    
+    See Also
+    --------
+    :py:func:`numpy.genfromtxt`
     """
+    
     indata = np.recfromtxt(filename, names=True, **kwargs)
     # force bytestrings into ascii encoding and recreate the recarray
     out = []
@@ -430,20 +596,51 @@ def _read_ascii(filename, **kwargs):
 # create some aliases
 # these exist so we can flesh out full functions later
 # with different formats if necessary for different sorts of data
+
 read_phot      = _read_ascii
+"""Read photometry - wraps :py:func:`_read_ascii`"""
 read_spectable = _read_ascii
+"""Read spectrum FWHM table - wraps :py:func:`_read_ascii`"""
 read_pbmap     = _read_ascii
+"""Read passband obsmode mapping table - wraps :py:func:`_read_ascii`"""
 
 
 def get_spectrum_resolution(specfile, spectable, fwhm=None):
     """
-    Accepts a spectrum filename, and reads a lookup table to get the resolution
-    of the spectrum spectable must contain at least two column names, specname
-    and fwhm
+    Gets the measured FWHM from a spectrum lookup table.
 
-    Note that there there's some hackish internal name fixing since T.
-    Matheson's table specnames didn't match the spectrum filenames
+    Parameters
+    ----------
+    specfile : str
+        The spectrum filename
+    spectable : str
+        The spectrum FWHM lookup table filename
+    fwhm : None or float, optional
+        If specified, this overrides the resolution provided in the lookup
+        table. If ``None`` lookups the resultion from ``spectable``. 
+
+    Returns
+    -------
+    fwhm : float
+        The FWHM of the spectrum file. This is typically used as an initial
+        guess to the :py:mod:`WDmodel.fit` fitter routines. 
+        
+    Raises
+    ------
+    :py:exc:`RuntimeWarning`
+        If the ``spectable`` cannot be read, or the ``specfile`` name indicates
+        that this is a test, or if there are no or multiple matches for
+        ``specfile`` in the ``spectable``
+
+    Notes
+    -----
+        If the ``specfile`` is not found, it returns a default resolution of
+        ``5`` Angstroms, appropriate for the instruments used in our program.
+
+        Note that there there's some hackish internal name fixing since T.
+        Matheson's table spectrum names didn't match the spectrum filenames.
     """
+    
     _default_resolution = 5.0
     if fwhm is None:
         try:
@@ -477,12 +674,38 @@ def get_spectrum_resolution(specfile, spectable, fwhm=None):
 
 def read_spec(filename, **kwargs):
     """
-    Read a space separated spectrum filei, filename, with column names
-    wave flux flux_err
-    column names are expected on the first line
-    lines beginning with # are ignored
-    Removes any NaN entries (any column)
+    Read a spectrum 
+    
+    Wraps :py:func:`_read_ascii`, adding testing of the input arrays to check
+    if the elements are finite, and if the errors and flux are strictly
+    positive.
+    
+    Parameters
+    ----------
+    filename : str
+        Filename of the ASCII file. Must have columns ``wave``, ``flux``,
+        ``flux_err``
+    kwargs : dict
+        Extra options, passed directly to :py:func:`numpy.genfromtxt`
+
+    Returns
+    -------
+    spec : :py:class:`numpy.recarray`
+        Record array with the spectrum data. 
+        Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+
+    Raises
+    ------
+    ValueError
+        If any value is not finite or if ``flux`` or ``flux_err`` have any
+        values ``<= 0``
+    
+    See Also
+    --------
+    :py:func:`numpy.genfromtxt`
+    :py:func:`_read_ascii`
     """
+    
     spec = _read_ascii(filename, **kwargs)
     if np.any(~np.isfinite(spec.wave)) or np.any(~np.isfinite(spec.flux)) or np.any(~np.isfinite(spec.flux_err)):
         message = "Spectroscopy values and uncertainties must be finite."
@@ -497,18 +720,39 @@ def read_spec(filename, **kwargs):
 
 def get_phot_for_obj(objname, filename):
     """
-    Accepts an object name, objname, and a lookup table filename
+    Gets the measured photometry for an object from a photometry lookup table.
 
-    The file is expected to be ascii with the first line defining column names.
-    Columns names must be names of passbands (parseable by synphot) for
-    magnitudes. Column names for errors in magnitudes in passband must be
-    'd'+passband_name. The first column is expected to be obj for objname.
-    There must be only one line per objname
-    Lines beginning  with # are ignored
+    Parameters
+    ----------
+    objname : str
+        Object name to look for photometry for
+    filename : str
+        The spectrum FWHM lookup table filename
 
-    Returns the photometry for objname, obj formatted as a recarray with pb, mag, mag_err
+    Returns
+    -------
+    phot : :py:class:`numpy.recarray`
+        The photometry of ``objname`` with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
 
+    Raises
+    ------
+    RuntimeError
+        If there are no matches in the photometry lookup file or if there are
+        multiple matches for an object in the photometry lookup file
+    ValueError
+        If the photometry or the photometry uncertainty values are not finite
+        or if the photometry uncertainties are less ``<= 0``
+
+    Notes
+    -----
+        The lookup file must be readable by :py:func:`read_phot`
+        
+        The column name with the object name ``objname`` expected to be ``obj`` 
+
+        If column names for magnitudes are named <passband>, the column names
+        for errors in magnitudes in passband must be 'd'+<passband_name>. 
     """
+    
     phot = read_phot(filename)
     mask = (phot.obj == objname)
 
@@ -547,9 +791,37 @@ def get_phot_for_obj(objname, filename):
 
 def make_outdirs(dirname, redo=False, resume=False):
     """
-    Checks if output directory exists, and if it does, and we are resuming or
-    redoing, simply return else creates it.
+    Makes output directories
+
+    Parameters
+    ----------
+    dirname : str
+        The output directory name to create
+    redo : bool, optional
+        If ``False`` the directory will not be created if it already exists, and an error is raised
+    resume : bool, optional
+        If ``False`` the directory will not be created if it already exists, and an error is raised
+
+    Returns
+    -------
+    None : None
+        If the output directory ``dirname`` is successfully created
+
+    Raises
+    ------
+    IOError
+        If the output directory exists
+    OSError
+        If the output directory could not be created
+
+    Notes
+    -----
+        If the options are parsed by :py:func:`get_options` then only one of
+        ``redo`` or ``resume`` can be set, as the options are mutually
+        exclusive. If ``redo`` is set, the fit is redone from scratch, while
+        ``resume`` restarts the MCMC sampling from the last saved chain position.
     """
+
     if os.path.isdir(dirname):
         if resume or redo:
             return
@@ -566,15 +838,33 @@ def make_outdirs(dirname, redo=False, resume=False):
 
 def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False, resume=False):
     """
-    Accepts a spectrum filename (and optionally a preset output directory) or
-    an output root directory, and determines the objname.
+    Sets the short human readable object name and output directory
 
-    If output directory isn't provided, creates an output directory based on
-    object name, else just uses outdir
+    Parameters
+    ----------
+    specfile : str
+        The spectrum filename
+    outdir : None or str, optional
+        The output directory name to create. If ``None`` this is set based on ``specfile``
+    outroot : None or str, optional
+        The output root directory under which to store the fits. If ``None`` the default is ``'out'``
+    redo : bool, optional
+        If ``False`` the directory will not be created if it already exists, and an error is raised
+    resume : bool, optional
+        If ``False`` the directory will not be created if it already exists, and an error is raised
 
-    Returns objname and output dirname, if directories were successfully
-    created/exist.
+    Returns
+    -------
+    objname : str
+        The human readable object name based on the spectrum
+    dirname : str
+        The output directory name created if successful
+
+    See Also
+    --------
+    :py:func:`make_outdirs`
     """
+    
     if outroot is None:
         outroot = os.path.join(os.getcwd(), "out")
     basespec = os.path.basename(specfile).replace('.flm','')
@@ -589,11 +879,48 @@ def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=Fa
 
 def get_outfile(outdir, specfile, ext, check=False, redo=False, resume=False):
     """
-    Returns the full path to a file given outdir, specfile
-    Replaces .flm at the end of specfile with extension ext (i.e. you need to include the period)
-    We set the output file based on the spectrum name, since we can have multiple spectra per object
-    If outdir is configured by get_objname_outdir_for_specfile, it'll take care of the objname
+    Formats the output directory, spectrum filename, and an extension into an
+    output filename.
+
+    Parameters
+    ----------
+    outdir : str
+        The output directory name for the output file
+    specfile : str
+        The spectrum filename
+    ext : str
+        The output file's extension
+    check : bool, optional
+        If ``True``, check if the output file exists
+    redo : bool, optional
+        If ``False`` and the output file already exists, an error is raised
+    resume : bool, optional
+        If ``False`` and the output file already exists, an error is raised
+
+    Returns
+    -------
+    outfile : str
+        The output filename
+
+    Raises
+    ------
+    IOError
+        If ``check`` is ``True``, ``redo`` and ``resume`` are ``False``, and
+        ``outfile`` exists.
+
+    Notes
+    -----
+        We set the output file based on the spectrum name, since we can have
+        multiple spectra per object.
+
+        If ``outdir`` is configured by :py:func:`set_objname_outdir_for_specfile` for
+        ``specfile``, it'll include the object name.
+
+    See Also
+    --------
+    :py:func:`set_objname_outdir_for_specfile`
     """
+    
     outfile = os.path.join(outdir, os.path.basename(specfile.replace('.flm', ext)))
     if check:
         if os.path.exists(outfile) and not (resume or redo):
@@ -604,8 +931,30 @@ def get_outfile(outdir, specfile, ext, check=False, redo=False, resume=False):
 
 def get_pkgfile(infile):
     """
-    Returns the full path to file inside the WDmodel package
+    Returns the full path to a file inside the :py:mod:`WDmodel` package
+
+    Parameters
+    ----------
+    infile : str
+        The name of the file to set the full package filename for
+
+    Returns
+    -------
+    pkgfile : str
+        The path to the file within the package.
+
+    Raises
+    ------
+    IOError
+        If the ``pkgfile`` could not be found inside the :py:mod:`WDmodel` package.
+
+    Notes
+    -----
+        This allows the package to be installed anywhere, and the code to still
+        determine the location to a file included with the package, such as the
+        model grid file.
     """
+    
     pkgfile = pkg_resources.resource_filename('WDmodel',infile)
 
     if not os.path.exists(pkgfile):
@@ -617,34 +966,58 @@ def get_pkgfile(infile):
 def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
         rvmodel, covtype, coveps, phot_dispersion, scale_factor, outfile):
     """
-    Save the spectrum, photometry (raw fit inputs) as well as a
-    pseudo-continuum model and line data (visualization only inputs) to a file.
+    Save all the inputs to the fitter to a file
 
-    Also saves the covtype, solver preferences, photometric dispersion, rvmodel and
-    scale_factor
+    This file is enough to resume the fit with the same input, redoing the
+    output, or restoring from a failure.
 
-    This is intended to be called after WDmodel.fit.pre_process_spectrum() and
-    WDmodel.io.get_phot_for_obj()
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    phot : None or :py:class:`numpy.recarray`
+        ``None`` or the photometry with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    cont_model : :py:class:`numpy.recarray`
+        The continuuum model. Must have the same structure as ``spec``.
+        Produced by :py:func:`WDmodel.fit.pre_process_spectrum`.
+        Used by :py:mod:`WDmodel.viz`
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+        Produced by :py:func:`WDmodel.fit.pre_process_spectrum`
+        Used by :py:mod:`WDmodel.viz`
+    continuumdata : :py:class:`numpy.recarray`
+        Data used to generate the continuum model. Must have the same structure
+        as ``spec``. Produced by :py:func:`WDmodel.fit.pre_process_spectrum`
+    rvmodel : ``{'ccm89','od94','f99'}``
+        Parametrization of the reddening law. Used to initialize
+        :py:func:`WDmodel.WDmodel.WDmodel` instance.
+    covtype : ``{'Matern32', 'SHO', 'Exp', 'White'}``
+        stationary kernel type used to parametrize the covariance in
+        :py:class:`WDmodel.covariance.WDmodel_CovModel`
+    coveps : float
+        If ``covtype`` is ``'Matern32'`` a
+        :py:class:`celerite.terms.Matern32Term` is used to approximate a
+        Matern32 kernel with precision `coveps`.
+    phot_dispersion : float, optional
+        Excess photometric dispersion to add in quadrature with the
+        photometric uncertainties ``phot.mag_err`` in
+        :py:class:`WDmodel.likelihood.WDmodel_Likelihood`.
+    scale_factor : float
+        Factor by which the flux must be scaled. Critical to getting the right
+        uncertainties.
+    outfile : str
+        Output HDF5 filename
 
-    This file is enough to redo the fit with the same input and
-    different settings or redo the output for without redoing the fit.
-
-    Alternatively, this file together with the HDF5 file written by
-    WDmodel.fit.fit_model() with the sample chain is enough to regenerate the
-    plots and output without redoing the fit.
-
-    Accepts
-        spec: recarray spectrum (wave, flux, flux_err)
-        phot: recarray photometry (pb, mag, mag_err)
-        cont_model: recarray continuum model (wave, flux)
-        linedata: recarray linedata (wave, flux, flux_err, line_mask)
-        continuumdata: data used to generate the continuum model (wave, flux, flux_err)
-        rvmodel: string specifying which RV law was used to redden the spectrum
-        covtype: string specifying which kernel was used to model the spectrum covariance
-        coveps: accuracy of covariance kernel Matern32 approximation
-        phot_dispersion: amount of photometric dispersion to add in quadrature with the reported uncertainties
-        scale_factor: how the spectrum flux and flux_err was scaled
-        outfile: output filename
+    Notes
+    -----
+        The outputs are stored in a HDF5 file with groups
+         * ``spec`` - storing the spectrum and ``scale_factor``
+         * ``cont_model`` - stores the continuum model
+         * ``linedata`` - stores the hydrogen Balmer line data
+         * ``continuumdata`` - stores the data used to generate ``cont_model``
+         * ``fit_config`` - stores ``covtype``, ``coveps`` and ``rvmodel`` as attributes
+         * ``phot`` - only created if ``phot`` is not ``None``, stores ``phot``, ``phot_dispersion``
     """
 
     outf = h5py.File(outfile, 'w')
@@ -689,26 +1062,48 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
 
 def read_fit_inputs(input_file):
     """
-    Read the saved HDF5 input_file and return recarrays of the contents
-    input files are expected to contain at least 4 groups, with the 5th optional
-    The groups, and the datasets they must have are
-        spec
-            wave, flux, flux_err
-            and a HDF5 attribute, scale_factor specifying how the spectrum was scaled
-        cont_model
-            wave, flux
-        linedata
-            wave, flux, flux_err, line_mask
-        continuumdata
-            wave, flux, flux_err
-        [phot]
-            pb, mag, mag_err
-        the fit_config group must have the following HDF5 attributes
-            covtype, coveps, rvmodel
+    Read the fit input HDF5 file produced by :py:func:`write_fit_inputs` and
+    return :py:class:`numpy.recarray` instances with the data.
 
-    Returns a tuple of recarrays and dictionary
-        spec, cont_model, linedata, continuumdata, phot[=None if absent], fit_config
+    Parameters
+    ----------
+    input_file : str
+        The HDF5 fit inputs filename 
+
+    Returns
+    -------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    cont_model : :py:class:`numpy.recarray`
+        The continuuum model. Has the same structure as ``spec``.
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+    continuumdata : :py:class:`numpy.recarray`
+        Data used to generate the continuum model. Has the same structure as
+        ``spec``.
+    phot : None or :py:class:`numpy.recarray`
+        ``None`` or the photometry with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    fit_config : dict
+        Dictionary with various keys needed to configure the fitter
+         * ``rvmodel`` : ``{'ccm89','od94','f99'}`` - Parametrization of the reddening law.
+         * ``covtype`` : ``{'Matern32', 'SHO', 'Exp', 'White'}``- kernel type used to parametrize the covariance
+         * ``coveps`` : float - Matern32 kernel precision
+         * ``phot_dispersion`` : float - Excess dispersion to add in quadrature with photometric uncertainties
+         * ``scale_factor`` : float - Flux scale factor
+
+    Raises
+    ------
+    IOError
+        If all the fit inputs could not be restored from the HDF5 ``input_file``
+    RuntimeWarning
+        If the ``input_file`` includes a ``phot`` group, but the data cannot be loaded.
+
+    See Also
+    --------
+    :py:func:`write_fit_inputs`
     """
+
     d = h5py.File(input_file, mode='r')
 
     try:
@@ -768,11 +1163,37 @@ def read_fit_inputs(input_file):
 
 def read_mcmc(input_file):
     """
-    Read the saved HDF5 chain_file and return samples, sample probabilities and param names
+    Read the saved HDF5 Markov chain file and return samples, sample log
+    probabilities and chain parameters
 
-    Returns a tuple of arrays
-        param_names, samples, samples_lnprob
+    Parameters
+    ----------
+    input_file : str
+        The HDF5 Markov chain filename 
+
+    Returns
+    -------
+    samples : array-like
+        The model parameter sample chain
+    samples_lnprob : array-like
+        The log posterior corresponding to each of the ``samples``
+    chain_params : dict
+        The chain parameter dictionary
+         * ``param_names`` : list - list of model parameter names
+         * ``samptype`` : ``{'ensemble','pt','mossampler'}`` - the sampler to use
+         * ``ascale`` : float - the proposal scale for the sampler
+         * ``ntemps`` : int - the number of chain temperatures 
+         * ``nwalkers`` : int - the number of Goodman & Ware walkers
+         * ``nprod`` : int - the number of production steps of the chain
+         * ``ndim`` : int - the number of model parameters in the chain
+         * ``everyn`` : int - the sparse sampling step size
+
+    Raises
+    ------
+    IOError
+        If a key in the ``fit_config`` output is missing
     """
+
     d = h5py.File(input_file, mode='r')
 
     try:
@@ -790,7 +1211,6 @@ def read_mcmc(input_file):
         chain_params['everyn']      = d['chain'].attrs['everyn']
         chain_params['ascale']      = d['chain'].attrs['ascale']
 
-
     except KeyError as e:
         message = '{}\nCould not load all arrays from input file {}'.format(e, input_file)
         raise IOError(message)
@@ -800,12 +1220,33 @@ def read_mcmc(input_file):
 
 def write_spectrum_model(spec, model_spec, outfile):
     """
-    Write the spectrum and the model spectrum and residuals to outfile
-    Accepts
-        spec: recarray spectrum (wave, flux, flux_err)
-        model_spec: recarray spectrum (wave, flux, norm_flux)
-        outfile: output filename
+    Write the spectrum and the model spectrum and residuals to an output file.
+
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    model_spec : :py:class:`numpy.recarray`
+        The model spectrum. 
+        Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('norm_flux', '<f8'), ('flux_err', '<f8')]``
+    outfile : str
+        Output space-separated text filename
+
+    Notes
+    -----
+        The data is saved to a space-separated ASCII text file with 8 decimal
+        places of precision. 
+
+        The order of the columns is 
+         * ``wave`` : array-like - the spectrum wavelength
+         * ``flux`` : array-like - the observed flux
+         * ``flux_err`` : array-like - the observed flux uncertainty
+         * ``norm_flux`` : array-like - the model flux without the Gaussian process covariance model
+         * ``model_flux`` : array-like - the model flux
+         * ``model_flux_err`` : array-like - the model flux uncertainty
+         * ``res_flux`` : array-like - the flux residual
     """
+    
     out = (spec.wave, spec.flux, spec.flux_err,\
             model_spec.norm_flux, model_spec.flux, model_spec.flux_err,\
             spec.flux-model_spec.flux)
@@ -819,12 +1260,31 @@ def write_spectrum_model(spec, model_spec, outfile):
 
 def write_phot_model(phot, model_mags, outfile):
     """
-    Write the photometry, model photometry and residuals to outfile
-    Accepts
-        phot: recarray photometry (pb, mag, mag_err)
-        model_mags: recarray model photometry (pb, mag)
-        outfile: output filename
+    Write the photometry, model photometry and residuals to an output file.
+
+    Parameters
+    ----------
+    phot : None or :py:class:`numpy.recarray`
+        ``None`` or the photometry with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    model_mags : None or :py:class:`numpy.recarray`
+        The model magnitudes.
+        Has ``dtype=[('pb', 'str'), ('mag', '<f8')]``
+    outfile : str
+        Output space-separated text filename
+
+    Notes
+    -----
+        The data is saved to a space-separated ASCII text file with 6 decimal
+        places of precision. 
+
+        The order of the columns is 
+         * ``pb`` : array-like - the observation's passband
+         * ``mag`` : array-like - the observed magnitude
+         * ``mag_err`` : array-like - the observed magnitude uncertainty
+         * ``model_mag`` : array-like - the model magnitude
+         * ``res_mag`` : array-like - the magnitude residual
     """
+
     out = (phot.pb, phot.mag, phot.mag_err, model_mags.mag, phot.mag-model_mags.mag)
     names=str('pb,mag,mag_err,model_mag,res_mag')
     out = np.rec.fromarrays(out, names=names)
@@ -836,11 +1296,23 @@ def write_phot_model(phot, model_mags, outfile):
 
 def write_full_model(full_model, outfile):
     """
-    Write the full SED model to outfile
-    Accepts
-        full_model: recarray SED model (wave, flux)
-        outfile: output filename
+    Write the full SED model to an output file.
+
+    Parameters
+    ----------
+    full_model : :py:class:`numpy.recarray`
+        The SED model with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    outfile : str
+        Output HDF5 SED model filename
+
+    Notes
+    -----
+        The output is written into a group ``model`` with datasets
+         * ``wave`` : array-like - the SED model wavelength
+         * ``flux`` : array-like - the SED model flux
+         * ``flux_err`` : array-like - the SED model flux uncertainty
     """
+
     outf = h5py.File(outfile, 'w')
     dset_model = outf.create_group("model")
     dset_model.create_dataset("wave",data=full_model.wave)

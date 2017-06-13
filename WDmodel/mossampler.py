@@ -7,6 +7,7 @@ Original Author: James Guillochon for the `mosfit package
 
 Modified to update kwargs, docstrings for full compatibility with PTSampler by G. Narayan
 """
+
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import numpy as np
