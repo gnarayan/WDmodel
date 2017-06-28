@@ -1,0 +1,2 @@
+conda:
+    file: docs/env/conda_environment_py27_i686.yml
