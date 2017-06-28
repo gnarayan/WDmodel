@@ -381,7 +381,7 @@ def read_params(param_file=None):
         Dwarf atmospheres, and by reasonable plausible ranges for the other
         parameters. Don't muck with them unless you really have good reason to.
 
-        This routine does not do any checking of types, values or bounds This
+        This routine does not do any checking of types, values or bounds. This
         is done by :py:func:`WDmodel.io.get_params_from_argparse` before the
         fit. If you setup the fit using an external code, you should check
         these values.

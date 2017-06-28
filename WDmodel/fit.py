@@ -412,21 +412,41 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
 def quick_fit_spec_model(spec, model, params):
     """
     Does a quick fit of the spectrum to get an initial guess of the fit parameters
-    This isn't robust, but it's good enough for an initial guess
-    None of the starting values for the parameters maybe None EXCEPT c
-    This refines the starting guesses, and determines a reasonable value for c
 
-    Accepts
-        spectrum: recarray spectrum with wave, flux, flux_err
-        model: WDmodel.WDmodel instance
-        params: dict of parameters with keywords value, fixed, bounds for each
+    Uses iminuit to do a rough diagonal fit - i.e. ignores covariance.
+    For simplicity, also fixed FWHM and Rv (even when set to be fit).
+    Therefore, only teff, logg, av, dl are fit for (at most).
+    This isn't robust, but it's good enough for an initial guess.
 
-    Uses iminuit to do a rough diagonal fit - i.e. ignores covariance
-    For simplicity, also fixed FWHM and Rv
-    Therefore, only teff, logg, av, dl are fit for (at most)
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
 
-    Returns best guess parameters and errors
+    Returns
+    -------
+    migrad_params : dict
+        The output parameter dictionary with updated initial guesses stored in
+        the ``value`` key. Same format as ``params``.
+
+    Raises
+    ------
+    RuntimeError
+        If all of ``teff, logg, av, dl`` are set as fixed - there's nothing to fit.
+    RuntimeWarning
+        If :py:func:`minuit.Minuit.migrad` or :py:func:`minuit.Minuit.hesse` indicate that the fit is unreliable
+
+    Notes
+    -----
+        None of the starting values for the parameters maybe ``None`` EXCEPT ``c``.
+        This refines the starting guesses, and determines a reasonable value for ``c``
     """
+
     teff0 = params['teff']['value']
     logg0 = params['logg']['value']
     av0   = params['av']['value']
@@ -519,18 +539,44 @@ def quick_fit_spec_model(spec, model, params):
 
 def fix_pos(pos, free_param_names, params):
     """
-    emcee.utils.sample_ball doesn't care about bounds but is really convenient to init the walker positions
+    Ensures that the initial positions of the :py:mod:`emcee` walkers are out of bounds
 
-    Accepts
-        pos: list of starting positions for all walkers produced by emcee.utils.sample_ball
-        free_param_names: list of the names of free parameters
-        param: dict of parameters with keywords value, fixed, bounds for each
+    Parameters
+    ----------
+    pos : array-like
+        starting positions of all the walkers, such as that produced by 
+        :py:func:`emcee:utils.sample_ball`
+    free_param_names : iterable
+        names of parameters that are free to float. Names must correspond to keys in ``params``.
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
 
-    Assumes that the parameter values p0 was within bounds to begin with
-    Takes p0 -/+ 5sigma or lower/upper bounds as the lower/upper limits whichever is higher/lower
+    Returns
+    -------
+    pos : array-like
+        starting positions of all the walkers, fixed to guarantee that they are
+        within ``bounds`` defined in ``params``
 
-    Returns pos with out of bounds positions fixed to be within bounds
+    Notes
+    -----
+        :py:func:`emcee.utils.sample_ball` creates random walkers that may be
+        initialized out of bounds.  These walkers get stuck as there is no step
+        they can take that will make the change in loglikelihood finite.  This
+        makes the chain appear strongly correlated since all the samples of one
+        walker are at a fixed location. This resolves the issue by assuming
+        that the parameter ``value``  was within ``bounds`` to begin with. This
+        routine does not do any checking of types, values or bounds. This check
+        is done by :py:func:`WDmodel.io.get_params_from_argparse` before the
+        fit. If you setup the fit using an external code, you should check
+        these values.
+
+    See Also
+    --------
+    :py:func:`emcee.utils.sample_ball`
+    :py:func:`WDmodel.io.get_params_from_argparse`
     """
+
     for i, name in enumerate(free_param_names):
         lb, ub = params[name]['bounds']
         p0     = params[name]['value']
@@ -547,14 +593,37 @@ def fix_pos(pos, free_param_names, params):
 
 def hyper_param_guess(spec, phot, model, pbs, params):
     """
-    Makes a guess for mu after the initial minuit fit
+    Makes a guess for the parameter ``mu`` after the initial fit by
+    :py:func:`quick_fit_spec_model`
 
-    Accepts
-        spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
-        model: WDmodel.WDmodel instance
-        pbs: dict of throughput models for each passband with passband name as key
-        params: dict of parameters with keywords value, fixed, bounds, scale for each
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    phot : :py:class:`numpy.recarray`
+        The photometry of ``objname`` with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    pbs : dict
+        Passband dictionary containing the passbands corresponding to
+        phot.pb` and generated by :py:func:`WDmodel.passband.get_pbmodel`.
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+
+    Returns
+    -------
+    out_params : dict
+        The output parameter dictionary with an initial guess for ``mu`` 
+
+    Notes
+    -----
+        Uses the initial guess of parameters from the spectrum fit by
+        :py:func:`quick_fit_spec_model` to construct an initial guess of the
+        SED, and computes ``mu`` (which looks like a distance modulus, but also
+        includes a normalization for the radius of the DA white dwarf, and it's
+        radius) as the median difference between the observed and synthetic
+        photometry.
     """
     out_params = io.copy_params(params)
     # mu has a user supplied guess - do nothing
@@ -591,30 +660,109 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             ntemps=1, nwalkers=300, nburnin=50, nprod=1000, everyn=1, thin=1, pool=None,\
             resume=False, redo=False):
     """
-    Models the spectrum using the white dwarf model and a Gaussian process with
-    an exponential squared kernel to account for any flux miscalibration
+    Core routine that models the spectrum using the white dwarf model and a
+    Gaussian process with a stationary kernel to account for any flux
+    miscalibration, sampling the posterior using a MCMC.
 
-    Accepts
-        spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
-        model: WDmodel.WDmodel instance
-        covmodel: WDmodel.covmodel.WDmodel_CovModel instance
-        pbs: dict of throughput models for each passband with passband name as key
-        params: dict of parameters with keywords value, fixed, bounds, scale for each
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    phot : :py:class:`numpy.recarray`
+        The photometry of ``objname`` with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    pbs : dict
+        Passband dictionary containing the passbands corresponding to
+        phot.pb` and generated by :py:func:`WDmodel.passband.get_pbmodel`.
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+    objname : str
+        object name - used to save output with correct name
+    outdir : str
+        controls where the chain file s written
+    specfile : str
+        Used in the title, and to set the name of the ``outfile``
+    phot_dispersion : float, optional
+        Excess photometric dispersion to add in quadrature with the
+        photometric uncertainties ``phot.mag_err``. Use if the errors are
+        grossly underestimated. Default is ``0.``
+    samptype : ``{'ensemble', 'pt', 'gibbs'}``
+        Which sampler to use. The default is ``ensemble``.
+    ascale : float
+        The proposal scale for the sampler. Default is ``2.``
+    ntemps : int
+        The number of temperatures to run walkers at. Only used if ``samptype``
+        is in ``{'pt','gibbs'}`` and set to ``1.`` for ``ensemble``. See a
+        short summary `review
+        <https://en.wikipedia.org/wiki/Parallel_tempering>`_ for details.
+        Default is ``1.``
+    nwalkers : int
+        The number of `Goodman and Weare walkers
+        <http://msp.org/camcos/2010/5-1/p04.xhtml>`_. Default is ``300``.
+    nburnin : int
+        The number of steps to discard as burn-in for the Markov-Chain. Default is ``500``.
+    nprod : int
+        The number of production steps in the Markov-Chain. Default is ``1000``.
+    everyn : int, optional
+        If the posterior function is evaluated using only every nth
+        observation from the data, this should be specified. Default is ``1``.
+    thin : int
+        Only save every ``thin`` steps to the output Markov Chain. Useful, if
+        brute force way of reducing correlation between samples.
+    pool : None or :py:class`emcee.utils.MPIPool`
+        If running with MPI, the pool object is used to distribute the
+        computations among the child process
+    resume : bool
+        If ``True``, restores state and resumes the chain for another ``nprod`` iterations.
+    redo : bool
+        If ``True``, and a chain file and state file exist, simply clobbers them.
 
-    Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
-    posterior. Does a short burn-in around the initial guess model parameters -
-    either minuit or user supplied values/defaults. Model parameters may be
-    frozen/fixed. Parameters can have bounds limiting their range.
+    Returns
+    -------
+    free_param_names : list
+        names of parameters that were fit for. Names correspond to keys in
+        ``params`` and the order of parameters in ``samples``.
+    samples : array-like
+        The flattened Markov Chain with the parameter positions.
+        Shape is ``(ntemps*nwalkers*nprod, nparam)``
+    samples_lnprob : array-like
+        The flattened log of the posterior corresponding to the positions in
+        ``samples``. Shape is ``(ntemps*nwalkers*nprod, 1)``
+    everyn :  int 
+        Specifies sampling of the data used to compute the posterior. Provided
+        in case we are using ``resume`` to continue the chain, and this value
+        must be restored from the state file, rather than being supplied as a
+        user input.
+    shape : tuple
+        Specifies the shape of the un-flattened chain.
+        ``(ntemps, nwalkers, nprod, nparam)``
+        Provided in case we are using ``resume`` to continue the chain, and
+        this value must be restored from the state file, rather than being
+        supplied as a user input.
 
-    The WDmodel_Posterior class implements additional priors on
-    parameters. See there for details.
+    Raises
+    ------
+    RuntimeError
+        If ``resume`` is set without the chain having been run in the first
+        place.
 
-    pool controls if the process is run with MPI or single threaded.  If pool
-    is an MPIPool object and the process is started with mpirun, the tasks are
-    divided amongst the MPI processes.
+    Notes
+    -----
+        Uses an Ensemble MCMC (implemented by emcee) to generate samples from
+        the posterior. Does a short burn-in around the initial guess model
+        parameters - either :py:mod:`minuit` or user supplied values/defaults.
+        Model parameters may be frozen/fixed. Parameters can have bounds
+        limiting their range. Then runs a full production change. Chain state
+        is saved after every 100 production steps, and may be continued after
+        the first 100 steps if interrupted or found to be too short. Progress
+        is indicated visually with a progress bar that is written to STDOUT.
 
-    Incrementally saves the chain if run single-threaded
+    See Also
+    --------
+    :py:mod:`WDmodel.likelihood`
+    :py:mod:`WDmodel.covariance`
     """
 
     outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5', check=True, redo=redo, resume=resume)
@@ -892,27 +1040,50 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
     """
     Get the marginalized parameters from the sample chain
 
-    Accepts
-        param_names: ordered vector of parameter names, corresponding to each of the dimensions of sample
-        samples: flat chain (nwalker*nprod, ndim) array of walker positions
-        samples_lnprob: flat chain (nwalker*nprod) array of log likelihood corresponding to sampler position
-        params: dict of parameters with keywords value, fixed, bounds for each
+    Parameters
+    ----------
+    param_names : list
+        names of parameters that were fit for. Names correspond to keys in
+        ``params`` and the order of parameters in ``samples``.
+    samples : array-like
+        The flattened Markov Chain with the parameter positions.
+        Shape is ``(ntemps*nwalkers*nprod, nparam)``
+    samples_lnprob : array-like
+        The flattened log of the posterior corresponding to the positions in
+        ``samples``. Shape is ``(ntemps*nwalkers*nprod, 1)``
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+    ntemps : int
+        The number of temperatures chains were run at. Default is ``1.``
+    nwalkers : int
+        The number of `Goodman and Weare walkers
+        <http://msp.org/camcos/2010/5-1/p04.xhtml>`_ used in the fit. Default
+        is ``300``.
+    nprod : int
+        The number of production steps in the Markov-Chain. Default is ``1000``.
+    discard : int
+        percentage of nprod steps from the start of the chain to discard in
+        analyzing samples
 
-        The following keyword arguments should be consistent with the call to fit_model/mpifit_model
-            ntemps: number of temperatures
-            nwalkers: number of walkers
-            nprod:  number of steps
+    Returns
+    -------
+    mcmc_params : dict
+        The output parameter dictionary with updated parameter estimates,
+        errors and a scale. 
+        ``params``.
+    out_samples : array-like
+        The flattened Markov Chain with the parameter positions with the first
+        ``%discard`` tossed.
+    out_ samples_lnprob : array-like
+        The flattened log of the posterior corresponding to the positions in
+        ``samples`` with the first ``%discard`` samples tossed.
 
-        Finally, even with the burn-in, the walkers may be tightly correlated
-        initially, so the discard keyword allows a percentage of the nprod
-        steps to be discarded.
-            discard: percentage of nprod steps to discard
-
-    Returns dictionary with the marginalized parameter values and errors,
-    filtered flat chain of sampler position, filtered flat chain of log
-    likelihood corresponding to sampler position
-
+    See Also
+    --------
+    :py:func:`fit_model`
     """
+
     ndim = len(param_names)
 
     in_samp   = samples.reshape(ntemps, nwalkers, nprod, ndim)
