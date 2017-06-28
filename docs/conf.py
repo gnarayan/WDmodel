@@ -18,12 +18,18 @@
 #
 import os
 import sys
-if (os.environ.get('READTHEDOCS')=='True') is False:
-    sys.path.insert(0, os.path.abspath('..'))
-else:
-    import site
-    p=site.getsitepackages()[0]
-    sys.path.insert(0,p)
+sys.path.insert(0, os.path.abspath('..'))
+from unittest.mock import MagicMock
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+            return MagicMock()
+
+MOCK_MODULES = ['numpy', 'scipy','iminuit','pysynphot','emcee','celerite','matplotlib','astropy','mpi4py','corner']
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+
+
 
 
 # -- General configuration ------------------------------------------------
