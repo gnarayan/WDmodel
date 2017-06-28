@@ -30,18 +30,36 @@ from . import mossampler
 
 def polyfit_continuum(continuumdata, wave):
     """
-    Accepts continuumdata: a tuple with wavelength, flux and flux error derived
-    from the spectrum with the lines roughly masked and wave: an array of
-    wavelengths on which to derive the continuum.
+    Fit a polynomial to the DA white dwarf continuum to normalize it - purely
+    for visualization purposes
 
-    Roughly follows the algorithm described by the SDSS SSPP for a global
-    continuum fit. Fits a red side and blue side at 5500 A separately to get a
-    smooth polynomial representation. The red side uses a degree 5 polynomial
-    and the blue side uses a degree 9 polynomial. Then splices them together -
-    I don't actually know how SDSS does this - and fits the full continuum to a
-    degree 9 polynomial.
+    Parameters
+    ----------
+    continuumdata : :py:class:`numpy.recarray`
+        The continuum data.
+        Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+        Produced by running the spectrum through
+        :py:func:`WDmodel.fit.orig_cut_lines` and extracting the pre-defined
+        lines in the :py:class:`WDmodel.WDmodel.WDmodel` instance.
+    wave : array-like
+        The full spectrum wavelength array on which to interpolate the
+        continuum model
 
-    Returns a recarray with wave, continuum flux derived from the polyfit.
+    Returns
+    -------
+    cont_model : :py:class:`numpy.recarray`
+        The continuum model
+        Must have ``dtype=[('wave', '<f8'), ('flux', '<f8')]``
+
+    Notes
+    -----
+        Roughly follows the algorithm described by the SDSS SSPP for a global
+        continuum fit. Fits a red side and blue side at 5500 A separately to
+        get a smooth polynomial representation. The red side uses a degree 5
+        polynomial and the blue side uses a degree 9 polynomial. Then "splices"
+        them together - I don't actually know how SDSS does this, but we simply
+        assert the two bits are the same function - and fits the full continuum
+        to a degree 9 polynomial.
     """
 
     cwave = continuumdata.wave
@@ -82,20 +100,40 @@ def polyfit_continuum(continuumdata, wave):
 
 def orig_cut_lines(spec, model):
     """
-    Does a coarse cut to remove hydrogen absorption lines from DA white dwarf
-    spectra The line centroids, and widths are fixed and defined with the model
-    grid This is insufficient, and particularly at high log(g) and low
-    temperatures the lines are blended, and better masking is needed.  This
-    routine is intended to provide a rough starting point for that process.
+    Cut out the hydrogen Balmer spectral lines defined in
+    :py:class:`WDmodel.WDmodel.WDmodel` from the spectrum.
 
-    Accepts a spectrum and the model
-    returns a recarray with the data on the absorption lines
-    (wave, flux, fluxerr, Balmer line number for use as a mask)
+    The masking of Balmer lines is basic, and not very effective at high
+    surface gravity or low temperature, or in the presence of non hydrogen
+    lines. It's used to get a roughly masked set of data suitable for continuum
+    detection, and is effective in the context of our ground-based
+    spectroscopic followup campaign for HST GO 12967 and 13711 programs.
 
-    and coarse continuum data - the part of the spectrum that's not masked as lines
-    (wave, flux, fluxerr)
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
 
+    Returns
+    -------
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+    continuumdata : :py:class:`numpy.recarray`
+        The continuum data. Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+
+    Notes
+    -----
+        Does a coarse cut to remove hydrogen absorption lines from DA white
+        dwarf spectra The line centroids, and widths are fixed and defined with
+        the model grid This is insufficient, and particularly at high surface
+        gravity and low temperatures the lines are blended. This routine is
+        intended to provide a rough starting point for the process of continuum
+        determination.
     """
+
     wave    = spec.wave
     flux    = spec.flux
     fluxerr = spec.flux_err
@@ -123,31 +161,48 @@ def orig_cut_lines(spec, model):
     linedata = np.rec.fromarrays(linedata, names=names)
     names=str('wave,flux,flux_err')
     continuumdata = np.rec.fromarrays(continuumdata, names=names)
-
     return linedata, continuumdata
 
 
 def blotch_spectrum(spec, linedata):
     """
-    Accepts a recarray spectrum, spec, and a tuple linedata, such as can be
-    produced by orig_cut_lines, and blotches it
+    Automagically remove cosmic rays and gaps from spectrum
 
-    Some spectra have nasty cosmic rays or giant gaps in the data This routine
-    does a reasonable job blotching these by Wiener filtering the spectrum,
-    marking features that differ significantly from the local variance in the
-    region And replace them with the filtered values
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. 
+        Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+        Produced by :py:func:`orig_cut_lines`
 
-    The lines specified in linedata are preserved, so if your gap/cosmic ray
-    lands on a line it will not be filtered. Additionally, filtering has edge
-    effects, and these data are preserved as well. If you do blotch the
-    spectrum, it is highly recommended that you use the bluelimit and redlimit
-    options to trim the ends of the spectrum.
+    Returns
+    -------
+    spec : :py:class:`numpy.recarray`
+        The blotched spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
 
-    YOU SHOULD PROBABLY PRE-PROCESS YOUR DATA YOURSELF BEFORE FITTING IT AND
-    NOT BE LAZY!
-
-    Returns the blotched spectrum
+    Notes
+    -----
+        Some spectra have nasty cosmic rays or gaps in the data. This routine
+        does a reasonable job blotching these by Wiener filtering the spectrum,
+        marking features that differ significantly from the local variance in
+        the region, and replace them with the filtered values. The hydrogen
+        Balmer lines are preserved, so if your gap/cosmic ray lands on a line
+        it will not be filtered. Additionally, filtering has edge effects, and
+        these data are preserved as well. If you do blotch the spectrum, it is
+        highly recommended that you use the bluelimit and redlimit options to
+        trim the ends of the spectrum. Note that the spectrum will be rejected
+        if it has flux or flux errors that are not finite or below zero. This
+        is often the case with cosmic rays and gaps, so you will likely
+        have to do some manual removal of these points.  
+            
+        YOU SHOULD PROBABLY PRE-PROCESS YOUR DATA YOURSELF BEFORE FITTING IT
+        AND NOT BE LAZY! THIS ROUTINE ONLY EXISTS TO FIT QUICK LOOK SPECTRUM AT
+        THE TELESCOPE, BEFORE FINAL REDUCTIONS!
     """
+
     message = 'You have requested the spectrum be blotched. You should probably do this by hand. Caveat emptor.'
     warnings.warn(message, UserWarning)
 
@@ -183,16 +238,25 @@ def rebin_spec_by_int_factor(spec, f=1):
     """
     Rebins a spectrum by an integer factor f
 
-    Accepts
-        spec: recarray spectrum (wave, flux, flux_err)
-        f: an integer factor to rebin the spectrum by
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    f : int, optional
+        an integer factor to rebin the spectrum by. Default is ``1`` (no rebinning)
 
-    If the spectrum is not divisible by f, the edges are trimmed by discarding
-    the remainder measurements from both ends. If the remainder itself is odd, the
-    extra measurement is discarded from the blue side.
+    Returns
+    -------
+    rspec : :py:class:`numpy.recarray`
+        The rebinned spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
 
-    Returns the rebinned recarray spectrum
+    Notes
+    -----
+        If the spectrum is not divisible by f, the edges are trimmed by discarding
+        the remainder measurements from both ends. If the remainder itself is odd, the
+        extra measurement is discarded from the blue side.
     """
+
     f    = int(f)
     if f <= 1:
         return spec
@@ -224,36 +288,53 @@ def rebin_spec_by_int_factor(spec, f=1):
 def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
         lamshift=0., vel=0., rebin=1, blotch=False, rescale=False):
     """
-    Accepts
-        spec: recarray spectrum (wave, flux, flux_err)
-        bluelimit, redlimit: the wavelength limits in Angstrom
-        model: a WDmodel instance
-        params: the input fit parameters - only modified if rescale
-        lamshift: applies a flat wavelength offset to the spectrum wavelengths
-        vel: applies a velocity shift to the spectrum wavelengths
-        rebin: integer factor to rebin the spectrum by. Does not correlate bins.
-        blotch: not very robust removal of gaps, cosmic rays and other weird reduction defects
-        rescale: rescale the spectrum to make the noise ~1
+    Pre-process the spectrum before fitting
 
-    Returns the (optionally blotched) spectrum, the continuum model for the
-    spectrum, and the extracted line and continuum data for visualization
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    bluelimit : None or float
+        Trim wavelengths bluer than this limit. Uses the bluest wavelength of spectrum if ``None``
+    redlimit : None or float
+        Trim wavelengths redder than this limit. Uses the reddest wavelength of spectrum if ``None``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+        Will be modified to adjust the spectrum normalization parameters ``dl``
+        limits if ``rescale`` is set
+    lamshift : float, optional
+        Apply a flat wavelength shift to the spectrum. Useful if the target was
+        not properly centered in the slit, and the shift is not correlated with
+        wavelength. Default is ``0``.
+    vel : float, optional
+        Apply a velocity shift to the spectrum. Default is ``0``.
+    rebin : int, optional 
+        Integer factor by which to rebin the spectrum.
+        Default is ``1`` (no rebinning).
+    blotch : bool, optional
+        Attempt to remove cosmic rays and gaps from spectrum. Only to be used
+        for quick look analysis at the telescope.
+    rescale : bool, optional
+        Rescale the spectrum to make the median noise ``~1``. Has no effect on
+        fitted parameters except spectrum flux normalization parameter ``dl``
+        but makes residual plots, histograms more easily interpretable as they
+        can be compared to an ``N(0, 1)`` distribution.
 
-    Applies an offset lamshift to the spectrum wavelengths if non-zero. This is
-    useful to correct slit centering errors with wide slits, which result in
-    flat wavelength calibration shifts
+    Returns
+    -------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
 
-    Applies any velocity shift to the spectrum wavelengths if non-zero.
-    Blueshifts are negative, redshifts are positive.
 
-    Does a coarse extraction of Balmer lines in the optical, (optionally)
-    blotches the data, builds a continuum model for visualization purposes, and
-    trims the spectrum the red and blue limits
-
-    Rescales the spectrum to make the noise~1. If so, also changes the bounds
-    and scale on dl, and any supplied initial guess
-
-    Note that the continuum model and spectrum are the same length and both
-    respect blue/red limits.
+    See Also
+    --------
+    :py:func:`orig_cut_lines`
+    :py:func:`blotch_spectrum`
+    :py:func:`rebin_spec_by_int_factor`
+    :py:func:`polyfit_continuum`
     """
 
     # Test that the array is monotonic
