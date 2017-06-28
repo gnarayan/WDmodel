@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+"""
+Print WDmodel fit results stored in outdir for the specified specfiles to  a table
+"""
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import sys
 import argparse
 import warnings
@@ -39,11 +46,11 @@ def main(inargs=None):
     colbool = False
 
     for specfile in specfiles:
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=args.outdir)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=args.outdir, resume=True)
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
         try:
             params = WDmodel.io.read_params(outfile)
-        except IOError, e:
+        except IOError as e:
             message = 'Could not get results for {}({}) from outfile {}'.format(objname, specfile, outfile)
             warnings.warn(message)
             params = None
@@ -64,18 +71,12 @@ def main(inargs=None):
                 colnames.append('errlo_{}'.format(param))
         colbool=True
         out.append(this_out)
+    colnames = [str(x) for x in colnames]
     out = np.rec.fromrecords(out, names=colnames)
     out.sort()
-    precision = [None, None] + [2,2,2]*6 + [5,5,5] + [2,2,2] + [4,4,4]
-    print rec2txt(out, precision=precision )
+    precision = [None, None] + [2,2,2]*7 + [5,5,5] + [2,2,2] + [4,4,4]
+    print(rec2txt(out, precision=precision ))
     
-
-
-
-
-
-
-
 
 if __name__=='__main__':
     main(sys.argv[1:])

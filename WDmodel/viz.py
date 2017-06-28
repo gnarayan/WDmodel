@@ -1,6 +1,11 @@
+# -*- coding: UTF-8 -*-
 """
 Routines to visualize the DA White Dwarf model atmosphere fit
 """
+
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import numpy as np
 from scipy.stats import norm
 from itertools import cycle
@@ -12,32 +17,48 @@ from astropy.visualization import hist
 from . import io
 from . import passband
 import corner
-#from matplotlib import rc
-#rc('text', usetex=True)
-#rc('font', family='serif')
-#rc('ps', usedistiller='xpdf')
-#rc('text.latex', preamble = ','.join('''\usepackage{amsmath}'''.split()))
+from six.moves import range
+
 
 def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, model, result, save=True):
     """
-    Quick plot to show the output from the limited Minuit fit of the spectrum.
-    This fit doesn't try to account for the covariance in the data, and is not
-    expected to be great - just fast, and capable of setting a reasonable
-    initial guess. If this fit is very far off, refine the initial guess.
+    Plot the MLE fit of the spectrum with the model, assuming uncorrelated
+    noise.
 
-    Accepts:
-        spec: the recarray spectrum
-        objname: object name - cosmetic only
-        outdir: controls where the plot is written out if save=True
-        specfile: Used in the title, and to set the name of the outfile if save=True
-        scale_factor: factor by which the flux was scaled
-        model: WDmodel.WDmodel instance
-        result: dict of parameters with keywords value, fixed, scale, bounds for each
-        save: if True, save the file
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum. Must have
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    objname : str
+        object name - used to title plots
+    outdir : str
+        controls where the plot is written out if ``save=True``
+    specfile : str
+        Used in the title, and to set the name of the ``outfile`` if ``save=True``
+    scale_factor : float
+        factor by which the flux was scaled for y-axis label
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    result : dict
+        dictionary of parameters with keywords ``value``, ``fixed``, ``scale``,
+        ``bounds`` for each. Same format as returned from
+        :py:func:`WDmodel.io.read_params`
+    save : bool
+        if True, save the file
 
-    Returns a matplotlib figure instance
+    Returns
+    -------
+    fig : :py:class:`matplotlib.figure.Figure` instance
+
+    Notes
+    -----
+        The MLE fit uses :py:meth:`iminuit.Minuit.migrad` to fit the spectrum
+        with the model.  This fit doesn't try to account for the covariance in
+        the data, and is not expected to be great - just fast, and capable of
+        setting a reasonable initial guess. If it is apparent from the plot
+        that this fit is very far off, refine the initial guess to the fitter.
     """
-
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
     font_l  = FM(size='large')
@@ -114,9 +135,74 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
 def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmodel, result, param_names, samples,\
         ndraws=21, everyn=1):
     """
-    Plot the full spectrum of the DA White Dwarf
-    """
+    Plot the spectrum of the DA White Dwarf and the "best fit" model
 
+    The full fit parametrizes the covariance model using a stationary Gaussian
+    process as defined by :py:class:`WDmodel.covariance.WDmodel_CovModel`. The
+    posterior function constructed in
+    :py:class:`WDmodel.likelihood.WDmodel_Posterior` is evaluated by the
+    sampler in the :py:func:`WDmodel.fit.fit_model` method. The median value is
+    reported as the best-fit value for each of the fit parameters in
+    :py:attr:`WDmodel.likelihood.WDmodel_Likelihood.parameter_names`.
+
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum. Must have
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    objname : str
+        object name - used to title plots
+    outdir : str
+        controls where the plot is written out if ``save=True``
+    specfile : str
+        Used in the title, and to set the name of the ``outfile`` if ``save=True``
+    scale_factor : float
+        factor by which the flux was scaled for y-axis label
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    covmodel : :py:class:`WDmodel.covariance.WDmodel_CovModel` instance
+        The parametrized model for the covariance of the spectrum ``spec``
+    result : dict
+        dictionary of parameters with keywords ``value``, ``fixed``, ``scale``,
+        ``bounds`` for each. Same format as returned from
+        :py:func:`WDmodel.io.read_params`
+    param_names : array-like
+        Ordered list of free parameter names
+    samples : array-like
+        Samples from the flattened Markov Chain with shape ``(N, len(param_names))``
+    ndraws : int, optional
+        Number of draws to make from the Markov Chain to overplot. Higher
+        numbers provide a better sense of the uncertainty in the model at the
+        cost of speed and a larger, slower to render output plot.
+    everyn : int, optional
+        If the posterior function was evaluated using only every nth
+        observation from the data, this should be specified to visually
+        indicate the observations used.
+
+    Returns
+    -------
+    fig : :py:class:`matplotlib.figure.Figure` instance
+        The output figure
+    draws : array-like
+        The actual draws from the Markov Chain used in ``fig``
+
+    Notes
+    -----
+        It's faster to draw samples from the posterior in one location, and
+        pass along the same samples to all the methods in :py:mod:`WDmodel.viz`.
+
+        Consequently, most require ``draws`` as an input. This makes all the
+        plots connected, and none will return if an error is thrown here, but
+        this is the correct behavior as all of them are visualizing one aspect
+        of the same fit.
+
+        Each element of ``draws`` contains
+            * ``smoothedmod`` - the model spectrum
+            * ``wres`` - the prediction from the Gaussian process
+            * ``wres_err`` - the diagonal of the covariance matrix for the prediction from the Gaussian process
+            * ``full_mod`` - the full model SED, in order to compute the synthetic photometry
+            * ``out_draw`` - the dictionary of model parameters from this draw. Same format as ``result``.
+    """
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
     font_l  = FM(size='large')
@@ -216,6 +302,48 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
 
 
 def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
+    """
+    Plot the observed DA white dwarf photometry as well as the "best-fit" model
+    magnitudes
+
+    Parameters
+    ----------
+    objname : str
+        object name - used to title plots
+    phot : None or :py:class:`numpy.recarray`
+        The photometry. Must have
+        ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    phot_dispersion : float, optional
+        Excess photometric dispersion to add in quadrature with the
+        photometric uncertainties ``phot.mag_err``. Use if the errors are
+        grossly underestimated. Default is ``0.``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    pbs : dict
+        Passband dictionary containing the passbands corresponding to
+        ``phot.pb`` and generated by :py:func:`WDmodel.passband.get_pbmodel`.
+    draws : array-like
+        produced by :py:func:`plot_mcmc_spectrum_fit` - see notes for content.
+
+    Returns
+    -------
+    fig : :py:class:`matplotlib.figure.Figure` instance
+        The output figure
+    mag_draws : array-like
+        The magnitudes corresponding to the parameters ``draws`` from the Markov
+        Chain used in ``fig``
+
+    Notes
+    -----
+        Each element of ``mag_draws`` contains
+            * ``wres`` - the difference between the observed and synthetic magnitudes
+            * ``model_mags`` - the model magnitudes corresponding to the current model parameters
+            * ``mu`` - the flux normalization parameter that must be added to the ``model_mags``
+
+    See Also
+    --------
+    :py:func:`WDmodel.viz.plot_mcmc_spectrum_fit`
+    """
     font_s  = FM(size='small')
     font_m  = FM(size='medium')
     font_l  = FM(size='large')
@@ -271,7 +399,7 @@ def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
     # label the axes
     ax_resid.set_xlim(-0.5,npb-0.5)
     ax_resid.set_xticks(pbind)
-    ax_resid.set_xticklabels(pbs.keys())
+    ax_resid.set_xticklabels(list(pbs.keys()))
     ax_resid.set_xlabel('Passband',fontproperties=font_m, ha='center')
     ax_phot.set_xlabel('Wavelength',fontproperties=font_m, ha='center')
     ax_phot.set_ylabel('Magnitude (Photometric dispersion = {})'.format(phot_dispersion), fontproperties=font_m)
@@ -284,9 +412,51 @@ def plot_mcmc_photometry_res(objname, phot, phot_dispersion, model, pbs, draws):
 
 
 def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor,\
-        cont_model, draws, covtype='ExpSquared', everyn=1):
+        cont_model, draws, covtype='Matern32', everyn=1):
     """
-    Plot the full spectrum of the DA White Dwarf
+    Plot the spectrum of the DA White Dwarf and the "best fit" model without
+    the Gaussian process
+
+    Unlike :py:func:`plot_mcmc_spectrum_fit` this version does not apply the
+    prediction from the Gaussian process to the spectrum model to match the
+    observed spectrum. This visualization is useful to indicate if the Gaussian
+    process - i.e. the kernel choice ``covtype`` used to parametrize the
+    covariance is - is appropriate.
+
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum. Must have
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    objname : str
+        object name - used to title plots
+    outdir : str
+        controls where the plot is written out if ``save=True``
+    specfile : str
+        Used in the title, and to set the name of the outfile if ``save=True``
+    scale_factor : float
+        factor by which the flux was scaled for y-axis label
+    cont_model : :py:class:`numpy.recarray`
+        The continuuum model. Must have the same structure as ``spec``
+        Produced by :py:func:`WDmodel.fit.pre_process_spectrum`
+    draws : array-like
+        produced by :py:func:`plot_mcmc_spectrum_fit` - see notes for content.
+    covtype : ``{'Matern32', 'SHO', 'Exp', 'White'}``
+        stationary kernel type used to parametrize the covariance in
+        :py:class:`WDmodel.covariance.WDmodel_CovModel`
+    everyn : int, optional
+        If the posterior function was evaluated using only every nth
+        observation from the data, this should be specified to visually
+        indicate the observations used.
+
+    Returns
+    -------
+    fig : :py:class:`matplotlib.figure.Figure` instance
+        The output figure
+
+    See Also
+    --------
+    :py:func:`WDmodel.viz.plot_mcmc_spectrum_fit`
     """
 
     font_s  = FM(size='small')
@@ -343,7 +513,45 @@ def plot_mcmc_spectrum_nogp_fit(spec, objname, specfile, scale_factor,\
 
 def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     """
-    Plot the full spectrum of the DA White Dwarf
+    Plot a comparison of the normalized hydrogen Balmer lines of the spectrum
+    and model
+
+    Note that we fit the full spectrum, not just the lines. The lines are
+    extracted using a coarse continuum fit in
+    :py:func:`WDmodel.fit.pre_process_spectrum`. This fit is purely cosmetic
+    and in no way contributes to the likelihood. It's particularly useful to
+    detect small velocity offsets or wavelength calibration errors.
+
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum. Must have
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    cont_model : :py:class:`numpy.recarray`
+        The continuuum model. Must have the same structure as ``spec``
+        Produced by :py:func:`WDmodel.fit.pre_process_spectrum`
+    draws : array-like
+        produced by :py:func:`plot_mcmc_spectrum_fit` - see notes for content.
+    balmer : array-like, optional
+        list of Balmer lines to plot - elements must be in range ``[1, 6]``
+        These correspond to the lines defined in
+        :py:attr:`WDmodel.WDmodel.WDmodel._lines`. Default is ``range(1, 7)``
+
+    Returns
+    -------
+    fig : :py:class:`matplotlib.figure.Figure` instance
+        The output figure containing the line profile plot
+    fig2 : :py:class:`matplotlib.figure.Figure` instance
+        The output figure containing histograms of the line residuals
+
+    See Also
+    --------
+    :py:func:`WDmodel.viz.plot_mcmc_spectrum_fit`
     """
 
     font_xs = FM(size='x-small')
@@ -357,7 +565,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     ax_lines  = fig.add_subplot(gs[0])
 
     if balmer is None:
-        balmer = model._lines.keys()
+        balmer = list(model._lines.keys())
 
     # create another figure with separate axes for each of the lines
     uselines = set(np.unique(linedata.line_mask)) & set(balmer)
@@ -474,11 +682,92 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         objname, outdir, specfile,\
         model, covmodel, cont_model, pbs,\
         params, param_names, samples, samples_lnprob,\
-        covtype='White', balmer=None, save=True, ndraws=21, everyn=1, savefig=False):
+        covtype='Matern32', balmer=None, ndraws=21, everyn=1, savefig=False):
     """
-    Plot the full fit of the DA White Dwarf
-    """
+    Make all the plots to visualize the full fit of the DA White Dwarf data
 
+    Wraps :py:func:`plot_mcmc_spectrum_fit`,
+    :py:func:`plot_mcmc_photometry_res`,
+    :py:func:`plot_mcmc_spectrum_nogp_fit`, :py:func:`plot_mcmc_line_fit` and
+    :py:func:`corner.corner` and saves all the plots to a combined PDF, and
+    optionally individual PDFs.
+
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum. Must have
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    phot : None or :py:class:`numpy.recarray`
+        The photometry. Must have
+        ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+    scale_factor : float
+        factor by which the flux was scaled for y-axis label
+    phot_dispersion : float, optional
+        Excess photometric dispersion to add in quadrature with the
+        photometric uncertainties ``phot.mag_err``. Use if the errors are
+        grossly underestimated. Default is ``0.``
+    objname : str
+        object name - used to title plots
+    outdir : str
+        controls where the plot is written out if ``savefig=True``
+    specfile : str
+        Used in the title, and to set the name of the ``outfile`` if ``savefig=True``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    covmodel : :py:class:`WDmodel.covariance.WDmodel_CovModel` instance
+        The parametrized model for the covariance of the spectrum ``spec``
+    cont_model : :py:class:`numpy.recarray`
+        The continuuum model. Must have the same structure as ``spec``
+        Produced by :py:func:`WDmodel.fit.pre_process_spectrum`
+    pbs : dict
+        Passband dictionary containing the passbands corresponding to
+        ``phot.pb`` and generated by :py:func:`WDmodel.passband.get_pbmodel`.
+    params : dict
+        dictionary of parameters with keywords ``value``, ``fixed``, ``scale``,
+        ``bounds`` for each. Same format as returned from
+        :py:func:`WDmodel.io.read_params`
+    param_names : array-like
+        Ordered list of free parameter names
+    samples : array-like
+        Samples from the flattened Markov Chain with shape ``(N, len(param_names))``
+    samples_lnprob : array-like
+        Log Posterior corresponding to ``samples`` from the flattened Markov
+        Chain with shape ``(N,)``
+    covtype : ``{'Matern32', 'SHO', 'Exp', 'White'}``
+        stationary kernel type used to parametrize the covariance in
+        :py:class:`WDmodel.covariance.WDmodel_CovModel`
+    balmer : array-like, optional
+        list of Balmer lines to plot - elements must be in range ``[1, 6]``
+        These correspond to the lines defined in
+        :py:attr:`WDmodel.WDmodel.WDmodel._lines`. Default is ``range(1, 7)``
+    ndraws : int, optional
+        Number of draws to make from the Markov Chain to overplot. Higher
+        numbers provide a better sense of the uncertainty in the model at the
+        cost of speed and a larger, slower to render output plot.
+    everyn : int, optional
+        If the posterior function was evaluated using only every nth
+        observation from the data, this should be specified to visually
+        indicate the observations used.
+    savefig : bool
+        if True, save the individual figures
+
+    Returns
+    -------
+    model_spec : :py:class:`numpy.recarray`
+        The model spectrum. Has
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('norm_flux', '<f8')]``
+        and same shape as input ``spec``. The ``norm_flux`` attribute has the
+        model flux without the Gaussian process prediction applied.
+    SED_model : :py:class:`numpy.recarray`
+        The SED model spectrum. Has
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    model_mags : None or :py:class:`numpy.recarray`
+        If there is observed photometry, this contains the model magnitudes.
+        Has ``dtype=[('pb', 'str'), ('mag', '<f8')]``
+    """
     draws     = None
     mag_draws = None
 
@@ -525,7 +814,8 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
             outfile = io.get_outfile(outdir, specfile, '_mcmc_corner.pdf')
             fig.savefig(outfile)
         pdf.savefig(fig)
-        print "Wrote output plot file {}".format(outfilename)
+        message = "Wrote output plot file {}".format(outfilename)
+        print(message)
         #endwith
 
     smoothedmod, wres, wres_err, full_mod, best_params = draws[-1]
@@ -547,9 +837,10 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
     sigma_spec = mad_spec/scaling
     sigma_mod  = mad_mod/scaling
 
-    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, sigma_spec, smoothedmod),\
-            names='wave,flux,flux_err,norm_flux')
-    SED_model  = np.rec.fromarrays((full_mod.wave, full_mod.flux, sigma_mod), names='wave,flux,flux_err')
+    names=str('wave,flux,flux_err,norm_flux')
+    model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, sigma_spec, smoothedmod), names=names)
+    names=str('wave,flux,flux_err')
+    SED_model  = np.rec.fromarrays((full_mod.wave, full_mod.flux, sigma_mod), names=names)
 
     if mag_draws is not None:
         _, model_mags, _ = mag_draws[-1]

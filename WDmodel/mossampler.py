@@ -1,15 +1,29 @@
-"""Overridden PTSampler with random Gibbs selection, more-reliable acor."""
+# -*- coding: UTF-8 -*-
+"""
+Overridden PTSampler with random Gibbs selection, more-reliable acor.  
+
+Original Author: James Guillochon for the `mosfit package
+<https://github.com/guillochon/MOSFiT>`_
+
+Modified to update kwargs, docstrings for full compatibility with PTSampler by G. Narayan
+"""
+
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import numpy as np
 from emcee.autocorr import AutocorrError, function
 from emcee.ptsampler import PTLikePrior, PTSampler
+from six.moves import map
+from six.moves import range
 
 
 class MOSSampler(PTSampler):
-    """Override PTSampler methods."""
-
-    def get_autocorr_time(
-            self, min_step=0, max_walkers=-1, chain=[], **kwargs):
-        """Return a matrix of autocorrelation lengths.
+    """
+    Override PTSampler methods.
+    """
+    def get_autocorr_time(self, min_step=0, max_walkers=-1, chain=[], **kwargs):
+        """
+        Return a matrix of autocorrelation lengths.
 
         Returns a matrix of autocorrelation lengths for each
         parameter in each temperature of shape ``(Ntemps, Ndim)``.
@@ -28,45 +42,54 @@ class MOSSampler(PTSampler):
             acors[i, :] /= len(x)
         return acors
 
-    def integrated_time(
-        self, x, low=10, high=None, step=1, c=5, full_output=False,
-            axis=0, fast=False):
-        """Estimate the integrated autocorrelation time of a time series.
+
+    def integrated_time(self, x, low=10, high=None, step=1, c=5, full_output=False, axis=0, fast=False):
+        """
+        Estimate the integrated autocorrelation time of a time series.
 
         This estimate uses the iterative procedure described on page 16 of
         `Sokal's notes <http://www.stat.unc.edu/faculty/cji/Sokal.pdf>`_ to
         determine a reasonable window size.
 
-        Args:
-            x: The time series. If multidimensional, set the time axis using
-                the ``axis`` keyword argument and the function will be
-                computed for every other axis.
-            low (Optional[int]): The minimum window size to test. (default:
-                ``10``)
-            high (Optional[int]): The maximum window size to test. (default:
-                ``x.shape[axis] / (2*c)``)
-            step (Optional[int]): The step size for the window search.
-                (default: ``1``)
-            c (Optional[float]): The minimum number of autocorrelation times
-                needed to trust the estimate. (default: ``10``)
-            full_output (Optional[bool]): Return the final window size as well
-                as the autocorrelation time. (default: ``False``)
-            axis (Optional[int]): The time axis of ``x``. Assumed to be the
-                first axis if not specified.
-            fast (Optional[bool]): If ``True``, only use the first ``2^n`` (for
-                the largest power) entries for efficiency. (default: False)
+        Parameters
+        ----------
+        x: array-like
+            The time series. If multidimensional, set the time axis using
+            the ``axis`` keyword argument and the function will be computed
+            for every other axis.
+        low : int, optional
+            The minimum window size to test. (default: ``10``)
+        high : int, optional
+            The maximum window size to test. (default:``x.shape[axis] / (2*c)``)
+        step : int, optional
+            The step size for the window search.(default: ``1``)
+        c : float, optional
+            The minimum number of autocorrelation times needed to trust the
+            estimate. (default: ``10``)
+        full_output : bool, optional
+            Return the final window size as well as the autocorrelation
+            time. (default: ``False``)
+        axis : int, optional
+            The time axis of ``x``. Assumed to be the first axis if not
+            specified.
+        fast : bool, optional
+            If ``True``, only use the first ``2^n`` (for the largest power)
+            entries for efficiency. (default: False)
 
-        Returns:
-            float or array: An estimate of the integrated autocorrelation time
-                of the time series ``x`` computed along the axis ``axis``.
-            Optional[int]: The final window size that was used. Only returned
-                if ``full_output`` is ``True``.
+        Returns
+        -------
+        out : float or array
+            An estimate of the integrated autocorrelation time of the time
+            series ``x`` computed along the axis ``axis``.
+        c : int, optional
+            The final window size that was used. Only returned if
+            ``full_output`` is ``True``.
 
         Raises
-            AutocorrError: If the autocorrelation time can't be reliably
-                estimated from the chain. This normally means that the chain
-                is too short.
-
+        ------
+        :py:class:`emcee.autocorr.AutocorrError`
+            If the autocorrelation time can't be reliably estimated from the
+            chain. This normally means that the chain is too short.
         """
         size = 0.5 * x.shape[axis]
         if int(c * low) >= size:
@@ -106,32 +129,35 @@ class MOSSampler(PTSampler):
         raise AutocorrError("The chain is too short to reliably estimate "
                             "the autocorrelation time")
 
-    def sample(
-        self, p0, lnprob0=None, lnlike0=None, iterations=1,
-            thin=1, storechain=True, gibbs=False):
-        """Advance the chains ``iterations`` steps as a generator.
+    def sample(self, p0, lnprob0=None, lnlike0=None, iterations=1, thin=1, storechain=True, gibbs=False):
+        """
+        Advance the chains ``iterations`` steps as a generator.
 
-        :param p0:
-            The initial positions of the walkers.  Shape should be
-            ``(ntemps, nwalkers, dim)``.
-        :param lnprob0: (optional)
-            The initial posterior values for the ensembles.  Shape
-            ``(ntemps, nwalkers)``.
-        :param lnlike0: (optional)
-            The initial likelihood values for the ensembles.  Shape
-            ``(ntemps, nwalkers)``.
-        :param iterations: (optional)
+        Parameters
+        ----------
+        p0 : array-like
+            The initial positions of the walkers.
+            Shape should be ``(ntemps, nwalkers, dim)``.
+        lnprob0 : array-like, optional
+            The initial posterior values for the ensembles.
+            Shape ``(ntemps, nwalkers)``.
+        lnlike0 : array-like, optional
+            The initial likelihood values for the ensembles.
+            Shape ``(ntemps, nwalkers)``.
+        iterations : int, optional
             The number of iterations to preform.
-        :param thin: (optional)
-            The number of iterations to perform between saving the
-            state to the internal chain.
-        :param storechain: (optional)
-            If ``True`` store the iterations in the ``chain``
-            property.
+        thin : int, optional
+            The number of iterations to perform between saving the state to the
+            internal chain.
+        storechain : bool, optional
+            If ``True`` store the iterations in the ``chain`` property.
+
+        Yields
+        ------
         At each iteration, this generator yields
-        * ``p``, the current position of the walkers.
-        * ``lnprob`` the current posterior values for the walkers.
-        * ``lnlike`` the current likelihood values for the walkers.
+            * ``p``, the current position of the walkers.
+            * ``lnprob`` the current posterior values for the walkers.
+            * ``lnlike`` the current likelihood values for the walkers.
         """
         if not gibbs:
             for n in super(MOSSampler, self).sample(

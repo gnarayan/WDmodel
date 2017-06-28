@@ -15,6 +15,7 @@ Welcome to WDmodel's documentation!
 
    Installation <installation>
    Usage Notes <usage>
+   source/modules.rst
 
 
 Indices and tables

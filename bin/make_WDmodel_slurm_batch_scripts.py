@@ -1,11 +1,19 @@
 #!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+"""
+Example SLURM batch script generator. Appropriate for use on Harvard RC Odyssey
+Cluster. Modify for other facilities.
+"""
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import sys
 import os
 import glob
 import WDmodel.io
 
 def addnewlines(l):
-    return map(lambda x:x+'\n', l)
+    return [x+'\n' for x in l]
 
 def main():
     lines = ["#!/bin/bash",
@@ -27,7 +35,7 @@ def main():
         specfiles = glob.glob(specpattern)
 
         for specfile in specfiles:
-            print specfile
+            print(specfile)
             usedfiles.append(specfile)
             outlines = []
             objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile)
@@ -46,7 +54,7 @@ def main():
     specfiles = glob.glob(specpattern)
     leftfiles = set(specfiles) - set(usedfiles)
     for specfile in leftfiles:
-        print specfile
+        print(specfile)
         outlines = []
         objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot="out/ignorephot")
         stdout_file = WDmodel.io.get_outfile(outdir, specfile, '.stdout')

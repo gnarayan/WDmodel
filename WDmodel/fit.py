@@ -1,3 +1,11 @@
+# -*- coding: UTF-8 -*-
+"""
+Core data processing and fitting/sampling routines
+"""
+
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import sys
 import warnings
 import numpy as np
@@ -8,8 +16,11 @@ from iminuit import Minuit
 from astropy.constants import c as _C
 import emcee
 import h5py
-import cPickle as pickle
+import six.moves.cPickle as pickle
 from clint.textui import progress
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 progress.STREAM = sys.stdout
 from . import io
 from . import passband
@@ -19,18 +30,36 @@ from . import mossampler
 
 def polyfit_continuum(continuumdata, wave):
     """
-    Accepts continuumdata: a tuple with wavelength, flux and flux error derived
-    from the spectrum with the lines roughly masked and wave: an array of
-    wavelengths on which to derive the continuum.
+    Fit a polynomial to the DA white dwarf continuum to normalize it - purely
+    for visualization purposes
 
-    Roughly follows the algorithm described by the SDSS SSPP for a global
-    continuum fit. Fits a red side and blue side at 5500 A separately to get a
-    smooth polynomial representation. The red side uses a degree 5 polynomial
-    and the blue side uses a degree 9 polynomial. Then splices them together -
-    I don't actually know how SDSS does this - and fits the full continuum to a
-    degree 9 polynomial.
+    Parameters
+    ----------
+    continuumdata : :py:class:`numpy.recarray`
+        The continuum data.
+        Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+        Produced by running the spectrum through
+        :py:func:`WDmodel.fit.orig_cut_lines` and extracting the pre-defined
+        lines in the :py:class:`WDmodel.WDmodel.WDmodel` instance.
+    wave : array-like
+        The full spectrum wavelength array on which to interpolate the
+        continuum model
 
-    Returns a recarray with wave, continuum flux derived from the polyfit.
+    Returns
+    -------
+    cont_model : :py:class:`numpy.recarray`
+        The continuum model
+        Must have ``dtype=[('wave', '<f8'), ('flux', '<f8')]``
+
+    Notes
+    -----
+        Roughly follows the algorithm described by the SDSS SSPP for a global
+        continuum fit. Fits a red side and blue side at 5500 A separately to
+        get a smooth polynomial representation. The red side uses a degree 5
+        polynomial and the blue side uses a degree 9 polynomial. Then "splices"
+        them together - I don't actually know how SDSS does this, but we simply
+        assert the two bits are the same function - and fits the full continuum
+        to a degree 9 polynomial.
     """
 
     cwave = continuumdata.wave
@@ -64,26 +93,47 @@ def polyfit_continuum(continuumdata, wave):
 
     # get the continuum model at the requested wavelengths
     out = poly.polyval(wave, coeff)
-    cont_model = np.rec.fromarrays([wave, out], names='wave,flux')
+    names=str("wave,flux")
+    cont_model = np.rec.fromarrays([wave, out], names=names)
     return cont_model
 
 
 def orig_cut_lines(spec, model):
     """
-    Does a coarse cut to remove hydrogen absorption lines from DA white dwarf
-    spectra The line centroids, and widths are fixed and defined with the model
-    grid This is insufficient, and particularly at high log(g) and low
-    temperatures the lines are blended, and better masking is needed.  This
-    routine is intended to provide a rough starting point for that process.
+    Cut out the hydrogen Balmer spectral lines defined in
+    :py:class:`WDmodel.WDmodel.WDmodel` from the spectrum.
 
-    Accepts a spectrum and the model
-    returns a recarray with the data on the absorption lines
-    (wave, flux, fluxerr, Balmer line number for use as a mask)
+    The masking of Balmer lines is basic, and not very effective at high
+    surface gravity or low temperature, or in the presence of non hydrogen
+    lines. It's used to get a roughly masked set of data suitable for continuum
+    detection, and is effective in the context of our ground-based
+    spectroscopic followup campaign for HST GO 12967 and 13711 programs.
 
-    and coarse continuum data - the part of the spectrum that's not masked as lines
-    (wave, flux, fluxerr)
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
 
+    Returns
+    -------
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+    continuumdata : :py:class:`numpy.recarray`
+        The continuum data. Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+
+    Notes
+    -----
+        Does a coarse cut to remove hydrogen absorption lines from DA white
+        dwarf spectra The line centroids, and widths are fixed and defined with
+        the model grid This is insufficient, and particularly at high surface
+        gravity and low temperatures the lines are blended. This routine is
+        intended to provide a rough starting point for the process of continuum
+        determination.
     """
+
     wave    = spec.wave
     flux    = spec.flux
     fluxerr = spec.flux_err
@@ -107,34 +157,52 @@ def orig_cut_lines(spec, model):
     # continuum data is just the spectrum with the Balmer lines removed
     continuumdata  = (np.delete(wave, line_ind), np.delete(flux, line_ind), np.delete(fluxerr, line_ind))
     linedata = (line_wave, line_flux, line_fluxerr, line_number)
-
-    linedata = np.rec.fromarrays(linedata, names='wave,flux,flux_err,line_mask')
-    continuumdata = np.rec.fromarrays(continuumdata, names='wave,flux,flux_err')
-
+    names=str('wave,flux,flux_err,line_mask')
+    linedata = np.rec.fromarrays(linedata, names=names)
+    names=str('wave,flux,flux_err')
+    continuumdata = np.rec.fromarrays(continuumdata, names=names)
     return linedata, continuumdata
 
 
 def blotch_spectrum(spec, linedata):
     """
-    Accepts a recarray spectrum, spec, and a tuple linedata, such as can be
-    produced by orig_cut_lines, and blotches it
+    Automagically remove cosmic rays and gaps from spectrum
 
-    Some spectra have nasty cosmic rays or giant gaps in the data This routine
-    does a reasonable job blotching these by Wiener filtering the spectrum,
-    marking features that differ significantly from the local variance in the
-    region And replace them with the filtered values
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    linedata : :py:class:`numpy.recarray`
+        The observations of the spectrum corresponding to the hydrogen Balmer
+        lines. 
+        Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+        Produced by :py:func:`orig_cut_lines`
 
-    The lines specified in linedata are preserved, so if your gap/cosmic ray
-    lands on a line it will not be filtered. Additionally, filtering has edge
-    effects, and these data are preserved as well. If you do blotch the
-    spectrum, it is highly recommended that you use the bluelimit and redlimit
-    options to trim the ends of the spectrum.
+    Returns
+    -------
+    spec : :py:class:`numpy.recarray`
+        The blotched spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
 
-    YOU SHOULD PROBABLY PRE-PROCESS YOUR DATA YOURSELF BEFORE FITTING IT AND
-    NOT BE LAZY!
-
-    Returns the blotched spectrum
+    Notes
+    -----
+        Some spectra have nasty cosmic rays or gaps in the data. This routine
+        does a reasonable job blotching these by Wiener filtering the spectrum,
+        marking features that differ significantly from the local variance in
+        the region, and replace them with the filtered values. The hydrogen
+        Balmer lines are preserved, so if your gap/cosmic ray lands on a line
+        it will not be filtered. Additionally, filtering has edge effects, and
+        these data are preserved as well. If you do blotch the spectrum, it is
+        highly recommended that you use the bluelimit and redlimit options to
+        trim the ends of the spectrum. Note that the spectrum will be rejected
+        if it has flux or flux errors that are not finite or below zero. This
+        is often the case with cosmic rays and gaps, so you will likely
+        have to do some manual removal of these points.  
+            
+        YOU SHOULD PROBABLY PRE-PROCESS YOUR DATA YOURSELF BEFORE FITTING IT
+        AND NOT BE LAZY! THIS ROUTINE ONLY EXISTS TO FIT QUICK LOOK SPECTRUM AT
+        THE TELESCOPE, BEFORE FINAL REDUCTIONS!
     """
+
     message = 'You have requested the spectrum be blotched. You should probably do this by hand. Caveat emptor.'
     warnings.warn(message, UserWarning)
 
@@ -170,16 +238,25 @@ def rebin_spec_by_int_factor(spec, f=1):
     """
     Rebins a spectrum by an integer factor f
 
-    Accepts
-        spec: recarray spectrum (wave, flux, flux_err)
-        f: an integer factor to rebin the spectrum by
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    f : int, optional
+        an integer factor to rebin the spectrum by. Default is ``1`` (no rebinning)
 
-    If the spectrum is not divisible by f, the edges are trimmed by discarding
-    the remainder measurements from both ends. If the remainder itself is odd, the
-    extra measurement is discarded from the blue side.
+    Returns
+    -------
+    rspec : :py:class:`numpy.recarray`
+        The rebinned spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
 
-    Returns the rebinned recarray spectrum
+    Notes
+    -----
+        If the spectrum is not divisible by f, the edges are trimmed by discarding
+        the remainder measurements from both ends. If the remainder itself is odd, the
+        extra measurement is discarded from the blue side.
     """
+
     f    = int(f)
     if f <= 1:
         return spec
@@ -197,49 +274,67 @@ def rebin_spec_by_int_factor(spec, f=1):
                              weights=1./ispec.flux_err[f*x:f*x+f]**2.,\
                              returned=True))\
                  for x in range(rnwave)]
-    rwave, rf = zip(*rf)
-    rflux, rw = zip(*rf)
+    rwave, rf = list(zip(*rf))
+    rflux, rw = list(zip(*rf))
     rw = np.array(rw)
     rflux_err = 1./(rw**0.5)
     rwave = np.array(rwave)
     rflux  = np.array(rflux)
-    rspec = np.rec.fromarrays((rwave, rflux, rflux_err),names='wave,flux,flux_err')
+    names=str('wave,flux,flux_err')
+    rspec = np.rec.fromarrays((rwave, rflux, rflux_err),names=names)
     return rspec
 
 
 def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
         lamshift=0., vel=0., rebin=1, blotch=False, rescale=False):
     """
-    Accepts
-        spec: recarray spectrum (wave, flux, flux_err)
-        bluelimit, redlimit: the wavelength limits in Angstrom
-        model: a WDmodel instance
-        params: the input fit parameters - only modified if rescale
-        lamshift: applies a flat wavelength offset to the spectrum wavelengths
-        vel: applies a velocity shift to the spectrum wavelengths
-        rebin: integer factor to rebin the spectrum by. Does not correlate bins.
-        blotch: not very robust removal of gaps, cosmic rays and other weird reduction defects
-        rescale: rescale the spectrum to make the noise ~1
+    Pre-process the spectrum before fitting
 
-    Returns the (optionally blotched) spectrum, the continuum model for the
-    spectrum, and the extracted line and continuum data for visualization
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    bluelimit : None or float
+        Trim wavelengths bluer than this limit. Uses the bluest wavelength of spectrum if ``None``
+    redlimit : None or float
+        Trim wavelengths redder than this limit. Uses the reddest wavelength of spectrum if ``None``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+        Will be modified to adjust the spectrum normalization parameters ``dl``
+        limits if ``rescale`` is set
+    lamshift : float, optional
+        Apply a flat wavelength shift to the spectrum. Useful if the target was
+        not properly centered in the slit, and the shift is not correlated with
+        wavelength. Default is ``0``.
+    vel : float, optional
+        Apply a velocity shift to the spectrum. Default is ``0``.
+    rebin : int, optional 
+        Integer factor by which to rebin the spectrum.
+        Default is ``1`` (no rebinning).
+    blotch : bool, optional
+        Attempt to remove cosmic rays and gaps from spectrum. Only to be used
+        for quick look analysis at the telescope.
+    rescale : bool, optional
+        Rescale the spectrum to make the median noise ``~1``. Has no effect on
+        fitted parameters except spectrum flux normalization parameter ``dl``
+        but makes residual plots, histograms more easily interpretable as they
+        can be compared to an ``N(0, 1)`` distribution.
 
-    Applies an offset lamshift to the spectrum wavelengths if non-zero. This is
-    useful to correct slit centering errors with wide slits, which result in
-    flat wavelength calibration shifts
+    Returns
+    -------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
 
-    Applies any velocity shift to the spectrum wavelengths if non-zero.
-    Blueshifts are negative, redshifts are positive.
 
-    Does a coarse extraction of Balmer lines in the optical, (optionally)
-    blotches the data, builds a continuum model for visualization purposes, and
-    trims the spectrum the red and blue limits
-
-    Rescales the spectrum to make the noise~1. If so, also changes the bounds
-    and scale on dl, and any supplied initial guess
-
-    Note that the continuum model and spectrum are the same length and both
-    respect blue/red limits.
+    See Also
+    --------
+    :py:func:`orig_cut_lines`
+    :py:func:`blotch_spectrum`
+    :py:func:`rebin_spec_by_int_factor`
+    :py:func:`polyfit_continuum`
     """
 
     # Test that the array is monotonic
@@ -254,10 +349,16 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
         spec.wave *= (1. +(vel*1000./_C.value))
 
     # clip the spectrum to whatever range is requested
+    if bluelimit is None:
+        bluelimit = spec.wave.min()
+
     if bluelimit > 0:
         bluelimit = float(bluelimit)
     else:
         bluelimit = spec.wave.min()
+
+    if redlimit is None:
+        redlimit = spec.wave.max()
 
     if redlimit > 0:
         redlimit = float(redlimit)
@@ -270,7 +371,8 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
         if scale_factor == 0:
             message = 'Uhhhh. This spectrum has incredibly weird errors with a median of 0'
             raise RuntimeError(message)
-        print "Scaling the spectrum by {:.10g}".format(scale_factor)
+        message = "Scaling the spectrum by {:.10g}".format(scale_factor)
+        print(message)
         spec.flux /= scale_factor
         spec.flux_err /= scale_factor
         if out_params['dl']['value'] is not None:
@@ -310,21 +412,41 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
 def quick_fit_spec_model(spec, model, params):
     """
     Does a quick fit of the spectrum to get an initial guess of the fit parameters
-    This isn't robust, but it's good enough for an initial guess
-    None of the starting values for the parameters maybe None EXCEPT c
-    This refines the starting guesses, and determines a reasonable value for c
 
-    Accepts
-        spectrum: recarray spectrum with wave, flux, flux_err
-        model: WDmodel.WDmodel instance
-        params: dict of parameters with keywords value, fixed, bounds for each
+    Uses iminuit to do a rough diagonal fit - i.e. ignores covariance.
+    For simplicity, also fixed FWHM and Rv (even when set to be fit).
+    Therefore, only teff, logg, av, dl are fit for (at most).
+    This isn't robust, but it's good enough for an initial guess.
 
-    Uses iminuit to do a rough diagonal fit - i.e. ignores covariance
-    For simplicity, also fixed FWHM and Rv
-    Therefore, only teff, logg, av, dl are fit for (at most)
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
 
-    Returns best guess parameters and errors
+    Returns
+    -------
+    migrad_params : dict
+        The output parameter dictionary with updated initial guesses stored in
+        the ``value`` key. Same format as ``params``.
+
+    Raises
+    ------
+    RuntimeError
+        If all of ``teff, logg, av, dl`` are set as fixed - there's nothing to fit.
+    RuntimeWarning
+        If :py:func:`minuit.Minuit.migrad` or :py:func:`minuit.Minuit.hesse` indicate that the fit is unreliable
+
+    Notes
+    -----
+        None of the starting values for the parameters maybe ``None`` EXCEPT ``c``.
+        This refines the starting guesses, and determines a reasonable value for ``c``
     """
+
     teff0 = params['teff']['value']
     logg0 = params['logg']['value']
     av0   = params['av']['value']
@@ -417,18 +539,44 @@ def quick_fit_spec_model(spec, model, params):
 
 def fix_pos(pos, free_param_names, params):
     """
-    emcee.utils.sample_ball doesn't care about bounds but is really convenient to init the walker positions
+    Ensures that the initial positions of the :py:mod:`emcee` walkers are out of bounds
 
-    Accepts
-        pos: list of starting positions for all walkers produced by emcee.utils.sample_ball
-        free_param_names: list of the names of free parameters
-        param: dict of parameters with keywords value, fixed, bounds for each
+    Parameters
+    ----------
+    pos : array-like
+        starting positions of all the walkers, such as that produced by 
+        :py:func:`emcee:utils.sample_ball`
+    free_param_names : iterable
+        names of parameters that are free to float. Names must correspond to keys in ``params``.
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
 
-    Assumes that the parameter values p0 was within bounds to begin with
-    Takes p0 -/+ 5sigma or lower/upper bounds as the lower/upper limits whichever is higher/lower
+    Returns
+    -------
+    pos : array-like
+        starting positions of all the walkers, fixed to guarantee that they are
+        within ``bounds`` defined in ``params``
 
-    Returns pos with out of bounds positions fixed to be within bounds
+    Notes
+    -----
+        :py:func:`emcee.utils.sample_ball` creates random walkers that may be
+        initialized out of bounds.  These walkers get stuck as there is no step
+        they can take that will make the change in loglikelihood finite.  This
+        makes the chain appear strongly correlated since all the samples of one
+        walker are at a fixed location. This resolves the issue by assuming
+        that the parameter ``value``  was within ``bounds`` to begin with. This
+        routine does not do any checking of types, values or bounds. This check
+        is done by :py:func:`WDmodel.io.get_params_from_argparse` before the
+        fit. If you setup the fit using an external code, you should check
+        these values.
+
+    See Also
+    --------
+    :py:func:`emcee.utils.sample_ball`
+    :py:func:`WDmodel.io.get_params_from_argparse`
     """
+
     for i, name in enumerate(free_param_names):
         lb, ub = params[name]['bounds']
         p0     = params[name]['value']
@@ -445,14 +593,37 @@ def fix_pos(pos, free_param_names, params):
 
 def hyper_param_guess(spec, phot, model, pbs, params):
     """
-    Makes a guess for mu after the initial minuit fit
+    Makes a guess for the parameter ``mu`` after the initial fit by
+    :py:func:`quick_fit_spec_model`
 
-    Accepts
-        spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
-        model: WDmodel.WDmodel instance
-        pbs: dict of throughput models for each passband with passband name as key
-        params: dict of parameters with keywords value, fixed, bounds, scale for each
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    phot : :py:class:`numpy.recarray`
+        The photometry of ``objname`` with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    pbs : dict
+        Passband dictionary containing the passbands corresponding to
+        phot.pb` and generated by :py:func:`WDmodel.passband.get_pbmodel`.
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+
+    Returns
+    -------
+    out_params : dict
+        The output parameter dictionary with an initial guess for ``mu`` 
+
+    Notes
+    -----
+        Uses the initial guess of parameters from the spectrum fit by
+        :py:func:`quick_fit_spec_model` to construct an initial guess of the
+        SED, and computes ``mu`` (which looks like a distance modulus, but also
+        includes a normalization for the radius of the DA white dwarf, and it's
+        radius) as the median difference between the observed and synthetic
+        photometry.
     """
     out_params = io.copy_params(params)
     # mu has a user supplied guess - do nothing
@@ -489,30 +660,109 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             ntemps=1, nwalkers=300, nburnin=50, nprod=1000, everyn=1, thin=1, pool=None,\
             resume=False, redo=False):
     """
-    Models the spectrum using the white dwarf model and a Gaussian process with
-    an exponential squared kernel to account for any flux miscalibration
+    Core routine that models the spectrum using the white dwarf model and a
+    Gaussian process with a stationary kernel to account for any flux
+    miscalibration, sampling the posterior using a MCMC.
 
-    Accepts
-        spec: recarray spectrum with wave, flux, flux_err
-        phot: recarray of photometry with passband pb, magnitude mag, magnitude err mag_err
-        model: WDmodel.WDmodel instance
-        covmodel: WDmodel.covmodel.WDmodel_CovModel instance
-        pbs: dict of throughput models for each passband with passband name as key
-        params: dict of parameters with keywords value, fixed, bounds, scale for each
+    Parameters
+    ----------
+    spec : :py:class:`numpy.recarray`
+        The spectrum with ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+    phot : :py:class:`numpy.recarray`
+        The photometry of ``objname`` with ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
+    model : :py:class:`WDmodel.WDmodel.WDmodel` instance
+        The DA White Dwarf SED model generator
+    pbs : dict
+        Passband dictionary containing the passbands corresponding to
+        phot.pb` and generated by :py:func:`WDmodel.passband.get_pbmodel`.
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+    objname : str
+        object name - used to save output with correct name
+    outdir : str
+        controls where the chain file s written
+    specfile : str
+        Used in the title, and to set the name of the ``outfile``
+    phot_dispersion : float, optional
+        Excess photometric dispersion to add in quadrature with the
+        photometric uncertainties ``phot.mag_err``. Use if the errors are
+        grossly underestimated. Default is ``0.``
+    samptype : ``{'ensemble', 'pt', 'gibbs'}``
+        Which sampler to use. The default is ``ensemble``.
+    ascale : float
+        The proposal scale for the sampler. Default is ``2.``
+    ntemps : int
+        The number of temperatures to run walkers at. Only used if ``samptype``
+        is in ``{'pt','gibbs'}`` and set to ``1.`` for ``ensemble``. See a
+        short summary `review
+        <https://en.wikipedia.org/wiki/Parallel_tempering>`_ for details.
+        Default is ``1.``
+    nwalkers : int
+        The number of `Goodman and Weare walkers
+        <http://msp.org/camcos/2010/5-1/p04.xhtml>`_. Default is ``300``.
+    nburnin : int
+        The number of steps to discard as burn-in for the Markov-Chain. Default is ``500``.
+    nprod : int
+        The number of production steps in the Markov-Chain. Default is ``1000``.
+    everyn : int, optional
+        If the posterior function is evaluated using only every nth
+        observation from the data, this should be specified. Default is ``1``.
+    thin : int
+        Only save every ``thin`` steps to the output Markov Chain. Useful, if
+        brute force way of reducing correlation between samples.
+    pool : None or :py:class`emcee.utils.MPIPool`
+        If running with MPI, the pool object is used to distribute the
+        computations among the child process
+    resume : bool
+        If ``True``, restores state and resumes the chain for another ``nprod`` iterations.
+    redo : bool
+        If ``True``, and a chain file and state file exist, simply clobbers them.
 
-    Uses an Ensemble MCMC (implemented by emcee) to generate samples from the
-    posterior. Does a short burn-in around the initial guess model parameters -
-    either minuit or user supplied values/defaults. Model parameters may be
-    frozen/fixed. Parameters can have bounds limiting their range.
+    Returns
+    -------
+    free_param_names : list
+        names of parameters that were fit for. Names correspond to keys in
+        ``params`` and the order of parameters in ``samples``.
+    samples : array-like
+        The flattened Markov Chain with the parameter positions.
+        Shape is ``(ntemps*nwalkers*nprod, nparam)``
+    samples_lnprob : array-like
+        The flattened log of the posterior corresponding to the positions in
+        ``samples``. Shape is ``(ntemps*nwalkers*nprod, 1)``
+    everyn :  int 
+        Specifies sampling of the data used to compute the posterior. Provided
+        in case we are using ``resume`` to continue the chain, and this value
+        must be restored from the state file, rather than being supplied as a
+        user input.
+    shape : tuple
+        Specifies the shape of the un-flattened chain.
+        ``(ntemps, nwalkers, nprod, nparam)``
+        Provided in case we are using ``resume`` to continue the chain, and
+        this value must be restored from the state file, rather than being
+        supplied as a user input.
 
-    The WDmodel_Posterior class implements additional priors on
-    parameters. See there for details.
+    Raises
+    ------
+    RuntimeError
+        If ``resume`` is set without the chain having been run in the first
+        place.
 
-    pool controls if the process is run with MPI or single threaded.  If pool
-    is an MPIPool object and the process is started with mpirun, the tasks are
-    divided amongst the MPI processes.
+    Notes
+    -----
+        Uses an Ensemble MCMC (implemented by emcee) to generate samples from
+        the posterior. Does a short burn-in around the initial guess model
+        parameters - either :py:mod:`minuit` or user supplied values/defaults.
+        Model parameters may be frozen/fixed. Parameters can have bounds
+        limiting their range. Then runs a full production change. Chain state
+        is saved after every 100 production steps, and may be continued after
+        the first 100 steps if interrupted or found to be too short. Progress
+        is indicated visually with a progress bar that is written to STDOUT.
 
-    Incrementally saves the chain if run single-threaded
+    See Also
+    --------
+    :py:mod:`WDmodel.likelihood`
+    :py:mod:`WDmodel.covariance`
     """
 
     outfile = io.get_outfile(outdir, specfile, '_mcmc.hdf5', check=True, redo=redo, resume=resume)
@@ -544,8 +794,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
     # get the starting position and the scales for each parameter
     init_p0  = lnlike.get_parameter_dict()
-    p0       = init_p0.values()
-    free_param_names = init_p0.keys()
+    p0       = list(init_p0.values())
+    free_param_names = list(init_p0.keys())
     std = [params[x]['scale'] for x in free_param_names]
 
     # create a sample ball
@@ -585,7 +835,7 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     if samptype != 'ensemble':
         inpos = pos.reshape(ntemps*nwalkers, nparam)
         if pool is None:
-            lnprob0 = map(lnpost, inpos)
+            lnprob0 = list(map(lnpost, inpos))
         else:
             lnprob0 = pool.map(lnpost, inpos)
 
@@ -618,9 +868,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         sampler.reset()
 
         lnlike.set_parameter_vector(p1)
-        print "\nMAP Parameters after Burn-in"
+        message = "\nMAP Parameters after Burn-in"
+        print(message)
         for k, v in lnlike.get_parameter_dict().items():
-            print "{} = {:f}".format(k,v)
+            message = "{} = {:f}".format(k,v)
+            print(message)
 
         # adjust the walkers to start around the MAP position from burnin
         pos = emcee.utils.sample_ball(p1, std, size=ntemps*nwalkers)
@@ -646,17 +898,17 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         chain.attrs["laststep"] = laststep
 
         # save the parameter names corresponding to the chain
-        free_param_names = np.array(free_param_names)
-        dt = free_param_names.dtype.str.lstrip('|')
-        chain.create_dataset("names",data=free_param_names, dtype=dt)
+        free_param_names = np.array([str(x) for x in free_param_names])
+        dt = free_param_names.dtype.str.lstrip('|').replace('U','S')
+        chain.create_dataset("names",data=free_param_names.astype(np.string_), dtype=dt)
 
         # save the parameter configuration as well
         # this is redundant, since it is saved in the JSON file, but having it one place is nice
         names = lnlike.get_parameter_names(include_frozen=True)
-        names = np.array(names)
-        dt = names.dtype.str.lstrip('|')
+        names = np.array([str(x) for x in names])
+        dt = names.dtype.str.lstrip('|').replace('U','S')
         par_grp = outf.create_group("params")
-        par_grp.create_dataset("names",data=names, dtype=dt)
+        par_grp.create_dataset("names",data=names.astype(np.string_), dtype=dt)
         for param in params:
             this_par = par_grp.create_group(param)
             this_par.attrs["value"]  = params[param]["value"]
@@ -680,8 +932,11 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         # and that we have the state of the chain when we ended
         try:
-            with open(statefile) as f:
-                position, lnpost, rstate = pickle.load(f)
+            with open(statefile, 'rb') as f:
+                pickle_kwargs = {}
+                if sys.version_info[0] > 2:
+                    pickle_kwargs['encoding'] = 'latin-1'
+                position, lnpost, rstate = pickle.load(f, **pickle_kwargs)
         except (IOError, OSError) as e:
             message = '{}\nMust run fit to generate mcmc chain state pickle before attempting to resume'.format(e)
             raise RuntimeError(message)
@@ -697,7 +952,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         sampler_kwargs['lnprob0']=lnpost
         pos = position
 
-        print "Resuming from iteration {} for {} steps".format(laststep, nprod)
+        message = "Resuming from iteration {} for {} steps".format(laststep, nprod)
+        print(message)
 
     # write to disk before we start
     outf.flush()
@@ -726,8 +982,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
                 outf.flush()
 
                 # save the state of the chain
-                with open(statefile, 'w') as f:
-                    pickle.dump(result, f, -1)
+                with open(statefile, 'wb') as f:
+                    pickle.dump(result, f, 2)
 
             bar.show(j+1)
             j+=1
@@ -735,15 +991,15 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         # save the final state of the chain and nprod, laststep
         chain.attrs["nprod"]    = laststep+nprod
         chain.attrs["laststep"] = laststep+nprod
-        with open(statefile, 'w') as f:
-            pickle.dump(result, f, -1)
+        with open(statefile, 'wb') as f:
+            pickle.dump(result, f, 2)
 
     # save the acceptance fraction
     if resume:
-        if "afrac" in chain.keys():
+        if "afrac" in list(chain.keys()):
             del chain["afrac"]
         if samptype != 'ensemble':
-            if "tswap_afrac" in chain.keys():
+            if "tswap_afrac" in list(chain.keys()):
                 del chain["tswap_afrac"]
     chain.create_dataset("afrac", data=sampler.acceptance_fraction)
     if samptype != 'ensemble' and ntemps > 1:
@@ -766,11 +1022,14 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
     max_ind = tuple(max_ind)
     p_final = map_samples[max_ind]
     lnlike.set_parameter_vector(p_final)
-    print "\nMAP Parameters after Production"
+    message = "\nMAP Parameters after Production"
+    print(message)
 
     for k, v in lnlike.get_parameter_dict().items():
-        print "{} = {:f}".format(k,v)
-    print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+        message = "{} = {:f}".format(k,v)
+        print(message)
+    message = "Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction))
+    print(message)
 
     # return the parameter names of the chain, the positions, posterior, and the shape of the chain
     return  free_param_names, samples, samples_lnprob, everyn, (ntemps, nwalkers, laststep+nprod, nparam)
@@ -781,27 +1040,50 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
     """
     Get the marginalized parameters from the sample chain
 
-    Accepts
-        param_names: ordered vector of parameter names, corresponding to each of the dimensions of sample
-        samples: flat chain (nwalker*nprod, ndim) array of walker positions
-        samples_lnprob: flat chain (nwalker*nprod) array of log likelihood corresponding to sampler position
-        params: dict of parameters with keywords value, fixed, bounds for each
+    Parameters
+    ----------
+    param_names : list
+        names of parameters that were fit for. Names correspond to keys in
+        ``params`` and the order of parameters in ``samples``.
+    samples : array-like
+        The flattened Markov Chain with the parameter positions.
+        Shape is ``(ntemps*nwalkers*nprod, nparam)``
+    samples_lnprob : array-like
+        The flattened log of the posterior corresponding to the positions in
+        ``samples``. Shape is ``(ntemps*nwalkers*nprod, 1)``
+    params : dict
+        A parameter dict such as that produced by
+        :py:func:`WDmodel.io.read_params`
+    ntemps : int
+        The number of temperatures chains were run at. Default is ``1.``
+    nwalkers : int
+        The number of `Goodman and Weare walkers
+        <http://msp.org/camcos/2010/5-1/p04.xhtml>`_ used in the fit. Default
+        is ``300``.
+    nprod : int
+        The number of production steps in the Markov-Chain. Default is ``1000``.
+    discard : int
+        percentage of nprod steps from the start of the chain to discard in
+        analyzing samples
 
-        The following keyword arguments should be consistent with the call to fit_model/mpifit_model
-            ntemps: number of temperatures
-            nwalkers: number of walkers
-            nprod:  number of steps
+    Returns
+    -------
+    mcmc_params : dict
+        The output parameter dictionary with updated parameter estimates,
+        errors and a scale. 
+        ``params``.
+    out_samples : array-like
+        The flattened Markov Chain with the parameter positions with the first
+        ``%discard`` tossed.
+    out_ samples_lnprob : array-like
+        The flattened log of the posterior corresponding to the positions in
+        ``samples`` with the first ``%discard`` samples tossed.
 
-        Finally, even with the burn-in, the walkers may be tightly correlated
-        initially, so the discard keyword allows a percentage of the nprod
-        steps to be discarded.
-            discard: percentage of nprod steps to discard
-
-    Returns dictionary with the marginalized parameter values and errors,
-    filtered flat chain of sampler position, filtered flat chain of log
-    likelihood corresponding to sampler position
-
+    See Also
+    --------
+    :py:func:`fit_model`
     """
+
     ndim = len(param_names)
 
     in_samp   = samples.reshape(ntemps, nwalkers, nprod, ndim)
@@ -837,5 +1119,6 @@ def get_fit_params_from_samples(param_names, samples, samples_lnprob, params,\
             params[param]['errors_pm'] = (0., 0.)
         else:
             # this should never happen, unless the state of the files was changed
-            print "Huh.... {} not marked as fixed but was not fit for...".format(param)
+            message = "Huh.... {} not marked as fixed but was not fit for...".format(param)
+            print(message)
     return params, in_samp[mask,:], in_lnprob[mask]

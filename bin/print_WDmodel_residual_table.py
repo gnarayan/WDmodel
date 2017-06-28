@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+"""
+Print photometry residuals for WDmodel fits stored in outdir for the specified
+specfiles to a table
+"""
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import sys
 import argparse
 import warnings
@@ -41,11 +48,11 @@ def main(inargs=None):
     pbs = pbs.split(',')
 
     for specfile in specfiles:
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=args.outdir)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=args.outdir, resume=True)
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
         try:
             phot = WDmodel.io.read_phot(outfile)
-        except IOError, e:
+        except IOError as e:
             message = 'Could not get results for {}({}) from outfile {}'.format(objname, specfile, outfile)
             warnings.warn(message)
             params = None
@@ -76,6 +83,7 @@ def main(inargs=None):
                 this_out.append(phot.res_mag[m][0])
         colbool=True
         out.append(this_out)
+    colnames = [str(x) for x in colnames]
     out = np.rec.fromrecords(out, names=colnames)
     out.sort()
     precision = [None, None] + [4,4,4,4]*len(pbs)
