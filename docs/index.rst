@@ -8,7 +8,7 @@ Welcome to WDmodel's documentation!
 
 .. automodule:: WDmodel
 
-.. include:: preamble.rst
+.. include:: ../README.rst
 
 This document will help get you up and running with the ``WDmodel`` package. 
 
