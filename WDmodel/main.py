@@ -98,6 +98,7 @@ def main(inargs=None):
     photfile  = args.photfile
     rvmodel   = args.reddeningmodel
     phot_dispersion = args.phot_dispersion
+    pbfile    = args.pbfile
     excludepb = args.excludepb
     ignorephot= args.ignorephot
 
@@ -205,7 +206,7 @@ def main(inargs=None):
             pbnames = []
 
     # get the throughput model
-    pbs = passband.get_pbmodel(pbnames, model)
+    pbs = passband.get_pbmodel(pbnames, model, pbfile=pbfile)
 
 
     ##### MINUIT #####

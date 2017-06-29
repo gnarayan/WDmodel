@@ -123,6 +123,8 @@ def get_options(args, comm):
             help="Specify functional form of reddening law" )
     phot.add_argument('--phot_dispersion', required=False, type=float, default=0.003,\
             help="Specify a flat photometric dispersion error in mag to add in quadrature to the measurement errors")
+    phot.add_argument('--pbfile', required=False,  default=None,\
+            help="Specify file containing mapping from passband to pysynphot obsmode")
     phot.add_argument('--excludepb', nargs='+',\
             help="Specify passbands to exclude" )
     phot.add_argument('--ignorephot',  required=False, action="store_true", default=False,\
