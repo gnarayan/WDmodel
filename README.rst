@@ -18,7 +18,7 @@ standards, GD71, GD153 and G191B2B.
 Click on the badge below for installation and usage instructions, as well as
 package documentation:
 
-.. image:: http://readthedocs.org/projects/wdmodel/badge/?version=latest :target: http://wdmodel.readthedocs.io/en/latest/?badge=latest :alt: Documentation Status
+|docs|
 
 The code has been tested on Python 2.7 and 3.6 on both OS X (El Capitan and
 Sierra) and Liniux (Debian-derivatives). Send us email or open an issue if you
@@ -46,3 +46,9 @@ That analysis used custom IDL routines from Jay Holberg (U. Arizona) to
 infer DA intrinsic parameters and custom python code to fit the
 reddening parameters. This code is intended to (significantly) improve
 on that analysis
+
+
+.. |docs| image:: http://readthedocs.org/projects/wdmodel/badge/?version=latest
+    :alt: Documentation Status
+    :scale: 120%
+    :target: http://wdmodel.readthedocs.io/en/latest/?badge=latest
