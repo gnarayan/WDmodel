@@ -10,6 +10,9 @@ Welcome to WDmodel's documentation!
 
 .. include:: ../README.rst
 
+Help
+====
+
 This document will help get you up and running with the ``WDmodel`` package. 
 
 For the most part, you can simply execute code in grey boxes to get things up
