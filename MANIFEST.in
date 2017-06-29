@@ -1,7 +1,7 @@
-include WDmodel/TlustGrids.hdf5
+include WDmodel/TlustyGrids.hdf5
 include WDmodel/WDmodel_param_defaults.json
-include data/spectable_resolution.dat
-include data/test.flm
+include data/spectroscopy/spectable_resolution.dat
+include data/spectroscopy/test.flm
 include README.rst
 include LICENSE
 include docs/
