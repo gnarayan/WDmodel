@@ -10,7 +10,7 @@ About
 ``WDmodel`` is a DA White Dwarf model atmosphere fitting code. It fits observed
 spectrophotometry of DA White Dwarfs to infer intrinsic model atmosphere
 parameters in the presence of dust and correlated spectroscopic flux
-calibration errors, thereby determining full SEDs for the white dwarf. It's
+calibration errors, thereby determining full SEDs for the white dwarf. Its
 primary scientific purpose is to establish a network of faint (V = 16.5--19
 mag) standard stars, suitable for LSST and other wide-field photometric
 surveys, and tied to HST and the CALSPEC system, defined by the three primary
@@ -34,7 +34,7 @@ Compatability
 -------------
 
 The code has been tested on Python 2.7 and 3.6 on both OS X (El Capitan and
-Sierra) and Liniux (Debian-derivatives). Send us email or open an issue if you
+Sierra) and Linux (Debian-derivatives). Send us email or open an issue if you
 need help!
 
 Analysis
@@ -49,7 +49,7 @@ You can read the first version of our analysis of four of the Cycle 20
 objects
 `here <http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:1603.03825>`__
 
-That analysis was intendeded as a proof-of-concept and used custom IDL routines
+That analysis was intended as a proof-of-concept and used custom IDL routines
 from Jay Holberg (U. Arizona) to infer DA intrinsic parameters and custom
 python code to fit the reddening parameters. This code is intended to
 (significantly) improve on that analysis.

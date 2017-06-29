@@ -109,7 +109,7 @@ Setting the initial state
 
 The fitter really runs minuit to refine initial supplied guesses for
 parameters. Every now at then, the guess prior to running minuit is so far off
-that you get rubbish out of minuit. This can be fixed by explictly supplying a
+that you get rubbish out of minuit. This can be fixed by explicitly supplying a
 better initial guess. Of course, if you do that, you might wonder why even
 bother with minuit, and may wish to skip it entirely. This can be disabled with
 the ``--skipminuit`` option.  If ``--skipminuit`` is used, a dl guess **MUST**
@@ -140,7 +140,7 @@ Resuming the fit
 
 If the sampling needs to be interrupted, or crashes for whatever reason, the
 state is saved every 100 steps, and the sampling can be restarted with
-``--resume``. Note that you must have run at least the burnin and 100 steps for
+``--resume``. Note that you must have run at least the burn in and 100 steps for
 it to be possible to resume, and the state of the data, parameters, or chain
 configuration should not be changed externally (if they need to be use
 ``--redo`` and rerun the fit). You can increase the length of the chain, and
