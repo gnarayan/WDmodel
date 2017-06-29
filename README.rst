@@ -6,7 +6,7 @@ WDmodel
 About
 -----
 
-This is a DA White Dwarf model atmosphere fitting code. It fits observed
+``WDmodel`` is a DA White Dwarf model atmosphere fitting code. It fits observed
 spectrophotometry of DA White Dwarfs to infer intrinsic model atmosphere
 parameters in the presence of dust and correlated spectroscopic flux
 calibration errors, thereby determining full SEDs for the white dwarf. It's

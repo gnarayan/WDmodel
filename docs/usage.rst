@@ -29,8 +29,8 @@ This is the TL;DR version to get up and running.
 
 .. _data:
 
-1. GET THE DATA
-~~~~~~~~~~~~~~~
+1. Get the data:
+~~~~~~~~~~~~~~~~
 
 Instructions will be available here when the paper is accepted. In the meantime
 there's a single test object in the spectroscopy directory. If you want more,
@@ -38,8 +38,8 @@ Write your own HST proposal! :-P
 
 .. _singlethread:
 
-2. Run a fit single threaded
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. Run a fit single threaded:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: console
 
@@ -52,8 +52,8 @@ A more reasonable way to run things fast is to use mpi.
 
 .. _mpipool:
 
-3. Run as an MPI process
-~~~~~~~~~~~~~~~~~~~~~~~~
+3. Run a fit as an MPI process:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: console
 
