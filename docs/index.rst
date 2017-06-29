@@ -9,13 +9,13 @@ Welcome to WDmodel's documentation!
 .. automodule:: WDmodel
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
    :titlesonly:
 
    Installation <installation>
-   Usage Notes <usage>
-   source/modules.rst
+   Usage <usage>
+   Package documentation <source/modules.rst>
 
 
 Indices and tables

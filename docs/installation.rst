@@ -1,184 +1,105 @@
+Installing WDmodel
+------------------
+.. highlight:: guess
+
+This document will step you through getting the ``WDmodel`` package installed
+on your system.
+
+.. toctree::
+   :maxdepth: 3
+
+* :ref:`Installation instructions <install>`
+   - :ref:`Get python <python>`
+   - :ref:`Get the code <code>`
+   - :ref:`Install everything <package>`
+   - :ref:`Get auxillary pysynphot files <synphot>`
+
+* :ref:`Some extra notes <notes>`
+
+
+.. _install:
+
+=========================
 Installation Instructions
--------------------------
+=========================
+
+Here's a minimal set of instructions to get up and running. We will eventually
+get this package up on PyPI and conda-forge, and that should make this even
+easier.
+
+.. _python:
+
+0. Install python:
+~~~~~~~~~~~~~~~~~~
+We recommend using the anaconda python distribution to run this package. If you
+don't have it already, follow the instructions `here
+<https://conda.io/docs/install/quick.html#linux-miniconda-install>`__
+    
+**Make sure you added the conda/bin dir to your path!**
+
+If you elect to use your system python, or some other distribution, we will
+assume you know what you are doing, and you can, skip ahead. 
+
+.. _code:
 
 1. Get the code:
 ~~~~~~~~~~~~~~~~
 
 Clone this repository
 
--  ``git clone https://github.com/gnarayan/WDmodel.git``
+.. code-block:: console
 
+   git clone https://github.com/gnarayan/WDmodel.git
+   cd WDmodel
 
-2. Get the python environment configured:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-We recommend using the anaconda python distribution.
+.. _package:
 
-If you elect to use your system python, or some other distribution, skip ahead to step3_.
+2. Install everything:
+~~~~~~~~~~~~~~~~~~~~~~
 
-1. To install with miniconda/anaconda, follow instructions `here <https://conda.io/docs/install/quick.html#linux-miniconda-install>`__
+ a. Create a new environment from specification
 
-**Make sure you added the conda/bin dir to your path!**
+    .. code-block:: console
 
-2. Edit your condarc to have channels for all the packages. 
-  
-    We've included an example version which you can copy to your home directory,
-    else edit your own appropriately. Note that in an ideal world, the same package
-    version from a different channel will work identically. The world is seldom
-    ideal.
+      conda env create -f docs/envs/conda_environment_py27_[osx64|i686].yml
 
-    - ``cp WDmodel/docs/condarc.example ~/.condarc``
-
-3. Create a new environment from specification
-
-    - ``conda env create -f WDmodel/docs/conda_environment_py27_[osx64|i686].yml``
-
-    You can now skip over step 5!
-
-    *or*  
+ *or*  
     
-    Create a new environment from scratch
+ b. Create a new environment from scratch
 
-    - ``conda create -n WDmodel``
-    - ``source activate WDmodel``
+  .. code-block:: console
 
-    *or*
+    cp docs/condarc.example ~/.condarc
+    conda create -n WDmodel
+    source activate WDmodel
+    conda install --yes --file requirements.txt
 
-    Else if you want astroconda, follow the instructions `here <https://astroconda.readthedocs.io/en/latest/>`__
-
-    -  ``source activate astroconda``
-
+.. _synphot:
 
 3. Get the latest HST CDBS files:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. _step3:
 
 These are available over FTP from
 [ftp://archive.stsci.edu/pub/hst/pysynphot/]
 
-Untar them, and set the ``PYSYN_CDBS`` environment variable
+Untar them wherever you like, and set the ``PYSYN_CDBS`` environment variable
 
--  ``export PYSYN_CDBS=place_you_untarred_the_files``
+.. code-block:: console
 
+ export PYSYN_CDBS=place_you_untarred_the_files
 
-4. cd to directory you git cloned:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _notes:
 
-Yes, we got email about this step, so we are including it explictly.
+=====
+Extra
+=====
 
--  ``cd WDmodel``
-  
+The instructions should be enough to get up and running, even without ``sudo``
+privileges. There's a few edge cases on cluster environments though. These
+notes may help:
 
-5. Install other requirements:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. toctree::
+   :maxdepth: 2 
 
-If you did not create your environment with the ``conda_environment_py27.yml``
-file, then you will need to install the other requirements.
-
-Install all the packages with conda
-
-    - ``conda install --yes --file requirements.txt``
-
-    *or*
-
-    - install eigen3 headers and your favorite flavor of mpi. See the notes_ at end.
-    - ``pip install -r requirements.txt``
-
-
-6. GET THE DATA:
-~~~~~~~~~~~~~~~~
-
-Instructions will be available here when the paper is accepted. In the meantime
-there's a single test object in the spectroscopy directory. If you want more,
-Write your own HST proposal! :-P
-
-
-7. Run a fit single threaded:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
--  ``./fit_WDmodel.py --specfile data/spectroscopy/yourfavorite.flm``
-
-This option is single threaded and slow, but useful to testing or quick
-exploratory analysis.
-
-A more reasonable way to run things fast is to use mpi.
-
-
-8. Run as an MPI process:
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
--  ``mpirun -np 8 fit_WDmodel.py --mpi --specfile=file.flm [--ignorephot]``
-
-Note that ``--mpi`` **MUST** be specified in the options to
-``fit_WDmodel.py`` and you must start the process with ``mpirun``
-
-
-Some extra notes: 
------------------
-.. _notes: 
-
-If you followed the installation process detailed above, you shouldn't need
-these notes.
-
-Installing eigen3:
-~~~~~~~~~~~~~~~~~~
-
-if eigen3 isn't on your system, install it with conda:
-
--  ``conda install -c conda-forge eigen``
-
-or for OS X do:
-
--  ``brew install eigen``
-
-or on a linux system with apt:
-
--  ``apt-get install libeigen3-dev``
-
-or compile it from `source <http://eigen.tuxfamily.org/index.php?title=Main_Page>`__
-
-
-Installing OpenMPI and mpi4py:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-if no mpi is on your system, install it with conda (along with mpi4py)
-
-- ``conda install -c mpi4py mpich mpi4py``
-
-or for OS X do:
-
-- ``brew install [mpich|mpich2|open-mpi]``
-
-on a linux system with apt:
-
--  ``apt-get install openmpi-bin``
-
-and if you had to resort to brew or apt, then finish with: 
-
--  ``pip install mpi4py``
-
-
-Notes from installing on the Odyssey cluster at Harvard:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-These may be of use to get the code up and running with MPI on some
-other cluster. Good luck.
-
-Odyssey uses the lmod system for module management, like many other clusters
-You can ``module spider openmpi`` to find what the openmpi modules. 
-
-The advantage to using this is distributing your computation over multiple
-nodes. The disadvantage is that you have to compile mpi4py yourself against
-the cluster mpi.
-
--  ``module load gcc/6.3.0-fasrc01 openmpi/2.0.2.40dc0399-fasrc01``
--  ``wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-2.0.0.tar.gz``
--  ``tar xvzf mpi4py-2.0.0.tar.gz``
--  ``cd mpi4py-2.0.0``
--  ``python setup.py build --mpicc=$(which mpicc)``
--  ``python setup.py build_exe --mpicc="$(which mpicc) --dynamic"``
--  ``python setup.py install``
-
-Note that if the cluster has eigen3 include files already, you might want to
-compile celerite against them, instead of the conda version. To do that:
-
--  ``pip install celerite --global-option=build_ext --global-option=-I/path/to/eigen3``
+   extra
+..
