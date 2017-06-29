@@ -18,15 +18,26 @@
 #
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('..'))
-from unittest.mock import MagicMock
+
+try:
+    from unittest.mock import MagicMock
+except ImportError as e:
+    from mock import Mock as MagicMock
 
 class Mock(MagicMock):
     @classmethod
     def __getattr__(cls, name):
             return MagicMock()
 
-MOCK_MODULES = ['numpy', 'scipy','iminuit','pysynphot','emcee','celerite','matplotlib','astropy','mpi4py','corner']
+MOCK_MODULES = ['numpy',
+                'scipy','iminuit','pysynphot','emcee','celerite','matplotlib','astropy','mpi4py','corner',
+                'h5py','uncertainties', 'scipy.stats', 'emcee.utils', 'matplotlib.mlab', 'matplotlib.pyplot', 
+                'celerite.modeling', 'extinction','numpy.polynomial','numpy.polynomial.polynomial','scipy.interpolate',
+                'scipy.ndimage','scipy.ndimage.filters', 'matplotlib.gridspec', 'astropy.visualization',
+                'emcee.autocorr','scipy.signal','astropy.constants','emcee.ptsampler','matplotlib.backends',
+                'matplotlib.backends.backend_pdf', 'matplotlib.font_manager']
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
