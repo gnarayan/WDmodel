@@ -33,7 +33,7 @@ Click on the badges above  for code, licensing and documentation.
 Compatability
 -------------
 
-The code has been tested on Python 2.7 and 3.6 on both OS X (El Capitan and
+The code has been tested on Python 2.7 and 3.5 on both OS X (El Capitan and
 Sierra) and Linux (Debian-derivatives). Send us email or open an issue if you
 need help!
 
