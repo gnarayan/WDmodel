@@ -61,7 +61,7 @@ Clone this repository
 
     .. code-block:: console
 
-      conda env create -f docs/envs/conda_environment_py27_[osx64|i686].yml
+      conda env create -f docs/env/conda_environment_py27_[osx64|i686].yml
 
  *or*  
     
@@ -69,7 +69,7 @@ Clone this repository
 
   .. code-block:: console
 
-    cp docs/condarc.example ~/.condarc
+    cp docs/env/condarc.example ~/.condarc
     conda create -n WDmodel
     source activate WDmodel
     conda install --yes --file requirements.txt
