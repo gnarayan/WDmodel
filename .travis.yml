@@ -24,17 +24,17 @@ before_install:
 install:
     - conda update setuptools
     - conda install --yes python=$TRAVIS_PYTHON_VERSION 
+    - conda install --yes coverage coveralls
     - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
           conda install --yes --file dependencies_py27.txt;
       else
           pip install iminuit;
           conda install --yes --file dependencies_py36.txt;
-          conda install --yes coveralls;
       fi
     - python setup.py install
 # Run tests
 script:
-    - ./test.sh
+    - ./test.sh -c
 # Run coveralls
 after_success:
     - if [[ $TRAVIS_PYTHON_VERSION == 3.6 ]]; then coveralls; fi

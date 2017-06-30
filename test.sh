@@ -3,12 +3,10 @@ set -ev
 if [ "$1" = -c ]; then
     RUNNER="coverage run -p --source=WDmodel"
     ARUNNER="coverage run -a --source=WDmodel"
-    TRUNNER="coverage run -p"
     echo "travis_fold:start:FIT Fitting test data"
 else
-    RUNNER=python
-    ARUNNER=python
-    TRUNNER=python
+    RUNNER="python"
+    ARUNNER="python"
 fi
 
 mpirun -np 4 $RUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot --rebin 2 --everyn 3 --nprod 100 --mpi --redo 
