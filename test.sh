@@ -11,11 +11,11 @@ else
     TRUNNER=python
 fi
 
-mpirun -np 4 $RUNNER -m WDmodel --specfile WDmodel/tests/test.flm --photfile WDmodel/tests/test.phot --rebin 2 --everyn 3 --nprod 100 --mpi --redo 
+mpirun -np 4 $RUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot--rebin 2 --everyn 3 --nprod 100 --mpi --redo 
 if [ "$1" = -c ]; then
     coverage combine
 fi
-$ARUNNER -m WDmodel --specfile WDmodel/tests/test.flm --photfile WDmodel/tests/test.phot --nprod 100 --resume
+$ARUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot --nprod 100 --resume
 
 if [ "$1" = -c ]; then
     echo "travis_fold:end:FIT Fitting test data done"
