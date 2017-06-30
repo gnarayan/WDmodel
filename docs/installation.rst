@@ -13,6 +13,7 @@ on your system.
    - :ref:`Get the code <code>`
    - :ref:`Install everything <package>`
    - :ref:`Get auxillary pysynphot files <synphot>`
+   - :ref:`Install the code  <finalize>`
 
 * :ref:`Some extra notes <notes>`
 
@@ -61,7 +62,7 @@ Clone this repository
 
     .. code-block:: console
 
-      conda env create -f docs/env/conda_environment_py27_[osx64|i686].yml
+      conda env create -f docs/env/conda_environment_py[27|36]_[osx64|i686].yml
 
  *or*  
     
@@ -72,7 +73,7 @@ Clone this repository
     cp docs/env/condarc.example ~/.condarc
     conda create -n WDmodel
     source activate WDmodel
-    conda install --yes --file requirements.txt
+    conda install --yes --file dependencies_py[27|36].txt
 
 .. _synphot:
 
@@ -87,6 +88,16 @@ Untar them wherever you like, and set the ``PYSYN_CDBS`` environment variable
 .. code-block:: console
 
  export PYSYN_CDBS=place_you_untarred_the_files
+
+.. _finalize:
+
+4. Install the package [optional]:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: console
+
+  python setup.py install
+
 
 .. _notes:
 

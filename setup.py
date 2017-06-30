@@ -8,7 +8,7 @@ import glob
 
 from setuptools import find_packages, setup
 
-with open('requirements.txt','r') as f:
+with open('dependencies_py27.txt','r') as f:
     required = f.read().splitlines()
 
 dir_path = os.path.dirname(os.path.realpath(__file__))

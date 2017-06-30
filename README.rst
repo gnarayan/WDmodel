@@ -1,7 +1,7 @@
 WDmodel
 =======
 
-**Copyright 2017- Gautham Narayan (gnarayan@noao.edu)**
+**Copyright 2017- Gautham Narayan (gsnarayan@gmail.com)**
 
 About
 -----

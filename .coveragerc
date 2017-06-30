@@ -1,0 +1,7 @@
+[run]
+omit=
+    WDmodel/mossampler.py
+
+[report]
+omit=
+    WDmodel/mossampler.py

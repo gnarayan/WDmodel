@@ -43,7 +43,7 @@ Write your own HST proposal! :-P
 
 .. code-block:: console
 
-   ./fit_WDmodel.py --specfile data/spectroscopy/yourfavorite.flm
+   fit_WDmodel --specfile data/spectroscopy/yourfavorite.flm
 
 This option is single threaded and slow, but useful to testing or quick
 exploratory analysis.
@@ -57,10 +57,10 @@ A more reasonable way to run things fast is to use mpi.
 
 .. code-block:: console
 
-   mpirun -np 8 fit_WDmodel.py --mpi --specfile=file.flm [--ignorephot]
+   mpirun -np 8 fit_WDmodel --mpi --specfile=file.flm [--ignorephot]
 
 Note that ``--mpi`` **MUST** be specified in the options to
-``fit_WDmodel.py`` and you must start the process with ``mpirun``
+``WDmodel`` and you must start the process with ``mpirun``
 
 
 .. _argparse:
@@ -148,3 +148,16 @@ chain the visualization options when you ``--resume`` but the state of
 everything else is restored.
 
 You can get a summary of all available options with ``--help``
+
+.. _extraroutines:
+
+Useful routines
+~~~~~~~~~~~~~~~
+
+There are a few useful routines included in the ``WDmodel`` package. Using
+``WDmodel`` itself will do the same thing as ``fit_WDmodel``. If you need to
+look at results from a large number of fits, ``print_WDmodel_result_table`` and
+``print_WDmodel_residual_table`` will print out tables of results and
+residuals. ``make_WDmodel_slurm_batch_scripts`` provides an example script to
+generate batch scripts for the SLURM system used on Harvard's Odyssey cluster.
+Adapt this for use with other job queue systems or clusters.
