@@ -11,7 +11,7 @@ else
     TRUNNER=python
 fi
 
-mpirun -np 4 $RUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot--rebin 2 --everyn 3 --nprod 100 --mpi --redo 
+mpirun -np 4 $RUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot --rebin 2 --everyn 3 --nprod 100 --mpi --redo 
 if [ "$1" = -c ]; then
     coverage combine
 fi

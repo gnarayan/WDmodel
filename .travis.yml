@@ -29,7 +29,7 @@ install:
       else
           pip install iminuit;
           conda install --yes --file dependencies_py36.txt;
-          conda install coveralls;
+          conda install --yes coveralls;
       fi
     - python setup.py install
 # Run tests
