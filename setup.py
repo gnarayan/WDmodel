@@ -2,9 +2,9 @@
 """
 Setup script for the WDmodel package
 """
-import fnmatch
 import os
 import re
+import glob
 
 from setuptools import find_packages, setup
 
@@ -24,12 +24,10 @@ LICE = r"^__license__ \s+=\s+[\'\"]([A-za-z\s0-9]*)[\'\"]$"
 mo = re.search(LICE, init_string, re.M)
 __license__ = mo.group(1)
 
-matches = []
-for root, dirnames, filenames in os.walk('WDmodel'):
-    for filename in fnmatch.filter(filenames, '*.pyx'):
-        matches.append(os.path.join(root, filename))
-
 long_description = open('README.rst').read()
+
+scripts = glob.glob('bin/*')
+print(scripts)
 
 setup(
     name='WDmodel',
@@ -43,6 +41,7 @@ setup(
                  'faint DA white dwarf spectral energy distributions'
                  'from ground-based spectroscopy and HST photometry' 
 		 'to establish faint CALSPEC spectrophotometric standards.'),
+    scripts = scripts,
     license=__license__,  # noqa
     author=__author__,  # noqa
     author_email='gsnarayan@gmail.com',
