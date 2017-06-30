@@ -9,6 +9,8 @@ from __future__ import unicode_literals
 import numpy as np
 from scipy.stats import norm
 from itertools import cycle
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
