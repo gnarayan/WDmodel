@@ -25,11 +25,11 @@ install:
     - conda update setuptools
     - conda install --yes python=$TRAVIS_PYTHON_VERSION 
     - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-          conda install --yes --file dependencies.txt
+          conda install --yes --file dependencies.txt;
       else
-          pip install iminuit
-          conda install --yes --file dependencies_py36.txt
-          conda install coveralls
+          pip install iminuit;
+          conda install --yes --file dependencies_py36.txt;
+          conda install coveralls;
       fi
     - python setup.py install
 # Run tests
