@@ -1,7 +1,7 @@
 language: python
 python:
     - "2.7"
-    - "3.5"
+      "3.6"
 notifications:
   email: false
 git:
@@ -29,7 +29,7 @@ install:
           conda install --yes --file dependencies_py27.txt;
       else
           pip install iminuit;
-          conda install --yes --file dependencies_py35.txt;
+          conda install --yes --file dependencies_py36.txt;
       fi
     - python setup.py install
 # Run tests

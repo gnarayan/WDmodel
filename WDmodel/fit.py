@@ -261,11 +261,11 @@ def rebin_spec_by_int_factor(spec, f=1):
     if f <= 1:
         return spec
     nwave     = len(spec.wave)
-    rnwave    = nwave/f
+    rnwave    = nwave//f
     # if the spectrum is not perfectly divisible by the f, cut the remainder out
     # divide it evenly between blue and red
     remainder = nwave%f
-    ncut      = remainder/2
+    ncut      = remainder//2
     icut_blue = ncut + (remainder%2)
     icut_red  = nwave - ncut
     ispec     = spec[icut_blue:icut_red]
