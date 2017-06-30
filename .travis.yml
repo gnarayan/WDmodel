@@ -29,7 +29,7 @@ install:
           conda install --yes --file dependencies_py27.txt;
       else
           pip install iminuit;
-          conda install --yes --file dependencies_py36.txt;
+          conda install --yes --file dependencies_py35.txt;
       fi
     - python setup.py install
 # Run tests
