@@ -58,15 +58,16 @@ Clone this repository
 2. Install everything:
 ~~~~~~~~~~~~~~~~~~~~~~
 
- a. Create a new environment from specification
+ a. Create a new environment from specification (Preferred! All dependecies resolved!)
 
     .. code-block:: console
 
       conda env create -f docs/env/conda_environment_py[27|36]_[osx64|i686].yml
+..  
 
- *or*  
+*or*  
     
- b. Create a new environment from scratch
+ b. Create a new environment from scratch (Let conda figure out dependencies and you sort out potential issues) 
 
   .. code-block:: console
 
@@ -83,7 +84,8 @@ Clone this repository
 These are available over FTP from
 [ftp://archive.stsci.edu/pub/hst/pysynphot/]
 
-Untar them wherever you like, and set the ``PYSYN_CDBS`` environment variable
+Untar them wherever you like, and set the ``PYSYN_CDBS`` environment variable.
+You need at least ``synphot1.tar.gz`` and ``synphot6.tar.gz``.
 
 .. code-block:: console
 
