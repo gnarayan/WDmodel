@@ -1207,7 +1207,7 @@ def read_mcmc(input_file):
         param_names                 = d['chain']['names'].value
         param_names                 = np.array([str(x.decode('ascii')) for x in param_names])
         chain_params['param_names'] = param_names
-        chain_params['samptype']    = d['chain'].attrs['samptype'].decode('ascii')
+        chain_params['samptype']    = d['chain'].attrs['samptype']
         chain_params['ntemps']      = d['chain'].attrs['ntemps']
         chain_params['nwalkers']    = d['chain'].attrs['nwalkers']
         chain_params['nprod']       = d['chain'].attrs['nprod']
