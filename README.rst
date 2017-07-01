@@ -37,6 +37,20 @@ The code has been tested on Python 2.7 and 3.6 on both OS X (El Capitan and
 Sierra) and Linux (Debian-derivatives). Send us email or open an issue if you
 need help!
 
+|travis| |python| |coveralls| 
+
+.. |travis| image:: https://travis-ci.org/gnarayan/WDmodel.svg?branch=master
+    :alt: Travis badge
+    :target: https://travis-ci.org/gnarayan/WDmodel
+
+.. |python| image:: https://img.shields.io/badge/python-2.7%2C%203.6-blue.svg
+    :alt: Python badge
+    :target: https://www.python.org/
+
+.. |coveralls| image:: https://coveralls.io/repos/github/gnarayan/WDmodel/badge.svg?branch=master
+    :alt: Coveralls badge
+    :target: https://coveralls.io/github/gnarayan/WDmodel?branch=master
+
 Analysis
 --------
 
@@ -56,9 +70,6 @@ python code to fit the reddening parameters. This code is intended to
 
 TODO
 ----
-
--  More testing with a full testing suite
--  Add Rauch model atmospheres for comparison with Tlusty
--  Push to PyPI
+-  Better test coverage
 -  PUBLISH!
 
