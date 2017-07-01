@@ -35,8 +35,8 @@ before_install:
          wget ftp://archive.stsci.edu/pub/hst/pysynphot/synphot6.tar.gz;
          mv synphot6.tar.gz $HOME/synphot;
       fi
-    - tar -C $HOME -xvzf $HOME/synphot/synphot1.tar.gz
-    - tar -C $HOME -xvzf $HOME/synphot/synphot6.tar.gz
+    - tar -C $HOME -xzf $HOME/synphot/synphot1.tar.gz
+    - tar -C $HOME -xzf $HOME/synphot/synphot6.tar.gz
     - export PYSYN_CDBS=$HOME/grp/hst/cdbs/
 install:
     - conda update setuptools
