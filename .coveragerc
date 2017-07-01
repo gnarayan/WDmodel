@@ -5,3 +5,8 @@ omit=
 [report]
 omit=
     WDmodel/mossampler.py
+exclude_lines=
+    raise
+    message = 
+    warnings.warn
+    except
