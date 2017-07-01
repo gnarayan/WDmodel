@@ -1038,6 +1038,7 @@ def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
     dset_linedata.create_dataset("flux",data=linedata.flux)
     dset_linedata.create_dataset("flux_err",data=linedata.flux_err)
     dset_linedata.create_dataset("line_mask",data=linedata.line_mask)
+    dset_linedata.create_dataset("line_ind",data=linedata.line_ind)
 
     dset_continuumdata = outf.create_group("continuumdata")
     dset_continuumdata.create_dataset("wave",data=continuumdata.wave)
@@ -1125,8 +1126,9 @@ def read_fit_inputs(input_file):
         line_flux = d['linedata']['flux'].value
         line_ferr = d['linedata']['flux_err'].value
         line_mask = d['linedata']['line_mask'].value
-        names=str('wave,flux,flux_err,line_mask')
-        linedata = np.rec.fromarrays([line_wave, line_flux, line_ferr,line_mask], names=names)
+        line_ind  = d['linedata']['line_ind'].value
+        names=str('wave,flux,flux_err,line_mask,line_ind')
+        linedata = np.rec.fromarrays([line_wave, line_flux, line_ferr,line_mask,line_ind], names=names)
 
         cont_wave = d['continuumdata']['wave'].value
         cont_flux = d['continuumdata']['flux'].value

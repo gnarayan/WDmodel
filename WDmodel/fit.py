@@ -120,7 +120,8 @@ def orig_cut_lines(spec, model):
     -------
     linedata : :py:class:`numpy.recarray`
         The observations of the spectrum corresponding to the hydrogen Balmer
-        lines. Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+        lines. 
+        Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4'), (line_ind', 'i4')]``
     continuumdata : :py:class:`numpy.recarray`
         The continuum data. Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
 
@@ -156,8 +157,8 @@ def orig_cut_lines(spec, model):
         line_ind     = np.hstack((line_ind, ZE[0]))
     # continuum data is just the spectrum with the Balmer lines removed
     continuumdata  = (np.delete(wave, line_ind), np.delete(flux, line_ind), np.delete(fluxerr, line_ind))
-    linedata = (line_wave, line_flux, line_fluxerr, line_number)
-    names=str('wave,flux,flux_err,line_mask')
+    linedata = (line_wave, line_flux, line_fluxerr, line_number, line_ind)
+    names=str('wave,flux,flux_err,line_mask,line_ind')
     linedata = np.rec.fromarrays(linedata, names=names)
     names=str('wave,flux,flux_err')
     continuumdata = np.rec.fromarrays(continuumdata, names=names)
@@ -175,7 +176,8 @@ def blotch_spectrum(spec, linedata):
     linedata : :py:class:`numpy.recarray`
         The observations of the spectrum corresponding to the hydrogen Balmer
         lines. 
-        Must have ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4')]``
+        Must have 
+        ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4'), ('line_ind','i4')]``
         Produced by :py:func:`orig_cut_lines`
 
     Returns
@@ -227,8 +229,8 @@ def blotch_spectrum(spec, linedata):
     spec.flux[mask] = med_filt[mask]
 
     # restore the original lines, so that they aren't clipped
-    saveind = linedata[-1]
-    spec.flux[saveind] = linedata[1]
+    saveind = linedata.line_ind
+    spec.flux[saveind] = linedata.flux
     spec.flux[0:window] = blueend
     spec.flux[-window:] = redend
     return spec
