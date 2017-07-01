@@ -10,3 +10,4 @@ exclude_lines=
     message = 
     warnings.warn
     except
+    sys.exit
