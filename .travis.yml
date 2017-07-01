@@ -6,6 +6,9 @@ notifications:
   email: false
 git:
     depth: 3
+cache:
+  directories:
+  - $HOME/synphot
 
 # Setup anaconda
 before_install:
@@ -21,6 +24,20 @@ before_install:
     - conda config --set always_yes yes --set changeps1 no
     - conda update -q conda;
     - cp docs/env/condarc.example $HOME/.condarc
+    - if [[ ! -d "$HOME/synphot" ]]; then
+          mkdir $HOME/synphot;
+      fi
+    - if [[ ! -f "$HOME/synphot/synphot1.tar.gz" ]]; then
+         wget ftp://archive.stsci.edu/pub/hst/pysynphot/synphot1.tar.gz;
+         mv synphot1.tar.gz $HOME/synphot;
+      fi
+    - if [[ ! -f "$HOME/synphot/synphot6.tar.gz" ]]; then
+         wget ftp://archive.stsci.edu/pub/hst/pysynphot/synphot6.tar.gz;
+         mv synphot6.tar.gz $HOME/synphot;
+      fi
+    - tar -C $HOME -xvzf $HOME/synphot/synphot1.tar.gz
+    - tar -C $HOME -xvzf $HOME/synphot/synphot6.tar.gz
+    - export PYSYN_CDBS=$HOME/grp/hst/cdbs/
 install:
     - conda update setuptools
     - conda install --yes python=$TRAVIS_PYTHON_VERSION 
