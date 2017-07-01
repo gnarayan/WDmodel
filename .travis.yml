@@ -29,13 +29,18 @@ before_install:
       fi
     - if [[ ! -f "$HOME/synphot/synphot1.tar.gz" ]]; then
          wget ftp://archive.stsci.edu/pub/hst/pysynphot/synphot1.tar.gz;
-         mv synphot1.tar.gz $HOME/synphot;
+         mv synphot1.tar.gz $HOME/synphot/;
+      fi
+    - if [[ ! -f "$HOME/synphot/synphot2.tar.gz" ]]; then
+         wget ftp://archive.stsci.edu/pub/hst/pysynphot/synphot2.tar.gz;
+         mv synphot2.tar.gz $HOME/synphot/;
       fi
     - if [[ ! -f "$HOME/synphot/synphot6.tar.gz" ]]; then
          wget ftp://archive.stsci.edu/pub/hst/pysynphot/synphot6.tar.gz;
-         mv synphot6.tar.gz $HOME/synphot;
+         mv synphot6.tar.gz $HOME/synphot/;
       fi
     - tar -C $HOME -xzf $HOME/synphot/synphot1.tar.gz
+    - tar -C $HOME -xzf $HOME/synphot/synphot2.tar.gz
     - tar -C $HOME -xzf $HOME/synphot/synphot6.tar.gz
     - export PYSYN_CDBS=$HOME/grp/hst/cdbs/
 install:
