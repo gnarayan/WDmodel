@@ -130,7 +130,7 @@ You can change the sampler type (``-samptype``), number of chain temperatures
 MCMC (``--ascale``). You can also thin the chain (``--thin``) and discard some
 fraction of samples from the start (``--discard``). The default sampler is the
 ensemble sampler from the :py:mod:`emcee` package. For a more conservative
-approach, we recommend the ptsampler with ``ntemps=5``, ``nwalkers=100`,
+approach, we recommend the ptsampler with ``ntemps=5``, ``nwalkers=100``,
 ``nprod=5000`` (or more).
 
 .. _resume:
