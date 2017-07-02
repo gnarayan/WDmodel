@@ -26,6 +26,7 @@ or to configure the fitter.
 
    Installation <installation>
    Usage <usage>
+   Analysis <analysis>
    Package documentation <source/modules.rst>
 
 

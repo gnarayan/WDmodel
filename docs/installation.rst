@@ -63,7 +63,6 @@ Clone this repository
     .. code-block:: console
 
       conda env create -f docs/env/conda_environment_py[27|36]_[osx64|i686].yml
-..  
 
 *or*  
     
@@ -75,6 +74,11 @@ Clone this repository
     conda create -n WDmodel
     source activate WDmodel
     conda install --yes --file dependencies_py[27|36].txt
+
+.. toctree::
+   :maxdepth: 2
+ 
+   env/env_readme
 
 .. _synphot:
 
@@ -115,4 +119,4 @@ notes may help:
    :maxdepth: 2 
 
    extra
-
+   

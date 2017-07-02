@@ -66,9 +66,3 @@ That analysis was intended as a proof-of-concept and used custom IDL routines
 from Jay Holberg (U. Arizona) to infer DA intrinsic parameters and custom
 python code to fit the reddening parameters. This code is intended to
 (significantly) improve on that analysis.
-
-TODO
-----
--  Better test coverage
--  PUBLISH!
-
