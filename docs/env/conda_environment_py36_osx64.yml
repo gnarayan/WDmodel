@@ -1,4 +1,4 @@
-name: temp_py36
+name: WDmodel
 channels:
 - mpi4py
 - defaults
@@ -46,5 +46,5 @@ dependencies:
 - pip:
   - iminuit==1.2
   - mpi4py==2.0.0
-prefix: /Users/gnarayan/anaconda2/envs/temp_py36
+prefix: /Users/gnarayan/anaconda2/envs/WDmodel
 
