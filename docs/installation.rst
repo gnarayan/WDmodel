@@ -58,7 +58,7 @@ Clone this repository
 2. Install everything:
 ~~~~~~~~~~~~~~~~~~~~~~
 
- a. Create a new environment from specification (Preferred! All dependecies resolved!)
+ a. Create a new environment from specification (Preferred! All dependencies resolved!)
 
     .. code-block:: console
 

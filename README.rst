@@ -30,7 +30,7 @@ Click on the badges above  for code, licensing and documentation.
     :alt: Documentation Status
     :target: http://wdmodel.readthedocs.io/en/latest/?badge=latest
 
-Compatability
+Compatibility
 -------------
 |travis| |python| |coveralls| 
 

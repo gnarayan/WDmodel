@@ -523,7 +523,10 @@ def read_model_grid(grid_file=None, grid_name=None):
 
     if grid_file is None:
         grid_file = 'TlustyGrids.hdf5'
-    grid_file = get_pkgfile(grid_file)
+    
+    # if the user specfies a file, check that it exists, and if not look inside the package directory
+    if not os.path.exists(grid_file):
+        grid_file = get_pkgfile(grid_file)
 
     if grid_name is None:
         grid_name = "default"
