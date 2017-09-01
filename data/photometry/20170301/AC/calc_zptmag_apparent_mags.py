@@ -31,7 +31,7 @@ def main():
     pbnames = 'F275W,F336W,F475W,F625W,F775W,F160W'
     pbnames = pbnames.split(',')
     mag_type= 'vegamag'
-    map = np.recfromtxt('../../WDmodel/WDmodel_pb_obsmode_map.txt',names=True)
+    map = np.recfromtxt('../../../../WDmodel/WDmodel_pb_obsmode_map.txt',names=True)
     map = dict(zip(map.pb, map.obsmode))
 
     # load the passbands
