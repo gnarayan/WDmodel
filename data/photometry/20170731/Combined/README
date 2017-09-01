@@ -1,0 +1,15 @@
+WD_cycle22_cycle20new.phot includes the average magnitudes from Cycle20 and
+Cycle22 for the 9 Equatorial WDs, the Cycle22 magnitudes for the 3 CALSPEC WDs
+and the new 14 WDs. ZPs to bring the magnitudes to infinity are indicated in
+the table, as estimated by using the photometry of the 3 Bohlin standard DA WD,
+GD-71, GD-153 and G191B2B.  Cycle22 magnitudes are an average of measurements
+obtained with Sextractor and with ILAPH. There are two different sets of
+errors. The first one, dMag1, is the weighted mean error, while the second,
+dMag2, is the standard deviation of the measurements. The largest of these two
+numbers from Sextractor or ILAPH is used. For the 9 Equatorial WDs, these
+errors are the same for all filters where only 1 epoch was observed excluding
+F275W and F160W, where three images were collected.
+
+Note that Cycle22 photometry is done on the UVIS2 detector and Cycle20 on the
+UVIS1. An offset has been applied to Cycle20 magnitudes before averaging them
+with Cycle22 magnitudes.

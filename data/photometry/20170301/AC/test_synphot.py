@@ -7,6 +7,7 @@ the we don't run into pickling issues with pysynphot by using it.
 """
 import sys
 import os
+import astropy.table as at
 import numpy as np
 import pysynphot as S
 from matplotlib.mlab import rec2txt
@@ -62,8 +63,9 @@ def main():
     vega    = S.Vega
     pbnames = 'F275W,F336W,F475W,F625W,F775W,F160W'
     pbnames = pbnames.split(',')
-    map = np.recfromtxt('../../WDmodel/WDmodel_pb_obsmode_map.txt',names=True)
-    map = dict(zip(map.pb, map.obsmode))
+    map = at.Table.read('../../../../WDmodel/WDmodel_pb_obsmode_map.txt', format='ascii.commented_header',\
+            delimiter=' ',names=('pb','obsmode'))
+    map = dict(zip(map['pb'], map['obsmode']))
 
     mag_vega     = []
     cutpbs       = {}
@@ -109,7 +111,6 @@ def main():
             # and the simple synphot magnitude, using the zeropoint computed from Vega
             this_simp_mag = synphot(this_spec, this_simp_pb, zp=this_zp)
             simp_mag.append(this_simp_mag)
-        print specfile
 
         # print out the magnitudes from pysynphot, simple trapz synphot, and the residuals
         synphot_mag = np.array(synphot_mag)
@@ -122,7 +123,7 @@ def main():
         this_out = ['{}_{}'.format(star,'residual'),] + res.tolist()
         out.append(this_out)
     out = np.rec.fromrecords(out, names=['objphot',]+pbnames)
-    print rec2txt(out, precision=6)
+    print(rec2txt(out, precision=6))
 
 
 if __name__=='__main__':

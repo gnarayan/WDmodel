@@ -1,0 +1,8 @@
+Photometry versions are stored by date, and source (where available)
+AC = Annalisa Calamida
+AS = Abi Saha
+Combined = combined results from AC and AS analysis
+
+The original WD_photC22.dat was solely from AC's analysis and is still available in 20170301
+
+The current working photometry release is 20170731/Combined

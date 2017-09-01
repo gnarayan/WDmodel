@@ -1,0 +1,15 @@
+WD_cycle20.phot  - averaged sextractor Cycle 20 photometry
+WD_cycle22.phot  - averaged sextractor Cycle 22 photometry
+WD_cycle22_cycle20.phot - averaged sextractor Cycle 20 & 22 photometry for Cycle 20 objects correcting for mean offset in each filter
+
+calc_zptmag_apparent_mags.py - script to convert AC photometry to GN format - current
+    propagates covariance between standards into photometry
+dump_apparent_mags.py - script to convert AC photometry to GN format - deprecated
+zeropoint_check.txt - script to track the difference between AC's zeropoints and the ones directly computed from the primary standards
+name_map.dat - name mapping from WDname to proper SDSS name
+
+test_synphot.py - compare internal synthetic photometry routines with pysynphot implementation
+
+WDphot_C22.dat - converted Cycle 22 photometry file for fitting code - computed using calc_zptmag_apparent_mags.py
+WDphot_C22.hdf5 - converted Cycle 22 photometry file with the full covariance matrix
+

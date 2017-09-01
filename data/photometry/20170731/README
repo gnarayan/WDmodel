@@ -1,0 +1,7 @@
+AC = Annalisa Calamida, using sourceextractor w/ r=7.5pix aperture
+AS = Abi Saha, custom ILAPH routine w/ r=7.5pix aperture and sky with annulus from 20--30pix
+Combined = weighted average measurement of AS+AC correcting for some flat
+    offset object-by-object (usually 0.001-0.002 mag) with the bigger of the two
+    errors. I don't actually understand this procedure.
+    Zeropoints are in ZP_all.
+
