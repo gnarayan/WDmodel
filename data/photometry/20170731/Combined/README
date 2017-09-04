@@ -13,3 +13,6 @@ F275W and F160W, where three images were collected.
 Note that Cycle22 photometry is done on the UVIS2 detector and Cycle20 on the
 UVIS1. An offset has been applied to Cycle20 magnitudes before averaging them
 with Cycle22 magnitudes.
+
+Note that ZP_all has two sets of zeropoints - ZP_10 is from AC's calculations,
+ZP_10_2017, are from MAST for a 10pix radius aperture on UVIS2.

@@ -59,6 +59,7 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 # ones.
 extensions = ['sphinx.ext.autodoc',
             'sphinx.ext.mathjax',
+            'sphinx.ext.viewcode',
             'sphinx.ext.intersphinx',
             'sphinx.ext.napoleon']
 
