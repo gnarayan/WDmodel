@@ -1,10 +1,11 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
 Compare old and new apparent magnitudes from AC photometry
 '''
 import sys
 import os
+import numpy as np
 import astropy.table as at
 from astropy.visualization import hist
 import matplotlib.pyplot as plt
@@ -22,7 +23,7 @@ def main():
     fig3 = plt.figure(figsize=(10,15))
 
     cols = 'purple,blue,green,red,orange,black'
-    col_pbs = dict(zip(pbs, cols.split(','))) 
+    col_pbs = dict(zip(pbs, cols.split(',')))
 
     combined = at.join(old, new, keys='obj', table_names=['old','new'])
     print(combined)
@@ -46,10 +47,17 @@ def main():
         ax1.set_xlabel('Old Mag')
         ax1.set_ylabel('New Mag')
 
-        ax2.errorbar(combined[old_key], combined[new_key] - combined[old_key],\
+        deltaMag = combined[new_key] - combined[old_key]
+        ax2.errorbar(combined[old_key], deltaMag,\
                 xerr=combined[old_ekey], yerr = combined[new_ekey],\
                 marker='o', linestyle='None', color=col_pbs[pb], label=pb)
         ax2.axhline(0., marker='None', linestyle='--', color='black', alpha=0.5)
+        mean_deltaMag = deltaMag.mean()
+        std_deltaMag  = deltaMag.std()
+
+        for label, x, y in zip(combined['obj'], combined[old_key], deltaMag):
+            if np.abs(y - mean_deltaMag) > 2.5*std_deltaMag:
+                ax2.annotate(label, (x, y), rotation=90)
         ax2.legend(frameon=False)
         ax2.set_xlabel('Old Mag')
         ax2.set_ylabel('Delta (New - Old) Mag')
