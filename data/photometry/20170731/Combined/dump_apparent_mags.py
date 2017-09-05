@@ -31,6 +31,7 @@ def main():
 
     d = a[0:]
     out = []
+    out_zp = []
     for i, x in enumerate(d):
         this_out = []
         objid = str(x['ID'])
@@ -50,11 +51,21 @@ def main():
             this_out.append(mag.s)
         out.append(this_out)
     names = ['obj']
+    formats = {}
     for p in pb:
+        z = zp[p]
+        dz = zp['d'+p]
+        out_zp.append(z)
+        out_zp.append(dz)
         names.append(p)
         names.append('d'+p)
+        formats[p] = '%7.5f'
+        formats['d'+p] = '%6.5f'
+    out_zp = ['zptmag'] + out_zp
+    out_zp = [tuple(out_zp)]
+    out += out_zp
     out = at.Table(rows=out, names=names)
-    out.write('WDphot_C22_AC_AS_combined.dat',format='ascii.commented_header', overwrite=True)
+    out.write('WDphot_C22_AC_AS_combined.dat',format='ascii.fixed_width', delimiter='  ', bookend=False, overwrite=True, formats=formats)
 
 
 
