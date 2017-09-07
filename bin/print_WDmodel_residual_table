@@ -24,6 +24,8 @@ def get_options(args=None):
 
     parser.add_argument('--specfiles', nargs='+', required=False, \
             help="Specify spectrum to search for")
+    parser.add_argument('--outroot', required=False,
+            help="Specify a custom output root directory. Directories go under outroot/objname/subdir.")
     parser.add_argument('-o', '--outdir', required=False,\
             help="Specify a custom output directory. Default is CWD+objname/ subdir")
     args = parser.parse_args(args=args)
@@ -48,7 +50,7 @@ def main(inargs=None):
     pbs = pbs.split(',')
 
     for specfile in specfiles:
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outdir=args.outdir, resume=True)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, resume=True)
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
         try:
             phot = WDmodel.io.read_phot(outfile)
