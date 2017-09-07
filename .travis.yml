@@ -44,7 +44,7 @@ before_install:
     - tar -C $HOME -xzf $HOME/synphot/synphot6.tar.gz
     - export PYSYN_CDBS=$HOME/grp/hst/cdbs/
 install:
-    - conda update setuptools
+    - conda update --yes setuptools
     - conda install --yes python=$TRAVIS_PYTHON_VERSION 
     - conda install --yes coverage coveralls
     - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
