@@ -1,0 +1,5 @@
+Instead of the time-averaged mags from 20170719, this has individual epochs for sourceextractor, ilaph v1, daophot
+
+Same aperture settings:
+AC = Annalisa Calamida, using sourceextractor w/ r=7.5pix aperture
+AS = Abi Saha, custom ILAPH routine w/ r=7.5pix aperture and sky with annulus from 20--30pix
