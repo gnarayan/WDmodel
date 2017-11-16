@@ -3,6 +3,7 @@ import sys
 import os
 import glob
 import numpy as np
+from astropy.io import ascii
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import seaborn as sns
@@ -145,7 +146,7 @@ def main():
             # make a plot for sanity checking
             fig2, axs = plt.subplots(nrows=n_plot_vars, ncols=2)
             pm.traceplot(trace, ax=axs)
-            fig2.savefig('htrace_ILAPHv3_{}.pdf'.format(pb))
+            fig2.savefig('Figures/htrace_ILAPHv3_{}.pdf'.format(pb))
 
             # get the results
             out = pm.df_summary(trace)
@@ -206,18 +207,19 @@ def main():
         n = name_map.get(n, n)
         out2['objID'][i] = n
 
+    out2.rename_column('objID','obj')
     cols = out2.colnames
     for c in cols:
         if out2[c].dtype == np.float64:
             out2[c].format = '%.6f'
     print(out2)
-    out2.write('ILAPHv3_phot.txt', format='ascii.fixed_width', delimiter='  ', overwrite=True, fill_values=['NaN',])
+    out2.write('WDphot_ILAPHv3.dat', format='ascii.fixed_width', delimiter='  ', overwrite=True, fill_values=[(ascii.masked, 'NaN')])
 
     objID = out['objID']
     nobj = len(objID[nvar:])
 
     fig_big = plt.figure(figsize=(12,12))
-    with PdfPages('ILAPHv3.pdf') as pdf:
+    with PdfPages('Figures/ILAPHv3.pdf') as pdf:
         for j, obj in enumerate(objID[nvar:]):
             fig = plt.figure(figsize=(12, 12))
             for i, pb in enumerate(out_pb_order):
@@ -270,7 +272,7 @@ def main():
             pdf.savefig(fig)
             plt.close(fig)
         fig_big.tight_layout()
-        fig_big.savefig('ILAPHv3_combined.pdf')
+        fig_big.savefig('Figures/ILAPHv3_combined.pdf')
         plt.close(fig_big)
 
 
