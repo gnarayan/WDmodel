@@ -1,0 +1,40 @@
+README
+calspec_standards_WFC3_UVIS1_IR_vegamag.txt : CALSPEC standards apparent mags on UVIS1
+calspec_standards_WFC3_UVIS2_IR_vegamag.txt : CALSPEC standards apparent mags on UVIS2
+check_phot.py : checks the photometry differences reported by AC between source extractor, DAOPHOT and ILAPHv1 (redundant)
+dump_calspec_apparent_mags.py : dumps tables of apparent mags of the three CALSPEC primary standards on UVIS2 and UVIS1
+dump_outliers.py : dumps tables of outliers of any photometric method (Msex, Mila, Mdao) in WD_cycle22_all.tar.gz vs other two.
+
+AC: Annalisa Calamida's Source Extractor + DAOPHOT measures
+C20 : Cycle 20 data (current, up to date)
+C22 : Cycle 22 data (outdated, being updated 11/15/17) - contains ILAPHv1 as well
+calc_zptmag_apparent_mags_hierarchical.py
+
+AS: Abi Saha's ILAPH measurements (current best = v3)
+ILAPHv3.pdf : results for all objects with ILAPH
+ILAPHv3_combined.pdf : summary dispersion plot for all ILAPH objects
+ILAPHv3_phot.txt : summary table for all ILAPHv3 measurements
+calc_zptmag_apparent_mags_hierarchical_ILAPHv3.py : script to generate average apparent mags from C20+C22 ILAPHv3 data using instrumental mags + primary standard observations
+htrace_ILAPHv3.pdf : combined trace plots, all filters
+Individual filter traces
+htrace_ILAPHv3_F160W.pdf 
+htrace_ILAPHv3_F275W.pdf
+htrace_ILAPHv3_F336W.pdf
+htrace_ILAPHv3_F475W.pdf
+htrace_ILAPHv3_F625W.pdf
+htrace_ILAPHv3_F775W.pdf
+
+src:
+AC's source extractor + DAOPHOT photometry
+WD_cycle20.tar.gz : Cycle 20, UVIS
+WD_cycle20_F160W.tar.gz : Cycle 20, IR
+WD_cycle22_all.tar.gz : Cycle 22 (outdated, being updated 11/15/17)
+
+all+standardmeasures_C20_C22_ILAPHv3_AS.txt : ILAPHv3 measurements for all objects from Abi
+allmeasures_ILAPHv2_AS.txt : target objects ILAPHv2 measures
+standardmeasures_ILAPHv2_AS.txt : primary standard ILAPHv2 measures
+
+ILAPH
+v1 : wrong value for gain and full well used
+v2 : rectifies wrong value for gain and full well, however discovered CR rejection also seems to blotch PSF core often leading to outliers, particularly in F775W (sharpest PSF)
+v3 : no CR rejection, also disables MAST phot scaling of UVIS2 counts to UVIS1, so this should be on the UVIS2 natural system
