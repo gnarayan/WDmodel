@@ -21,15 +21,15 @@ def main():
             "#SBATCH -N 1",
             "#SBATCH --contiguous",
             "#SBATCH -t 6-00:00",
-            "#SBATCH -p general",
+            "#SBATCH -p shared",
             "#SBATCH --mem-per-cpu=1000",
             "#SBATCH --mail-type=ALL",
             "#SBATCH --mail-user=gnarayan.work+odyssey@gmail.com"]
 
-    phottable = WDmodel.io.read_phot('data/photometry/WDphot_C22_AC_AS_combined.dat')
+    phottable = WDmodel.io.read_phot('data/photometry/WDphot_ILAPHv3.dat')
 
     usedfiles = []
-    for obj in phottable.obj:
+    for obj in phottable['obj']:
         filepattern = "{}-*-total*.flm".format(obj)
         specpattern = os.path.join('data','spectroscopy','*',filepattern)
         specfiles = glob.glob(specpattern)
@@ -44,7 +44,7 @@ def main():
             script_file = WDmodel.io.get_outfile("scripts", specfile,'.sh')
             outlines.append("#SBATCH -o {}".format(stdout_file))
             outlines.append("#SBATCH -e {}".format(stderr_file))
-            outlines.append("mpirun -np 32 fit_WDmodel --mpi --specfile {} --photfile data/photometry/WDphot_C22_AC_AS_combined.dat --samptype ensemble  --nprod 5000 --nwalkers 250 --thin 5 --redo".format(specfile))
+            outlines.append("mpirun -np 32 fit_WDmodel --mpi --specfile {} --photfile data/photometry/WDphot_ILAPHv3.dat --samptype pt --ntemps 4  --nprod 10000 --nwalkers 100 --nburnin 2000 --thin 10 --redo".format(specfile))
             out = addnewlines((lines+outlines))
             with open(script_file,'w') as f:
                 f.writelines(out)
@@ -62,7 +62,7 @@ def main():
         script_file = WDmodel.io.get_outfile("scripts/ignorephot", specfile,'.sh')
         outlines.append("#SBATCH -o {}".format(stdout_file))
         outlines.append("#SBATCH -e {}".format(stderr_file))
-        outlines.append("mpirun -np 32 fit_WDmodel --mpi --specfile {} --ignorephot --redo --samptype ensemble  --nprod 5000 --nwalkers 250 --thin 5 --outroot out/ignorephot".format(specfile))
+        outlines.append("mpirun -np 32 fit_WDmodel --mpi --specfile {} --ignorephot --redo --samptype pt  --ntemps 4 --nprod 10000 --nwalkers 100 --thin 10 --nburnin 2000 --outroot out/ignorephot".format(specfile))
         out = addnewlines((lines+outlines))
         with open(script_file,'w') as f:
             f.writelines(out)
