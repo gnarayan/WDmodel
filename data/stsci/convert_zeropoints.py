@@ -53,7 +53,7 @@ def main():
         corr   = 2.5*np.log10(EE_r10/EE_r)
         ZP_r10 = uvis_zp[uvis_mag_sys][ind_pb][0]
 
-        print pb, ZP_r10, corr, ZP_r10-corr
+        print(pb, ZP_r10, corr, ZP_r10-corr)
         out.append((pb, ZP_r10, corr, ZP_r10-corr))
 
 
@@ -93,7 +93,7 @@ def main():
     EE_r    = f(ir_wave, ir_rap)[0]
     corr = 2.5*np.log10(EE_r0p4/EE_r)
 
-    print pb, ZP_r0p4, corr, ZP_r0p4-corr
+    print(pb, ZP_r0p4, corr, ZP_r0p4-corr)
     out.append((pb, ZP_r0p4, corr, ZP_r0p4-corr))
 
     out = np.rec.fromrecords(out, names='pb,MAST_zp,EE_corr,WDcalib_zp')
