@@ -180,7 +180,6 @@ def main():
     fig3  = plt.figure(figsize=(10,15))    
     fig4  = plt.figure(figsize=(10,15))    
     fig5  = plt.figure(figsize=(10,15))    
-	
     # make plot comparisons
     for i, pb in enumerate(pbs):
 
@@ -237,9 +236,9 @@ def main():
 
         # trimmed mag differences histogram
         cut = ((d['deltaM'] > -0.075) & (d['deltaM'] < 0.075))
-	hist(d['deltaM'][cut], histtype='stepfilled', bins='knuth', facecolor=col_pbs[pb], label=pb, ax=ax2b)
+        hist(d['deltaM'][cut], histtype='stepfilled', bins='knuth', facecolor=col_pbs[pb], label=pb, ax=ax2b)
         ax2b.axvline(0., linestyle='--', color='black', alpha=0.5)
-	ax2b.set_xlabel('{} Residual'.format(pb))
+        ax2b.set_xlabel('{} Residual'.format(pb))
 
     with PdfPages('AC_AS_comparison.pdf') as pdf:
         fig1.suptitle('Mag Mag comparison')

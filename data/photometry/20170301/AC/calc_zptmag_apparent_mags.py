@@ -146,7 +146,7 @@ def main():
     final.append(outmean)
 
     final = np.rec.fromrecords(final, names=names)
-    print rec2txt(final, precision=6)
+    print(rec2txt(final, precision=6))
 
     # write the zeropoint data to a file
     with open('zeropoint_check.txt','w') as f:
@@ -254,7 +254,7 @@ def main():
 
     # print out the apparent magnitudes
     outdata = np.rec.fromarrays(outdata, names=names)
-    print rec2txt(outdata, precision=6)
+    print(rec2txt(outdata, precision=6))
 
     # and save the apparent mags as text
     with open('WDphot_C22.dat','w') as f:
