@@ -34,6 +34,9 @@ htrace_sourceextractor_F475W.pdf
 htrace_sourceextractor_F625W.pdf
 htrace_sourceextractor_F775W.pdf
 
+htrace_daophot.pdf : combined trace plots, all filters for daophot
+htrace_sourceextractor.pdf : combined trace plots, all filters for source extractor
+
 -------
 
 AS: Abi Saha's ILAPH measurements (current best = v3)
@@ -54,20 +57,16 @@ htrace_ILAPHv3_F475W.pdf
 htrace_ILAPHv3_F625W.pdf
 htrace_ILAPHv3_F775W.pdf
 
-
 -------
 
 src:
-AC's source extractor + DAOPHOT photometry
-WD_cycle20.tar.gz : Cycle 20, UVIS
-WD_cycle20_F160W.tar.gz : Cycle 20, IR
-WD_cycle22_all.tar.gz : Cycle 22 (outdated, being updated 11/15/17)
+AC: AC's source extractor + DAOPHOT photometry
+WD_cy20_all.tar.gz : Cycle 20 source extractor + DAOPHOT
+WD_cy22_all.tar.gz : Cycle 22 source extractor + DAOPHOT
+README : description of the AC files
 
+AS: AS's ILAPHv3 photometry
 all+standardmeasures_C20_C22_ILAPHv3_AS.txt : ILAPHv3 measurements for all objects from Abi
-allmeasures_ILAPHv2_AS.txt : target objects ILAPHv2 measures
-standardmeasures_ILAPHv2_AS.txt : primary standard ILAPHv2 measures
-
-ILAPH
-v1 : wrong value for gain and full well used
-v2 : rectifies wrong value for gain and full well, however discovered CR rejection also seems to blotch PSF core often leading to outliers, particularly in F775W (sharpest PSF)
-v3 : no CR rejection, also disables MAST phot scaling of UVIS2 counts to UVIS1, so this should be on the UVIS2 natural system
+allmeasures_ILAPHv2_AS.txt : target objects ILAPHv2 measures (outdated)
+standardmeasures_ILAPHv2_AS.txt : primary standard ILAPHv2 measures (outdated)
+README : description of the AS files

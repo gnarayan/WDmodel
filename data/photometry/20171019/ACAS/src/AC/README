@@ -1,0 +1,21 @@
+From AC:
+
+The tables include measurement derived with Sextractor (labeled as “s”) and
+DAOPHOT (labeled as “d”).
+
+The number of measurements that I have for Cycle22 stars seems larger (976)
+than what is listed in Abi’s last catalog allmeasures_cy22_abi (635). But may
+be this is not the last version? The number of measurements for Cycle20 stars
+(108) agrees.
+
+GN notes:
+
+three files have minor formatting issues
+- Extra # in the header column which is interpreted as part of the column name
+    C20/WD-1635+008_F160W_cy20.all
+
+- Extra integer field after Epoch (unknown meaning)
+    C22/SDSS-J010322.19-002047.7_F160W_cy22.all
+    C22/SDSS-J102430.93-003207.0_F160W_cy22.all
+    
+these extra characters can be manually edited out

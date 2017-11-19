@@ -1,0 +1,6 @@
+ILAPH photometry from AS (v1 and v2 were done by AS, v3 partially by Jenna Claver)
+
+ILAPH version key
+v1 : wrong value for gain and full well used
+v2 : rectifies wrong value for gain and full well, however discovered CR rejection also seems to blotch PSF core often leading to outliers, particularly in F775W (sharpest PSF)
+v3 : no CR rejection, also disables MAST phot scaling of UVIS2 counts to UVIS1, so this should be on the UVIS2 natural system
