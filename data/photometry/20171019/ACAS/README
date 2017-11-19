@@ -1,21 +1,51 @@
-README
+README : this file
 calspec_standards_WFC3_UVIS1_IR_vegamag.txt : CALSPEC standards apparent mags on UVIS1
 calspec_standards_WFC3_UVIS2_IR_vegamag.txt : CALSPEC standards apparent mags on UVIS2
 check_phot.py : checks the photometry differences reported by AC between source extractor, DAOPHOT and ILAPHv1 (redundant)
 dump_calspec_apparent_mags.py : dumps tables of apparent mags of the three CALSPEC primary standards on UVIS2 and UVIS1
 dump_outliers.py : dumps tables of outliers of any photometric method (Msex, Mila, Mdao) in WD_cycle22_all.tar.gz vs other two.
 
+-------
+
 AC: Annalisa Calamida's Source Extractor + DAOPHOT measures
-C20 : Cycle 20 data (current, up to date)
-C22 : Cycle 22 data (outdated, being updated 11/15/17) - contains ILAPHv1 as well
-calc_zptmag_apparent_mags_hierarchical.py
+C20 : Cycle 20 data 
+C22 : Cycle 22 data
+calc_zptmag_apparent_mags_hierarchical.py : script to generate average apparent mags from C20+C22 daophot or sourceextractor data using instrumental mags + primary standard observations
+
+WDphot_daophot.dat : summary table for DAOPHOT measurements
+WDphot_sourceextractor.dat : summary table for Source Extractor measurements
+
+daophot.pdf : results for all objects with DAOPHOT
+daophot_combined.pdf : summary dispersion plot for all DAOPHOT objects
+sourceextractor.pdf : results for all objects with Source Extractor
+sourceextractor_combined.pdf : summary dispersion plot for all Source Extractor objects
+
+Individual filter traces for DAOPHOT and sourceextractor
+htrace_daophot_F160W.pdf
+htrace_daophot_F275W.pdf
+htrace_daophot_F336W.pdf
+htrace_daophot_F475W.pdf
+htrace_daophot_F625W.pdf
+htrace_daophot_F775W.pdf
+htrace_sourceextractor_F160W.pdf
+htrace_sourceextractor_F275W.pdf
+htrace_sourceextractor_F336W.pdf
+htrace_sourceextractor_F475W.pdf
+htrace_sourceextractor_F625W.pdf
+htrace_sourceextractor_F775W.pdf
+
+-------
 
 AS: Abi Saha's ILAPH measurements (current best = v3)
+calc_zptmag_apparent_mags_hierarchical_ILAPHv3.py : script to generate average apparent mags from C20+C22 ILAPHv3 data using instrumental mags + primary standard observations
+
+WDphot_ILAPHv3.dat : summary table for all ILAPHv3 measurements
+
 ILAPHv3.pdf : results for all objects with ILAPH
 ILAPHv3_combined.pdf : summary dispersion plot for all ILAPH objects
-ILAPHv3_phot.txt : summary table for all ILAPHv3 measurements
-calc_zptmag_apparent_mags_hierarchical_ILAPHv3.py : script to generate average apparent mags from C20+C22 ILAPHv3 data using instrumental mags + primary standard observations
+
 htrace_ILAPHv3.pdf : combined trace plots, all filters
+
 Individual filter traces
 htrace_ILAPHv3_F160W.pdf 
 htrace_ILAPHv3_F275W.pdf
@@ -23,6 +53,9 @@ htrace_ILAPHv3_F336W.pdf
 htrace_ILAPHv3_F475W.pdf
 htrace_ILAPHv3_F625W.pdf
 htrace_ILAPHv3_F775W.pdf
+
+
+-------
 
 src:
 AC's source extractor + DAOPHOT photometry
