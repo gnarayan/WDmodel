@@ -15,12 +15,13 @@ import pandas as pd
 from collections import OrderedDict
 
 def main():
+    suffix = '_noG191'
     ref = 'FMAG'  # which photometry package should be used to compute zeropoints
     mintime = 0.7 # mininum exposure length to consider for computing zeropoints
 
     stars     = ['GD-153', 'GD-71', 'G191B2B'] # what stars are standards
     marker    = ['o',      'd',     '*']       # markers to use for each standard in plots
-    use_stars = ['GD-153', 'G191B2B', 'GD-71'] # what stars are to be used to get zeropoints
+    use_stars = ['GD-153', 'GD-71'] # what stars are to be used to get zeropoints
 
     standard_mags_file = '../calspec_standards_WFC3_UVIS2_IR_vegamag.txt' # standard's apparent magnitudes in each band
     smags = at.Table.read(standard_mags_file, format='ascii')
@@ -33,7 +34,7 @@ def main():
     drop_fields = ['X', 'Y', 'BCKGRMS', 'SKY', 'FITS-FILE']
 
     mag_table = OrderedDict() # stores combined magnitudes and zeropoints in each passband
-    all_mags   = at.Table.read('../src/all+standardmeasures_C20_C22_ILAPHv3_AS.txt', format='ascii')
+    all_mags   = at.Table.read('../src/AS/all+standardmeasures_C20_C22_ILAPHv3_AS.txt', format='ascii')
     mask = (all_mags[dref] < 0.5) & (np.abs(all_mags[ref]) < 50) & (all_mags['EXPTIME'] >= mintime)
     nbad = len(all_mags[~mask])
     print(all_mags[~mask])
@@ -146,7 +147,7 @@ def main():
             # make a plot for sanity checking
             fig2, axs = plt.subplots(nrows=n_plot_vars, ncols=2)
             pm.traceplot(trace, ax=axs)
-            fig2.savefig('Figures/htrace_ILAPHv3_{}.pdf'.format(pb))
+            fig2.savefig('Figures/htrace_ILAPHv3{}_{}.pdf'.format(suffix,pb))
 
             # get the results
             out = pm.df_summary(trace)
@@ -213,13 +214,13 @@ def main():
         if out2[c].dtype == np.float64:
             out2[c].format = '%.6f'
     print(out2)
-    out2.write('WDphot_ILAPHv3.dat', format='ascii.fixed_width', delimiter='  ', overwrite=True, fill_values=[(ascii.masked, 'NaN')])
+    out2.write('WDphot_ILAPHv3{}.dat'.format(suffix), format='ascii.fixed_width', delimiter='  ', overwrite=True, fill_values=[(ascii.masked, 'NaN')])
 
     objID = out['objID']
     nobj = len(objID[nvar:])
 
     fig_big = plt.figure(figsize=(12,12))
-    with PdfPages('Figures/ILAPHv3.pdf') as pdf:
+    with PdfPages('Figures/ILAPHv3{}.pdf'.format(suffix)) as pdf:
         for j, obj in enumerate(objID[nvar:]):
             fig = plt.figure(figsize=(12, 12))
             for i, pb in enumerate(out_pb_order):
@@ -272,7 +273,7 @@ def main():
             pdf.savefig(fig)
             plt.close(fig)
         fig_big.tight_layout()
-        fig_big.savefig('Figures/ILAPHv3_combined.pdf')
+        fig_big.savefig('Figures/ILAPHv3{}_combined.pdf'.format(suffix))
         plt.close(fig_big)
 
 
