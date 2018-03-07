@@ -1,6 +1,26 @@
-ILAPH photometry from AS (v1 and v2 were done by AS, v3 partially by Jenna Claver)
+ILAPH photometry from AS (v1 and v2 were done by AS, v3 and v4 by AS and JC)
 
-ILAPH version key
+ILAPH version key:
+
 v1 : wrong value for gain and full well used
+
 v2 : rectifies wrong value for gain and full well, however discovered CR rejection also seems to blotch PSF core often leading to outliers, particularly in F775W (sharpest PSF)
+
+given these issues, v1 and v2 should not be used for any analysis. They're listed here for completeness.
+The first "good" version" of photometry is ILAPHv3.
+
 v3 : no CR rejection, also disables MAST phot scaling of UVIS2 counts to UVIS1, so this should be on the UVIS2 natural system
+ILAPHv3 used 
+7.5 pix aperture radius (~0.3") on UVIS2 
+5 pix aperture radius (~0.65") on IR
+GN thinks that the sky annulus is r=14-21 pixel radius but this should be checked since AC has r_upper=31 pixels in an email on 20180130.
+This is likely just a typo.
+ILAPHv3 is still the baseline for the analysis. 
+
+v4 has no changes to the algorithm, but has tweaks ONLY to F160W with the following aperture and annulus radii.
+v4a = 5 46-62
+v4b = 7 46-62
+v4c = 9 46-62
+v4d = 5 23-46 
+v4e = 4 46-62
+v4f = 3 46-62
