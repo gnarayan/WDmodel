@@ -15,13 +15,13 @@ import pandas as pd
 from collections import OrderedDict
 
 def main():
-    suffix = '_noG191'
+    suffix = ''
     ref = 'FMAG'  # which photometry package should be used to compute zeropoints
     mintime = 0.7 # mininum exposure length to consider for computing zeropoints
 
     stars     = ['GD-153', 'GD-71', 'G191B2B'] # what stars are standards
     marker    = ['o',      'd',     '*']       # markers to use for each standard in plots
-    use_stars = ['GD-153', 'GD-71'] # what stars are to be used to get zeropoints
+    use_stars = ['GD-153', 'GD-71', 'G191B2B'] # what stars are to be used to get zeropoints
 
     standard_mags_file = '../calspec_standards_WFC3_UVIS2_IR_vegamag.txt' # standard's apparent magnitudes in each band
     smags = at.Table.read(standard_mags_file, format='ascii')
