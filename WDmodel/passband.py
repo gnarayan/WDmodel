@@ -266,7 +266,7 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
             * ``ind`` : (array-like)
               Indices of model wavelength that overlap with this passband
             * ``zp`` : (float)
-              Vegamag zeropoint of this passband
+              mag_type zeropoint of this passband
             * ``avgwave`` : (float)
               Passband average/reference wavelength
 
@@ -278,8 +278,8 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
         use the passband name ``pb`` as ``obsmode`` string as is.
 
         Trims the bandpass to entries with non-zero transmission and determines
-        the ``VEGAMAG`` zeropoint for the passband - i.e. ``zp`` that gives
-        ``mag_Vega=0.`` in all passbands.
+        the ``VEGAMAG/ABMAG`` zeropoint for the passband - i.e. ``zp`` that
+        gives ``mag_Vega/AB=0.`` in all passbands.
 
     See Also
     --------
