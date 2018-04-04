@@ -1,7 +1,0 @@
-Original photometry release from AC using sextractor only w/ r=7.5pix aperture
-
-There's photometry for Cycle 20 and 22, as well as from Cycle 20 converted to
-the Cycle 22 system with an offset per filter.
-
-There's also zeropoints from her, but we end up using her average photometry
-for the three primary standards + their standard mags to determine zeropoints.
