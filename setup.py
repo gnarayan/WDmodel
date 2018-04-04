@@ -39,7 +39,7 @@ setup(
     version=__version__,  # noqa
     description=('Bayesian inference of '
                  'faint DA white dwarf spectral energy distributions'
-                 'from ground-based spectroscopy and HST photometry' 
+                 'from ground-based spectroscopy and HST photometry'
 		 'to establish faint CALSPEC spectrophotometric standards.'),
     scripts = scripts,
     license=__license__,  # noqa
