@@ -613,6 +613,8 @@ read_spectable = _read_ascii
 """Read spectrum FWHM table - wraps :py:func:`_read_ascii`"""
 read_pbmap     = _read_ascii
 """Read passband obsmode mapping table - wraps :py:func:`_read_ascii`"""
+read_reddening = _read_ascii
+"""Read J. Holberg's custom reddening function - wraps :py:func:`_read_ascii`"""
 
 
 def get_spectrum_resolution(specfile, spectable, fwhm=None):
