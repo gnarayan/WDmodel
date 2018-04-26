@@ -234,15 +234,26 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
     Parameters
     ----------
     pbnames : array-like
-        List of passband names to get throughput models for
+        List of passband names to get throughput models for Each name is
+        resolved by first looking in ``pbfile`` (if provided) If an entry is
+        found, that entry is treated as an ``obsmode`` for pysynphot. If the
+        entry cannot be treated as an ``obsmode,`` we attempt to treat as an
+        ASCII file. If neither is possible, an error is raised.
     model : :py:class:`WDmodel.WDmodel.WDmodel` instance
         The DA White Dwarf SED model generator
+        All the passbands are interpolated onto the wavelengths of the SED
+        model.
     pbfile : str, optional
-        Filename containing mapping between ``pbnames`` and ``pysynphot`` ``obsmode`` string
+        Filename containing mapping between ``pbnames`` and ``pysynphot``
+        ``obsmode`` string, as well as the standard that has 0 magnitude in the
+        system (either ''Vega'' or ''AB''). The ``obsmode`` may also be the
+        fullpath to a file that is readable by ``pysynphot``
     mag_type : str, optional
         One of ''vegamag'' or ''abmag''
         Used to specify the standard that has 0 magnitude in the passband.
-        Must be the same for all passbands listed in ``pbname``.
+        If ``magsys`` is specified in ``pbfile,`` that overrides this option.
+        Must be the same for all passbands listed in ``pbname`` that do not
+        have ``magsys`` specified in ``pbfile``
         If ``pbnames`` require multiple ``mag_types``, concatentate the output.
 
     Returns
@@ -291,29 +302,43 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
     if pbfile is None:
         pbfile = 'WDmodel_pb_obsmode_map.txt'
         pbfile = io.get_pkgfile(pbfile)
-    pbdata = io.read_pbmap(pbfile)
-    pbmap  = dict(list(zip(pbdata.pb, pbdata.obsmode)))
+    pbdata  = io.read_pbmap(pbfile)
+    pbmap   = dict(list(zip(pbdata.pb, pbdata.obsmode)))
+    sysmap  = dict(list(zip(pbdata.pb, pbdata.magsys)))
 
     # setup the photometric system by defining the standard and corresponding magnitude system
     if mag_type not in ('vegamag', 'abmag', None):
         message = 'Magnitude system must be one of abmag or vegamag'
         raise RuntimeError(message)
 
+    # define the standards
+    vega = S.Vega
+    ab   = S.FlatSpectrum(3631, waveunits='angstrom', fluxunits='jy')
+    ab.convert('flam')
+
+    # defile the magnitude sysem
     if mag_type is None or mag_type == 'vegamag':
-        standard    = S.Vega
         mag_type= 'vegamag'
     else:
-        standard = S.FlatSpectrum(3631, waveunits='angstrom', fluxunits='jy')
-        standard.convert('flam')
         mag_type = 'abmag'
 
     out = OrderedDict()
 
     for pb in pbnames:
 
+        standard = None
+
         # load each passband
         obsmode = pbmap.get(pb, pb)
-        print(obsmode)
+        magsys  = sysmap.get(pb, mag_type)
+
+        if magsys == 'vegamag':
+            standard = vega
+        elif magsys == 'abmag':
+            standard = ab
+        else:
+            message = 'Unknown standard system {} for passband {}'.format(magsys, pb)
+            raise RuntimeError(message)
 
         # treat the passband as a obsmode string
         try:
@@ -332,7 +357,7 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
 
         # get the pysynphot standard magnitude (should be 0. on the standard magnitude system!)
         ob = S.Observation(standard, bp)
-        synphot_mag = ob.effstim(mag_type)
+        synphot_mag = ob.effstim(magsys)
 
         # cut the passband to non-zero values and interpolate onto overlapping standard wavelengths
         outpb, outzp = chop_syn_spec_pb(standard, synphot_mag, bp, model)
