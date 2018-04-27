@@ -147,7 +147,7 @@ class WDmodel(object):
         elif rvmodel == 'custom':
             custom_reddening_file = io.get_pkgfile('reddening_custom.txt')
             custom_reddening = io.read_reddening(custom_reddening_file)
-            self._custom_spline_red = spinterp.make_interp_spline(custom_reddening.wave, custom_reddening.Aext)
+            self._custom_spline_red = spinterp.splrep(custom_reddening.wave, custom_reddening.Aext, task=0, s=0, k=3)
             self._law = self._custom_extinction
         else:
             message = 'Unknown reddening law {}'.format(rvmodel)
@@ -182,7 +182,7 @@ class WDmodel(object):
         -----
             ``av`` should be >= 0.
         """
-        return self._custom_spline_red(wave)*av/3.1
+        return spinterp.splev(wave, self._custom_spline_red)*av/3.1
 
 
     def extinction(self, wave, av, rv=3.1):
