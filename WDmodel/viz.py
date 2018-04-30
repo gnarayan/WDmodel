@@ -531,7 +531,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
         ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
     linedata : :py:class:`numpy.recarray`
         The observations of the spectrum corresponding to the hydrogen Balmer
-        lines. Must have 
+        lines. Must have
         ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4'), ('line_ind', 'i4')]``
     model : :py:class:`WDmodel.WDmodel.WDmodel` instance
         The DA White Dwarf SED model generator
@@ -588,7 +588,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     ax_resid  = fig2.add_subplot(gs2[0])
     smoothedmod, wres, _, _, _ = draws[-1]
     res = spec.flux - smoothedmod - wres
-    hist(res, bins='knuth', normed=True, histtype='stepfilled', color='grey', alpha=0.5, label='Residuals',ax=ax_resid)
+    hist(res, bins='knuth', density=True, histtype='stepfilled', color='grey', alpha=0.5, label='Residuals',ax=ax_resid)
     ax_resid.axvline(0., color='red', linestyle='--')
 
     # label the axes, rotate the tick labels, and get the xlim
@@ -657,7 +657,7 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
 
         # plot the residuals of this line
         ax_resid  = fig2.add_subplot(gs2[k])
-        hist(linedata.flux[mask] - (smoothedmod + wres)[ind] , bins='knuth', normed=True,ax=ax_resid,\
+        hist(linedata.flux[mask] - (smoothedmod + wres)[ind] , bins='knuth', density=True, ax=ax_resid,\
                 histtype='stepfilled', label=label, alpha=0.3, color=next(colors))
         ax_resid.axvline(0., color='red', linestyle='--')
 
@@ -705,7 +705,7 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
         ``dtype=[('pb', 'str'), ('mag', '<f8'), ('mag_err', '<f8')]``
     linedata : :py:class:`numpy.recarray`
         The observations of the spectrum corresponding to the hydrogen Balmer
-        lines. Must have 
+        lines. Must have
         ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8'), ('line_mask', 'i4'), ('line_ind', 'i4')]``
     scale_factor : float
         factor by which the flux was scaled for y-axis label

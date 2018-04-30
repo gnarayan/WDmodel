@@ -19,9 +19,9 @@ def synflux(spec, ind, pb):
     Parameters
     ----------
     spec : :py:class:`numpy.recarray`
-        The spectrum. 
+        The spectrum.
         Must have ``dtype=[('wave', '<f8'), ('flux', '<f8')]``
-    ind : array-like 
+    ind : array-like
         Indices of spectrum ``spec`` that overlap with the passband ``pb``.
         Can be produced by :py:meth:`WDmodel.passband.interp_passband`
     pb : array-like
@@ -61,9 +61,9 @@ def synphot(spec, ind, pb, zp=0.):
     Parameters
     ----------
     spec : :py:class:`numpy.recarray`
-        The spectrum. 
+        The spectrum.
         Must have ``dtype=[('wave', '<f8'), ('flux', '<f8')]``
-    ind : array-like 
+    ind : array-like
         Indices of spectrum ``spec`` that overlap with the passband ``pb``.
         Can be produced by :py:meth:`WDmodel.passband.interp_passband`
     pb : array-like
@@ -97,7 +97,7 @@ def get_model_synmags(model_spec, pbs, mu=0.):
     Parameters
     ----------
     spec : :py:class:`numpy.recarray`
-        The spectrum. 
+        The spectrum.
         Must have ``dtype=[('wave', '<f8'), ('flux', '<f8')]``
     pbs : dict
         Passband dictionary containing the passbands corresponding to
@@ -106,7 +106,7 @@ def get_model_synmags(model_spec, pbs, mu=0.):
         Common achromatic photometric offset to apply to the synthetic
         magnitudes in al the passbands. Would be equal to the distance modulus
         if ``model_spec`` were normalized to return the true absolute magnitude
-        of the source. 
+        of the source.
 
     Returns
     -------
@@ -130,7 +130,7 @@ def interp_passband(wave, pb, model):
     """
     Find the indices of the wavelength array ``wave``, that overlap with the
     passband ``pb`` and interpolates the passband onto the wavelengths.
-    
+
     Parameters
     ----------
     wave : array-like
@@ -147,7 +147,7 @@ def interp_passband(wave, pb, model):
     transmission : array-like
         The transmission of the passband interpolated on to overlapping
         elements of ``wave``
-    ind : array-like 
+    ind : array-like
         Indices of wavelength ``wave`` that overlap with the passband ``pb``.
         Produced by :py:meth:`WDmodel.WDmodel.WDmodel._get_indices_in_range`
         Satisfies ``transmission.shape == wave[ind].shape``
@@ -226,20 +226,36 @@ def chop_syn_spec_pb(spec, model_mag, pb, model):
     return outpb, outzp
 
 
-def get_pbmodel(pbnames, model, pbfile=None):
+def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
     """
     Converts passband names ``pbnames`` into passband models based on the
     mapping of name to ``pysynphot`` ``obsmode`` strings in ``pbfile``.
 
     Parameters
     ----------
-    pbnames : array-like 
-        List of passband names to get throughput models for
+    pbnames : array-like
+        List of passband names to get throughput models for Each name is
+        resolved by first looking in ``pbfile`` (if provided) If an entry is
+        found, that entry is treated as an ``obsmode`` for pysynphot. If the
+        entry cannot be treated as an ``obsmode,`` we attempt to treat as an
+        ASCII file. If neither is possible, an error is raised.
     model : :py:class:`WDmodel.WDmodel.WDmodel` instance
         The DA White Dwarf SED model generator
-    pbfile : str, optional 
-        Filename containing mapping between ``pbnames`` and ``pysynphot`` ``obsmode`` string
-    
+        All the passbands are interpolated onto the wavelengths of the SED
+        model.
+    pbfile : str, optional
+        Filename containing mapping between ``pbnames`` and ``pysynphot``
+        ``obsmode`` string, as well as the standard that has 0 magnitude in the
+        system (either ''Vega'' or ''AB''). The ``obsmode`` may also be the
+        fullpath to a file that is readable by ``pysynphot``
+    mag_type : str, optional
+        One of ''vegamag'' or ''abmag''
+        Used to specify the standard that has 0 magnitude in the passband.
+        If ``magsys`` is specified in ``pbfile,`` that overrides this option.
+        Must be the same for all passbands listed in ``pbname`` that do not
+        have ``magsys`` specified in ``pbfile``
+        If ``pbnames`` require multiple ``mag_types``, concatentate the output.
+
     Returns
     -------
     out : dict
@@ -258,24 +274,24 @@ def get_pbmodel(pbnames, model, pbfile=None):
               Has ``dtype=[('wave', '<f8'), ('throughput', '<f8')]``
             * ``transmission`` : (array-like)
               The non-zero passband transmission interpolated onto overlapping model wavelengths
-            * ``ind`` : (array-like) 
+            * ``ind`` : (array-like)
               Indices of model wavelength that overlap with this passband
             * ``zp`` : (float)
-              Vegamag zeropoint of this passband
+              mag_type zeropoint of this passband
             * ``avgwave`` : (float)
               Passband average/reference wavelength
 
         ``pbfile`` must be readable by :py:func:`WDmodel.io.read_pbmap` and
-        must return a :py:class:`numpy.recarray` 
+        must return a :py:class:`numpy.recarray`
         with``dtype=[('pb', 'str'),('obsmode', 'str')]``
 
         If there is no entry in ``pbfile`` for a passband, then we attempt to
-        use the passband name ``pb`` as ``obsmode`` string as is. 
-    
+        use the passband name ``pb`` as ``obsmode`` string as is.
+
         Trims the bandpass to entries with non-zero transmission and determines
-        the ``VEGAMAG`` zeropoint for the passband - i.e. ``zp`` that gives
-        ``mag_Vega=0.`` in all passbands.
-    
+        the ``VEGAMAG/ABMAG`` zeropoint for the passband - i.e. ``zp`` that
+        gives ``mag_Vega/AB=0.`` in all passbands.
+
     See Also
     --------
     :py:func:`WDmodel.io.read_pbmap`
@@ -286,33 +302,65 @@ def get_pbmodel(pbnames, model, pbfile=None):
     if pbfile is None:
         pbfile = 'WDmodel_pb_obsmode_map.txt'
         pbfile = io.get_pkgfile(pbfile)
-    pbdata = io.read_pbmap(pbfile)
-    pbmap  = dict(list(zip(pbdata.pb, pbdata.obsmode)))
+    pbdata  = io.read_pbmap(pbfile)
+    pbmap   = dict(list(zip(pbdata.pb, pbdata.obsmode)))
+    sysmap  = dict(list(zip(pbdata.pb, pbdata.magsys)))
 
     # setup the photometric system by defining the standard and corresponding magnitude system
-    vega    = S.Vega
-    mag_type= 'vegamag'
+    if mag_type not in ('vegamag', 'abmag', None):
+        message = 'Magnitude system must be one of abmag or vegamag'
+        raise RuntimeError(message)
+
+    # define the standards
+    vega = S.Vega
+    ab   = S.FlatSpectrum(3631, waveunits='angstrom', fluxunits='jy')
+    ab.convert('flam')
+
+    # defile the magnitude sysem
+    if mag_type is None or mag_type == 'vegamag':
+        mag_type= 'vegamag'
+    else:
+        mag_type = 'abmag'
 
     out = OrderedDict()
 
     for pb in pbnames:
 
+        standard = None
+
         # load each passband
         obsmode = pbmap.get(pb, pb)
+        magsys  = sysmap.get(pb, mag_type)
+
+        if magsys == 'vegamag':
+            standard = vega
+        elif magsys == 'abmag':
+            standard = ab
+        else:
+            message = 'Unknown standard system {} for passband {}'.format(magsys, pb)
+            raise RuntimeError(message)
+
+        # treat the passband as a obsmode string
         try:
             bp = S.ObsBandpass(obsmode)
         except ValueError:
-            message = 'Could not load passband {} from pysynphot, obsmode {}'.format(pb, obsmode)
-            raise RuntimeError(message)
+            # if that fails, try to load the passband interpreting obsmode as a file
+            message = 'Could not load pb {} as an obsmode string {}'.format(pb, obsmode)
+            print(message)
+            try:
+                bp = S.FileBandpass(obsmode)
+            except ValueError:
+                message = 'Could not load passband {} from obsmode or file {}'.format(pb, obsmode)
+                raise RuntimeError(message)
 
         avgwave = bp.avgwave()
 
-        # get the pysynphot Vega magnitude (should be 0. on the Vega magnitude system!)
-        ob = S.Observation(vega, bp)
-        synphot_mag = ob.effstim(mag_type)
+        # get the pysynphot standard magnitude (should be 0. on the standard magnitude system!)
+        ob = S.Observation(standard, bp)
+        synphot_mag = ob.effstim(magsys)
 
-        # cut the passband to non-zero values and interpolate onto overlapping Vega wavelengths
-        outpb, outzp = chop_syn_spec_pb(vega, synphot_mag, bp, model)
+        # cut the passband to non-zero values and interpolate onto overlapping standard wavelengths
+        outpb, outzp = chop_syn_spec_pb(standard, synphot_mag, bp, model)
 
         # interpolate the passband onto the standard's  wavelengths
         transmission, ind = interp_passband(model._wave, outpb, model)

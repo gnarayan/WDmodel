@@ -37,16 +37,17 @@ class WDmodel(object):
     grid_name : str, optional
         Name of the HDF5 group containing the white dwarf model atmosphere
         grids in ``grid_file``. Default is ``default``
-    rvmodel : ``{'ccm89','od94','f99'}``, optional
-        Specify parametrization of the reddening law. Default is ``'od94'``.
+    rvmodel : ``{'ccm89','od94','f99','custom'}``, optional
+        Specify parametrization of the reddening law. Default is ``'f99'``.
 
-        =========== ==================================================
-          rvmodel                 parametrization
-        =========== ==================================================
-        ``'ccm89'`` Cardelli, Clayton and Mathis (1989, ApJ, 345, 245)
-        ``'od94'``  O'Donnell (1994, ApJ, 422, 158)
-        ``'f99'``   Fitzpatrick (1999, PASP, 111, 63)
-        =========== ==================================================
+        ============ ==================================================
+           rvmodel                 parametrization
+        ============ ==================================================
+        ``'ccm89'``  Cardelli, Clayton and Mathis (1989, ApJ, 345, 245)
+        ``'od94'``   O'Donnell (1994, ApJ, 422, 158)
+        ``'f99'``    Fitzpatrick (1999, PASP, 111, 63)
+        ``'custom'`` Custom law from Jay Holberg (email, 20180424)
+        ============ ==================================================
 
     Attributes
     ----------
@@ -106,7 +107,7 @@ class WDmodel(object):
         overhead of the public methods.
     """
 
-    def __init__(self, grid_file=None, grid_name=None, rvmodel='od94'):
+    def __init__(self, grid_file=None, grid_name=None, rvmodel='f99'):
         lno     = [   1    ,   2     ,    3     ,    4    ,   5      ,  6      ]
         lines   = ['alpha' , 'beta'  , 'gamma'  , 'delta' , 'zeta'   , 'eta'   ]
         H       = [6562.857, 4861.346, 4340.478 ,4101.745 , 3970.081 , 3889.056]
@@ -135,16 +136,53 @@ class WDmodel(object):
         self._model = spinterp.RegularGridInterpolator((self._tgrid, self._ggrid),\
                 self._lflux)
 
-    def __init__rvmodel(self, rvmodel='od94'):
+
+    def __init__rvmodel(self, rvmodel='f99'):
         if rvmodel == 'ccm89':
             self._law = extinction.ccm89
         elif rvmodel == 'od94':
             self._law = extinction.odonnell94
         elif rvmodel == 'f99':
             self._law = extinction.fitzpatrick99
+        elif rvmodel == 'custom':
+            custom_reddening_file = io.get_pkgfile('reddening_custom.txt')
+            custom_reddening = io.read_reddening(custom_reddening_file)
+            self._custom_spline_red = spinterp.splrep(custom_reddening.wave, custom_reddening.Aext, task=0, s=0, k=3)
+            self._law = self._custom_extinction
         else:
             message = 'Unknown reddening law {}'.format(rvmodel)
             raise ValueError(message)
+
+
+    def _custom_extinction(self, wave, av, rv=3.1, unit='aa'):
+        """
+        Return the extinction for ``av``, ``rv`` at wavelengths ``wave``
+        for the custom reddening law defined by J. Holberg
+
+        Mimics the interface provided by
+        :py:attr:`WDmodel.WDmodel.WDmodel._law` to calculate the extinction as
+        a function of wavelength (in Angstroms), :math:`A_{\lambda}`.
+
+        Parameters
+        ----------
+        wave : array-like
+            Array of wavelengths in Angstrom at which to compute extinction,
+            sorted in ascending order
+        av : float
+            Extinction in the V band, :math:`A_V`
+        rv : float, optional
+            Fixed to 3.1 for J. Holberg's custom reddening law
+
+        Returns
+        -------
+        out : array-like
+            Extinction at wavelengths ``wave`` for ``av`` and ``rv``
+
+        Notes
+        -----
+            ``av`` should be >= 0.
+        """
+        return spinterp.splev(wave, self._custom_spline_red)*av/3.1
 
 
     def extinction(self, wave, av, rv=3.1):
@@ -317,7 +355,7 @@ class WDmodel(object):
             If not supplied, the full model wavelength grid is returned.
         log : bool, optional
             Return the log10 flux rather than the flux.
-        
+
         Returns
         -------
         flux : array-like
@@ -903,9 +941,9 @@ class WDmodel(object):
         ------
         ValueError
             If ``line`` is not one of the first six of the Balmer series
-            or 
+            or
             If wavelengths are invalid
-            of 
+            of
             If there's a difference in shape of any of the arrays
         """
         try:

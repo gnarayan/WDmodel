@@ -1,73 +1,83 @@
 name: WDmodel
 channels:
-- mpi4py
-- defaults
-- http://ssb.stsci.edu/astroconda
-- conda-forge
+  - mpi4py
+  - defaults
+  - http://ssb.stsci.edu/astroconda
+  - conda-forge
 dependencies:
-- args=0.1.0=py36_0
-- celerite=0.3.0=py36_0
-- clint=0.5.1=py36_0
-- corner=2.0.1=py36_0
-- emcee=2.2.1=py36_3
-- extinction=0.3.0=np112py36_0
-- uncertainties=3.0.1=py36_0
-- astropy=2.0.2=py36ha51211e_4
-- ca-certificates=2017.08.26=h1d4fec5_0
-- certifi=2017.7.27.1=py36h8b7b77e_0
-- coverage=4.4.1=py36_0
-- cycler=0.10.0=py36h93f1223_0
-- dbus=1.10.22=h3b5a359_0
-- expat=2.2.5=he0dffb1_0
-- fontconfig=2.12.4=h88586e7_1
-- freetype=2.8=hab7d2ae_1
-- glib=2.53.6=h5d9569c_2
-- gst-plugins-base=1.12.2=he3457e5_0
-- gstreamer=1.12.2=h4f93127_0
-- h5py=2.7.0=py36he81ebca_1
-- hdf5=1.10.1=h9caa474_1
-- icu=58.2=h9c2bf20_1
-- intel-openmp=2018.0.0=h15fc484_7
-- jpeg=9b=h024ee3a_2
-- libedit=3.1=heed3624_0
-- libffi=3.2.1=hd88cf55_4
-- libgcc=7.2.0=h69d50b8_2
-- libgcc-ng=7.2.0=h7cc24e2_2
-- libgfortran=3.0.0=1
-- libgfortran-ng=7.2.0=h9f7466a_2
-- libiconv=1.15=h63c8f33_5
-- libpng=1.6.32=hda9c8bc_2
-- libstdcxx-ng=7.2.0=h7a57d05_2
-- libxcb=1.12=h84ff03f_3
-- libxml2=2.9.4=h6b072ca_5
-- matplotlib=2.1.0=py36hba5de38_0
-- mkl=2018.0.0=hb491cac_4
-- ncurses=6.0=h9df7e31_2
-- numpy=1.12.1=py36he24570b_1
-- openssl=1.0.2m=h26d622b_1
-- pcre=8.41=hc27e229_1
-- pip=9.0.1=py36h6c6f9ce_4
-- py=1.4.34=py36h0712aa3_1
-- pyparsing=2.2.0=py36hee85983_1
-- pyqt=5.6.0=py36h0386399_5
-- pytest=3.2.1=py36h11ad3bb_1
-- python=3.6.3=h1284df2_4
-- python-dateutil=2.6.1=py36h88d3b88_1
-- pytz=2017.2=py36hc2ccc2a_1
-- qt=5.6.2=h974d657_12
-- readline=7.0=ha6073c6_4
-- scipy=1.0.0=py36hbf646e7_0
-- setuptools=36.5.0=py36he42e2e1_0
-- sip=4.18.1=py36h51ed4ed_2
-- six=1.11.0=py36h372c433_1
-- sqlite=3.20.1=hb898158_2
-- tk=8.6.7=hc745277_3
-- tornado=4.5.2=py36h1283b2a_0
-- wheel=0.29.0=py36he7f4e38_1
-- xz=5.2.3=h55aa19d_2
-- zlib=1.2.11=ha838bed_2
-- pysynphot=0.9.8.7=py36_0
-- pip:
-  - iminuit==1.2
+  - args=0.1.0=py36_0
+  - celerite=0.3.0=py36_0
+  - clint=0.5.1=py36_0
+  - corner=2.0.1=py36_0
+  - emcee=2.2.1=py36_3
+  - extinction=0.3.0=np112py36_0
+  - uncertainties=3.0.2=py36_1
+  - astropy=3.0.2=py36h3010b51_1
+  - attrs=17.4.0=py36_0
+  - ca-certificates=2018.03.07=0
+  - certifi=2018.4.16=py36_0
+  - coverage=4.5.1=py36h14c3975_0
+  - cycler=0.10.0=py36h93f1223_0
+  - dbus=1.13.2=h714fa37_1
+  - expat=2.2.5=he0dffb1_0
+  - fontconfig=2.12.6=h49f89f6_0
+  - freetype=2.8=hab7d2ae_1
+  - glib=2.56.1=h000015b_0
+  - gst-plugins-base=1.14.0=hbbd80ab_1
+  - gstreamer=1.14.0=hb453b48_1
+  - h5py=2.7.1=py36h3585f63_0
+  - hdf5=1.10.1=h9caa474_1
+  - icu=58.2=h9c2bf20_1
+  - intel-openmp=2018.0.0=8
+  - jpeg=9b=h024ee3a_2
+  - kiwisolver=1.0.1=py36h764f252_0
+  - libedit=3.1=heed3624_0
+  - libffi=3.2.1=hd88cf55_4
+  - libgcc=7.2.0=h69d50b8_2
+  - libgcc-ng=7.2.0=hdf63c60_3
+  - libgfortran=3.0.0=1
+  - libgfortran-ng=7.2.0=hdf63c60_3
+  - libiconv=1.15=h63c8f33_5
+  - libpng=1.6.34=hb9fc6fc_0
+  - libstdcxx-ng=7.2.0=hdf63c60_3
+  - libxcb=1.13=h1bed415_1
+  - libxml2=2.9.8=hf84eae3_0
+  - matplotlib=2.2.2=py36h0e671d2_1
+  - mkl=2018.0.2=1
+  - more-itertools=4.1.0=py36_0
+  - ncurses=6.0=h9df7e31_2
+  - numpy=1.12.1=py36he24570b_1
+  - openssl=1.0.2o=h20670df_0
+  - pcre=8.42=h439df22_0
+  - pip=9.0.3=py36_0
+  - pluggy=0.6.0=py36hb689045_0
+  - psutil=5.4.5=py36h14c3975_0
+  - py=1.5.3=py36_0
+  - pyparsing=2.2.0=py36hee85983_1
+  - pyqt=5.9.2=py36h751905a_0
+  - pytest=3.5.0=py36_0
+  - pytest-arraydiff=0.2=py36_0
+  - pytest-astropy=0.3.0=py36_0
+  - pytest-doctestplus=0.1.3=py36_0
+  - pytest-openfiles=0.3.0=py36_0
+  - pytest-remotedata=0.2.1=py36_0
+  - python=3.6.5=hc3d631a_1
+  - python-dateutil=2.7.2=py36_0
+  - pytz=2018.4=py36_0
+  - qt=5.9.5=h7e424d6_0
+  - readline=7.0=ha6073c6_4
+  - scipy=1.0.1=py36hfc37229_0
+  - setuptools=39.0.1=py36_0
+  - sip=4.19.8=py36hf484d3e_0
+  - six=1.11.0=py36h372c433_1
+  - sqlite=3.23.1=he433501_0
+  - tk=8.6.7=hc745277_3
+  - tornado=5.0.2=py36_0
+  - wheel=0.31.0=py36_0
+  - xz=5.2.3=h5e939de_4
+  - zlib=1.2.11=ha838bed_2
+  - pysynphot=0.9.12=py36_0
+  - pip:
+    - iminuit==1.2
 prefix: /n/panlfs3/gnarayan/miniconda3/envs/WDmodel
 
