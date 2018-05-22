@@ -2,13 +2,20 @@
 """
 Setup script for the WDmodel package
 """
+import sys
 import os
 import re
 import glob
 
 from setuptools import find_packages, setup
 
-with open('dependencies_py27.txt','r') as f:
+
+if sys.version_info.major == 2:
+    dep_file = 'dependencies_py27.txt'
+else:
+    dep_file = 'dependencies_py36.txt'
+
+with open(dep_file,'r') as f:
     required = f.read().splitlines()
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
