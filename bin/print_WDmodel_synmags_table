@@ -1,0 +1,126 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+"""
+Print WDmodel synthetic magnitudes for SEDs in ourdi for the specified specfiles to a table
+"""
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
+import sys
+import argparse
+import warnings
+warnings.simplefilter('once')
+import glob
+import numpy as np
+import astropy.table as at
+import WDmodel.WDmodel
+import WDmodel.io
+import WDmodel.passband
+
+
+def get_options(args=None):
+    """
+    Get command line options for WDmodel files to print synthetic magnitudes for
+    """
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=__doc__)
+
+    parser.add_argument('--specfiles', nargs='+', required=False, \
+            help="Specify spectrum to search for")
+    parser.add_argument('--outroot', required=False,
+            help="Specify a custom output root directory. Directories go under outroot/objname/subdir.")
+    parser.add_argument('-o', '--outdir', required=False,\
+            help="Specify a custom output directory. Default is CWD+objname/ subdir")
+    parser.add_argument('--pbfile', required=False,  default=None,\
+            help="Specify file containing mapping from passband to pysynphot obsmode")
+    parser.add_argument('--pbnames', nargs='+',\
+            help="Specify passbands names (or filenames) to use for synthetic photometry" )
+    args = parser.parse_args(args=args)
+    return args
+
+
+def main(inargs=None):
+
+    if inargs is None:
+        inargs = sys.argv[1:]
+
+    args = get_options(inargs)
+    if args.specfiles is None:
+        specfiles = glob.glob('data/spectroscopy/*/*flm')
+    else:
+        specfiles = args.specfiles
+
+    pbfile = args.pbfile
+
+    # use default HST/WFC3 passbands from our cycle 20 program if pbnames is not supplied
+    pbnames = args.pbnames
+    if pbnames is None:
+        pbnames = []
+    if len(pbnames) == 0:
+        pbnames = 'F275W,F336W,F475W,F625W,F775W,F160W'.split(',')
+
+    # init the model - the output SED already has the extinction applied, so
+    # there's no reason to init rvmodel
+    model = WDmodel.WDmodel.WDmodel()
+
+    # get the throughput model - unlike the fitter, we can use the SED to
+    # derive mags in passbands we don't have observations for, so no index
+    # gymnastics required.
+    pbs = WDmodel.passband.get_pbmodel(pbnames, model, pbfile=pbfile)
+
+    out = []
+    for specfile in specfiles:
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, resume=True)
+        sedfile = WDmodel.io.get_outfile(outdir, specfile, '_full_model.hdf5')
+        try:
+            fullsed = WDmodel.io.read_full_model(sedfile)
+        except OSError as e:
+            message = 'Could not load SED model for {}({}) from outfile {}'.format(objname, specfile, sedfile)
+            warnings.warn(message)
+            continue
+        except KeyError as e:
+            message = 'SED model for {}({}) from outfile {} is improperly formatted'.format(objname, specfile, sedfile)
+            warnings.warn(message)
+            continue
+        except ValueError as e:
+            message = 'SED model for {}({}) from outfile {} has invalid values! Check fit!'.format(objname, specfile, sedfile)
+            warnings.warn(message)
+            continue
+
+        sedmid = np.rec.fromarrays([fullsed.wave, fullsed.flux], names='wave,flux')
+        sedlo  = np.rec.fromarrays([fullsed.wave, fullsed.flux - fullsed.flux_err], names='wave,flux')
+        sedhi  = np.rec.fromarrays([fullsed.wave, fullsed.flux + fullsed.flux_err], names='wave,flux')
+
+        magsmid = WDmodel.passband.get_model_synmags(sedmid, pbs)
+        magslo  = WDmodel.passband.get_model_synmags(sedlo, pbs)
+        magshi  = WDmodel.passband.get_model_synmags(sedhi, pbs)
+
+        # magnitudes are backwards, so I have to write this out every time...
+        mags  = magsmid.mag
+        errlo = magslo.mag - mags
+        errhi = mags - magshi.mag
+
+        thisrec = [objname, specfile, ]
+        for i, pb in enumerate(pbs):
+            thisrec += [mags[i], errhi[i], errlo[i],]
+        out.append(thisrec)
+
+    names = ['obj', 'specfile',]
+    formats = {}
+    for pb in pbs:
+        names += ['m{}'.format(pb), 'errhi_m{}'.format(pb), 'errlo_m{}'.format(pb),]
+    for name in names[2:]:
+        formats[name] = '%0.4f'
+    out = at.Table(rows=out, names=names)
+    out.sort(['obj','specfile'])
+    out.write(sys.stdout, format='ascii.fixed_width', delimiter=' ', formats=formats)
+
+
+
+
+
+
+
+
+
+if __name__=='__main__':
+    main(sys.argv[1:])
