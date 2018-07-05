@@ -1,10 +1,8 @@
 include WDmodel/TlustyGrids.hdf5
 include WDmodel/WDmodel_param_defaults.json
-include data/spectroscopy/spectable_resolution.dat
-include data/spectroscopy/test.flm
-include README.rst
+include tesh.sh
+include test_WDmodel.py
 include LICENSE
-include docs/
 exclude docs/_build
 exclude docs/api
 exclude build/
@@ -13,6 +11,7 @@ exclude products/
 exclude dist/
 exclude src/
 global-include *.txt
+global-include *.rst
 global-include *.md
 global-include *.py
 global-include .gitkeep
@@ -21,4 +20,8 @@ global-exclude *.prof
 global-exclude *.swp
 global-exclude *.png
 global-exclude out*/*
+graft docs/
+graft  WDmodel/tests/
 prune scripts/
+prune data/
+prune WDdata/
