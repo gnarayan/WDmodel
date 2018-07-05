@@ -1308,6 +1308,52 @@ def write_phot_model(phot, model_mags, outfile):
     print(message)
 
 
+def read_full_model(input_file):
+    """
+    Read the full SED model from an output file.
+
+    Parameters
+    ----------
+    input_file : str
+        Input HDF5 SED model filename
+
+    Returns
+    -------
+    spec : :py:class:`numpy.recarray`
+        Record array with the model SED.
+        Has ``dtype=[('wave', '<f8'), ('flux', '<f8'), ('flux_err', '<f8')]``
+
+    Raises
+    ------
+    KeyError
+        If any of ``wave``, ``flux`` or ``flux_err`` is not found in the file
+    ValueError
+        If any value is not finite or if ``flux`` or ``flux_err`` have any
+        values ``<= 0``
+    """
+    with h5py.File(input_file, 'r') as indata:
+        try:
+            inspec = indata['model']
+            wave = inspec['wave'].value
+            flux = inspec['flux'].value
+            flux_err = inspec['flux_err'].value
+        except KeyError as e:
+            message = '{}\nCould not load SED model from file {}'.format(e, input_file)
+            raise KeyError(message)
+
+    spec = np.rec.fromarrays([wave, flux, flux_err], names='wave,flux,flux_err')
+
+    if np.any(~np.isfinite(spec.wave)) or np.any(~np.isfinite(spec.flux)) or np.any(~np.isfinite(spec.flux_err)):
+        message = "Spectroscopy values and uncertainties must be finite."
+        raise ValueError(message)
+
+    if np.any(spec.flux_err <= 0.) or np.any(spec.flux <= 0.):
+        message = "Spectroscopy values uncertainties must all be positive."
+        raise ValueError(message)
+
+    return spec
+
+
 def write_full_model(full_model, outfile):
     """
     Write the full SED model to an output file.
