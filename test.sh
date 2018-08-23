@@ -15,7 +15,7 @@ mpirun -np 4 $RUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot -
 if [ "$1" = -c ]; then
     coverage combine
 fi
-$ARUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot --nburnin 10 --nprod 50 --redo --outdir out_temp --covtype Exp --nwalkers 50 --av_fix True --av 0.03 --savefig --mu None --samptype gibbs --reddeningmodel ccm89
+$ARUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot --nburnin 10 --nprod 50 --redo --outdir out_temp --covtype Exp --nwalkers 50 --av_fix True --av 0.03 --savefig --mu None --samptype mossampler --reddeningmodel ccm89
 $ARUNNER -m WDmodel --specfile WDmodel/tests/test.flm --ignorephot --nprod 50 --nburnin 10 --redo --nwalkers 30 --covtype White --reddeningmodel custom
 $ARUNNER test_WDmodel.py
 
