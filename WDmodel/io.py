@@ -16,7 +16,7 @@ from copy import deepcopy
 import numpy as np
 import pkg_resources
 from collections import OrderedDict
-from matplotlib.mlab import rec2txt
+import astropy.table as at
 import json
 import h5py
 from six.moves import range
@@ -1264,10 +1264,11 @@ def write_spectrum_model(spec, model_spec, outfile):
     out = (spec.wave, spec.flux, spec.flux_err,\
             model_spec.norm_flux, model_spec.flux, model_spec.flux_err,\
             spec.flux-model_spec.flux)
-    names=str('wave,flux,flux_err,norm_flux,model_flux,model_flux_err,res_flux')
-    out = np.rec.fromarrays(out, names=names)
-    with open(outfile, 'w') as f:
-        f.write(rec2txt(out, precision=8)+'\n')
+    names=str('wave,flux,flux_err,norm_flux,model_flux,model_flux_err,res_flux').split(',')
+    out = at.Table(out, names=names)
+    for name in names:
+        out[name].format='%.8f'
+    out.write(outfile, format='ascii.fixed_width', delimiter=' ', overwrite=True)
     message = "Wrote spec model file {}".format(outfile)
     print(message)
 
@@ -1300,10 +1301,11 @@ def write_phot_model(phot, model_mags, outfile):
     """
 
     out = (phot.pb, phot.mag, phot.mag_err, model_mags.mag, phot.mag-model_mags.mag)
-    names=str('pb,mag,mag_err,model_mag,res_mag')
-    out = np.rec.fromarrays(out, names=names)
-    with open(outfile, 'w') as f:
-        f.write(rec2txt(out, precision=6)+'\n')
+    names=str('pb,mag,mag_err,model_mag,res_mag').split(',')
+    out = at.Table(out, names=names)
+    for name in names[1:]:
+        out[name].format='%.6f'
+    out.write(outfile, format='ascii.fixed_width', delimiter=' ', overwrite=True)
     message= "Wrote phot model file {}".format(outfile)
     print(message)
 
