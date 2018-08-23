@@ -117,7 +117,7 @@ def get_options(args, comm):
     # photometry options
     reddeninglaws = ('od94', 'ccm89', 'f99', 'custom')
     phot = parser.add_argument_group('photometry', 'Photometry options')
-    phot.add_argument('--photfile', required=False,  default="data/photometry/WDphot_C22.dat",\
+    phot.add_argument('--photfile', required=False,  default="data/photometry/WDphot_ILAPHv3_abmag.dat",\
             help="Specify file containing photometry lookup table for objects")
     phot.add_argument('--reddeningmodel', required=False, choices=reddeninglaws, default='f99',\
             help="Specify functional form of reddening law" )
