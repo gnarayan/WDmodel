@@ -1194,7 +1194,7 @@ def read_mcmc(input_file):
     chain_params : dict
         The chain parameter dictionary
          * ``param_names`` : list - list of model parameter names
-         * ``samptype`` : ``{'ensemble','pt','mossampler'}`` - the sampler to use
+         * ``samptype`` : ``{'ensemble','pt','gibbs'}`` - the sampler to use
          * ``ascale`` : float - the proposal scale for the sampler
          * ``ntemps`` : int - the number of chain temperatures
          * ``nwalkers`` : int - the number of Goodman & Ware walkers
