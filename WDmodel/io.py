@@ -101,7 +101,7 @@ def get_options(args, comm):
             help="Specify spectrum to fit")
     spectrum.add_argument('--spectable', required=False,  default="data/spectroscopy/spectable_resolution.dat",\
             help="Specify file containing a fwhm lookup table for specfile")
-    spectrum.add_argument('--lamshift', required=False, type=float, default=0.,\
+    spectrum.add_argument('--lamshift', required=False, type='NoneOrFloat', default=None,\
             help="Specify a flat wavelength shift in Angstrom to fix  slit centering errors")
     spectrum.add_argument('--vel', required=False, type=float, default=0.,\
             help="Specify a velocity shift in kmps to apply to the spectrum")
@@ -617,7 +617,7 @@ read_reddening = _read_ascii
 """Read J. Holberg's custom reddening function - wraps :py:func:`_read_ascii`"""
 
 
-def get_spectrum_resolution(specfile, spectable, fwhm=None):
+def get_spectrum_resolution(specfile, spectable, fwhm=None, lamshift=None):
     """
     Gets the measured FWHM from a spectrum lookup table.
 
@@ -630,12 +630,18 @@ def get_spectrum_resolution(specfile, spectable, fwhm=None):
     fwhm : None or float, optional
         If specified, this overrides the resolution provided in the lookup
         table. If ``None`` lookups the resultion from ``spectable``.
+    lamshift : None or float, optional
+        If specified, this overrides the wavelength shift provided in the lookup
+        table. If ``None`` lookups the wavelength shift from ``spectable``.
 
     Returns
     -------
     fwhm : float
         The FWHM of the spectrum file. This is typically used as an initial
         guess to the :py:mod:`WDmodel.fit` fitter routines.
+    lamshift: float
+        The wavelength shift to apply additively to the spectrum. This is not a
+        fit parameter, and is treated as an input
 
     Raises
     ------
@@ -654,14 +660,18 @@ def get_spectrum_resolution(specfile, spectable, fwhm=None):
     """
 
     _default_resolution = 5.0
+    _default_lamshift   = 0.
+
+    try:
+        spectable = read_spectable(spectable)
+    except (OSError, IOError) as e:
+        message = '{}\nCould not get resolution from spectable {}'.format(e, spectable)
+        warnings.warn(message, RuntimeWarning)
+        spectable = None
+
+    shortfile = os.path.basename(specfile).replace('-total','')
+
     if fwhm is None:
-        try:
-            spectable = read_spectable(spectable)
-        except (OSError, IOError) as e:
-            message = '{}\nCould not get resolution from spectable {}'.format(e, spectable)
-            warnings.warn(message, RuntimeWarning)
-            spectable = None
-        shortfile = os.path.basename(specfile).replace('-total','')
         if shortfile.startswith('test'):
             message = 'Spectrum filename indicates this is a test - using default resolution'
             warnings.warn(message, RuntimeWarning)
@@ -679,9 +689,26 @@ def get_spectrum_resolution(specfile, spectable, fwhm=None):
     else:
         message = 'Smoothing factor specified on command line - overriding spectable file'
         warnings.warn(message, RuntimeWarning)
-    message = 'Using smoothing instrumental FWHM {}'.format(fwhm)
+
+    if lamshift is None:
+        if shortfile.startswith('test'):
+            message = 'Spectrum filename indicates this is a test - using default wavelength shift'
+            warnings.warn(message, RuntimeWarning)
+            lamshift = _default_lamshift
+        elif spectable is not None:
+            mask = (spectable.specname == shortfile)
+            if len(spectable[mask]) != 1:
+                message = 'Could not find an entry for this spectrum in the spectable file - using wavelength shift'
+                warnings.warn(message, RuntimeWarning)
+                lamshift = _default_lamshift
+            else:
+                lamshift = spectable[mask].lamshift[0]
+        else:
+            lamshift = _default_lamshift
+
+    message = 'Using smoothing instrumental FWHM {} and wavelength shift {}'.format(fwhm, lamshift)
     print(message)
-    return fwhm
+    return fwhm, lamshift
 
 
 def read_spec(filename, **kwargs):

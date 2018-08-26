@@ -143,7 +143,7 @@ def main(inargs=None):
         # we can look it up from a lookup table provided by Tom Matheson for our spectra
         # a custom argument from the command line overrides the lookup
         fwhm = params['fwhm']['value']
-        fwhm = io.get_spectrum_resolution(specfile, spectable, fwhm=fwhm)
+        fwhm, lamshift = io.get_spectrum_resolution(specfile, spectable, fwhm=fwhm, lamshift=lamshift)
         params['fwhm']['value'] = fwhm
 
         # read spectrum
