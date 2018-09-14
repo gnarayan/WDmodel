@@ -1222,12 +1222,13 @@ def read_mcmc(input_file):
         The chain parameter dictionary
          * ``param_names`` : list - list of model parameter names
          * ``samptype`` : ``{'ensemble','pt','gibbs'}`` - the sampler to use
-         * ``ascale`` : float - the proposal scale for the sampler
          * ``ntemps`` : int - the number of chain temperatures
          * ``nwalkers`` : int - the number of Goodman & Ware walkers
          * ``nprod`` : int - the number of production steps of the chain
          * ``ndim`` : int - the number of model parameters in the chain
-         * ``everyn`` : int - the sparse sampling step size
+         * ``thin`` : int - the chain thinning if any
+         * ``everyn`` : int - the sparse of spectrum sampling step size
+         * ``ascale`` : float - the proposal scale for the sampler
 
     Raises
     ------
@@ -1249,6 +1250,7 @@ def read_mcmc(input_file):
         chain_params['nwalkers']    = d['chain'].attrs['nwalkers']
         chain_params['nprod']       = d['chain'].attrs['nprod']
         chain_params['ndim']        = d['chain'].attrs['nparam']
+        chain_params['thin']        = d['chain'].attrs['thin']
         chain_params['everyn']      = d['chain'].attrs['everyn']
         chain_params['ascale']      = d['chain'].attrs['ascale']
 
