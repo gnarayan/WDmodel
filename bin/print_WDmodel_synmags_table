@@ -69,7 +69,7 @@ def main(inargs=None):
 
     out = []
     for specfile in specfiles:
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, resume=True)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, nocreate=True)
         sedfile = WDmodel.io.get_outfile(outdir, specfile, '_full_model.hdf5')
         try:
             fullsed = WDmodel.io.read_full_model(sedfile)

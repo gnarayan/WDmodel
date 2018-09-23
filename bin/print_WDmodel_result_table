@@ -48,7 +48,7 @@ def main(inargs=None):
     colbool = False
 
     for specfile in specfiles:
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, resume=True)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, nocreate=True)
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_result.json')
         try:
             params = WDmodel.io.read_params(outfile)
@@ -78,7 +78,7 @@ def main(inargs=None):
     out.sort()
     precision = [None, None] + [2,2,2]*7 + [5,5,5] + [2,2,2] + [4,4,4]
     print(rec2txt(out, precision=precision ))
-    
+
 
 if __name__=='__main__':
     main(sys.argv[1:])

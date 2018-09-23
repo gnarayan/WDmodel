@@ -875,7 +875,7 @@ def make_outdirs(dirname, redo=False, resume=False):
         raise OSError(message)
 
 
-def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False, resume=False):
+def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=False, resume=False, nocreate=False):
     """
     Sets the short human readable object name and output directory
 
@@ -891,6 +891,8 @@ def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=Fa
         If ``False`` the directory will not be created if it already exists, and an error is raised
     resume : bool, optional
         If ``False`` the directory will not be created if it already exists, and an error is raised
+    nocreate: bool, optional
+        If  ``True`` then creation of output directories is not even attempted
 
     Returns
     -------
@@ -912,7 +914,8 @@ def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=Fa
         dirname = os.path.join(outroot, objname, basespec)
     else:
         dirname = outdir
-    make_outdirs(dirname, redo=redo, resume=resume)
+    if not nocreate:
+        make_outdirs(dirname, redo=redo, resume=resume)
     return objname, dirname
 
 

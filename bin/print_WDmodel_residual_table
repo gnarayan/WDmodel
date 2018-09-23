@@ -50,7 +50,7 @@ def main(inargs=None):
     pbs = pbs.split(',')
 
     for specfile in specfiles:
-        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, resume=True)
+        objname, outdir = WDmodel.io.set_objname_outdir_for_specfile(specfile, outroot=args.outroot, outdir=args.outdir, nocreate=True)
         outfile = WDmodel.io.get_outfile(outdir, specfile, '_phot_model.dat')
         try:
             phot = WDmodel.io.read_phot(outfile)
@@ -91,7 +91,7 @@ def main(inargs=None):
     precision = [None, None] + [4,4,4,4]*len(pbs)
     with open('residual_table.dat', 'w') as f:
         f.write(rec2txt(out, precision=precision )+'\n')
-    
+
 
 
 
