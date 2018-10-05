@@ -6,7 +6,9 @@ routines
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+import warnings
 import numpy as np
+from scipy.interpolate import interp1d
 import pysynphot as S
 from . import io
 from collections import OrderedDict
@@ -226,7 +228,7 @@ def chop_syn_spec_pb(spec, model_mag, pb, model):
     return outpb, outzp
 
 
-def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
+def get_pbmodel(pbnames, model, pbfile=None, mag_type=None, mag_zero=0.):
     """
     Converts passband names ``pbnames`` into passband models based on the
     mapping of name to ``pysynphot`` ``obsmode`` strings in ``pbfile``.
@@ -250,11 +252,17 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
         fullpath to a file that is readable by ``pysynphot``
     mag_type : str, optional
         One of ''vegamag'' or ''abmag''
-        Used to specify the standard that has 0 magnitude in the passband.
+        Used to specify the standard that has mag_zero magnitude in the passband.
         If ``magsys`` is specified in ``pbfile,`` that overrides this option.
         Must be the same for all passbands listed in ``pbname`` that do not
         have ``magsys`` specified in ``pbfile``
-        If ``pbnames`` require multiple ``mag_types``, concatentate the output.
+        If ``pbnames`` require multiple ``mag_type``, concatentate the output.
+    mag_zero : float, optional
+        Magnitude of the standard in the passband
+        If ``magzero`` is specified in ``pbfile,`` that overrides this option.
+        Must be the same for all passbands listed in ``pbname`` that do not
+        have ``magzero`` specified in ``pbfile``
+        If ``pbnames`` require multiple ``mag_zero``, concatentate the output.
 
     Returns
     -------
@@ -290,7 +298,7 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
 
         Trims the bandpass to entries with non-zero transmission and determines
         the ``VEGAMAG/ABMAG`` zeropoint for the passband - i.e. ``zp`` that
-        gives ``mag_Vega/AB=0.`` in all passbands.
+        gives ``mag_Vega/AB=mag_zero`` in all passbands.
 
     See Also
     --------
@@ -305,19 +313,27 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
     pbdata  = io.read_pbmap(pbfile)
     pbmap   = dict(list(zip(pbdata.pb, pbdata.obsmode)))
     sysmap  = dict(list(zip(pbdata.pb, pbdata.magsys)))
+    zeromap = dict(list(zip(pbdata.pb, pbdata.magzero)))
 
     # setup the photometric system by defining the standard and corresponding magnitude system
     if mag_type not in ('vegamag', 'abmag', None):
         message = 'Magnitude system must be one of abmag or vegamag'
         raise RuntimeError(message)
 
+    try:
+        mag_zero = float(mag_zero)
+    except ValueError as e:
+        message = 'Zero magnitude must be a floating point number'
+        raise RuntimeError(message)
+
     # define the standards
     vega = S.Vega
+    vega.convert('flam')
     ab   = S.FlatSpectrum(3631, waveunits='angstrom', fluxunits='jy')
     ab.convert('flam')
 
     # defile the magnitude sysem
-    if mag_type is None or mag_type == 'vegamag':
+    if mag_type == 'vegamag':
         mag_type= 'vegamag'
     else:
         mag_type = 'abmag'
@@ -331,6 +347,7 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
         # load each passband
         obsmode = pbmap.get(pb, pb)
         magsys  = sysmap.get(pb, mag_type)
+        synphot_mag = zeromap.get(pb, mag_zero)
 
         if magsys == 'vegamag':
             standard = vega
@@ -354,10 +371,18 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None):
                 raise RuntimeError(message)
 
         avgwave = bp.avgwave()
+        if standard.wave.min() > model._wave.min():
+            message = 'Standard does not extend past the blue edge of the model'
+            warnings.warn(message, RuntimeWarning)
 
-        # get the pysynphot standard magnitude (should be 0. on the standard magnitude system!)
-        ob = S.Observation(standard, bp)
-        synphot_mag = ob.effstim(magsys)
+        if standard.wave.max() < model._wave.max():
+            message = 'Standard does not extend past the red edge of the model'
+            warnings.warn(message, RuntimeWarning)
+
+        # interpolate the standard onto the model wavelengths
+        sinterp = interp1d(standard.wave, standard.flux, fill_value='extrapolate', assume_sorted=True)
+        standard_flux = sinterp(model._wave)
+        standard = np.rec.fromarrays([model._wave, standard_flux], names='wave,flux')
 
         # cut the passband to non-zero values and interpolate onto overlapping standard wavelengths
         outpb, outzp = chop_syn_spec_pb(standard, synphot_mag, bp, model)
