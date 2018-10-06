@@ -15,3 +15,6 @@ sdssg passbands/SDSS/sdss_g.dat abmag 0.
 sdssr passbands/SDSS/sdss_r.dat abmag 0.
 sdssi passbands/SDSS/sdss_i.dat abmag 0.
 sdssz passbands/SDSS/sdss_z.dat abmag 0.
+gaia_g passbands/Gaia/gaia_g.dat vegamag 0.
+gaia_bp passbands/Gaia/gaia_bp.dat vegamag 0.
+gaia_rp passbands/Gaia/gaia_rp.dat vegamag 0.

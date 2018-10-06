@@ -357,19 +357,30 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None, mag_zero=0.):
             message = 'Unknown standard system {} for passband {}'.format(magsys, pb)
             raise RuntimeError(message)
 
+        loadedpb = False
         # treat the passband as a obsmode string
         try:
             bp = S.ObsBandpass(obsmode)
+            loadedpb = True
         except ValueError:
-            # if that fails, try to load the passband interpreting obsmode as a file
             message = 'Could not load pb {} as an obsmode string {}'.format(pb, obsmode)
             warnings.warn(message, RuntimeWarning)
-            bandpassfile = io.get_filepath(obsmode)
+            loadedpb = False
+
+        # if that fails, try to load the passband interpreting obsmode as a file
+        if not loadedpb:
             try:
+                bandpassfile = io.get_filepath(obsmode)
                 bp = S.FileBandpass(bandpassfile)
-            except ValueError:
+                loadedpb = True
+            except Exception as e:
                 message = 'Could not load passband {} from obsmode or file {}'.format(pb, obsmode)
-                raise RuntimeError(message)
+                warnings.warn(message, RuntimeWarning)
+                loadedpb = False
+
+        if not loadedpb:
+            message = 'Could not load passband {}. Giving up.'.format(pb)
+            raise RuntimeError(message)
 
         avgwave = bp.avgwave()
         if standard.wave.min() > model._wave.min():

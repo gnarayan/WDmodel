@@ -997,7 +997,11 @@ def get_pkgfile(infile):
         model grid file.
     """
 
-    pkgfile = pkg_resources.resource_filename('WDmodel',infile)
+    try:
+        pkgfile = pkg_resources.resource_filename('WDmodel',infile)
+    except KeyError as e:
+        message = 'Could not find package file {}'.format(infile)
+        raise IOError(message)
 
     if not os.path.exists(pkgfile):
         message = 'Could not find package file {}'.format(pkgfile)
