@@ -1005,6 +1005,36 @@ def get_pkgfile(infile):
     return pkgfile
 
 
+def get_filepath(infile):
+    """
+    Returns the full path to a file. If the path is relative, it is converted
+    to absolute. If this file does not exist, it is treated as a file within
+    the :py:mod:`WDmodel` package. If that file does not exist, an error is
+    raised.
+
+    Parameters
+    ----------
+    infile : str
+        The name of the file to set the full path for
+
+    Returns
+    -------
+    pkgfile : str
+        The path to the file
+
+    Raises
+    ------
+    IOError
+        If the ``infile`` could not be found at location or inside the
+        :py:mod:`WDmodel` package.
+    """
+    fullfile = os.path.abspath(infile)
+    if os.path.exists(fullfile):
+        return fullfile
+    else:
+        return get_pkgfile(infile)
+
+
 def write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
         rvmodel, covtype, coveps, phot_dispersion, scale_factor, outfile):
     """

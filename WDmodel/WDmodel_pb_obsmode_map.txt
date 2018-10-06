@@ -5,3 +5,13 @@ F475W WFC3,UVIS2,F475W abmag 0.
 F625W WFC3,UVIS2,F625W abmag 0.
 F775W WFC3,UVIS2,F775W abmag 0.
 F160W WFC3,IR,F160W abmag 0.
+ps1g passbands/PS1/g_filt_revised.txt abmag 0.
+ps1r passbands/PS1/r_filt_tonry.txt abmag 0.
+ps1i passbands/PS1/i_filt_tonry.txt abmag 0.
+ps1z passbands/PS1/z_filt_tonry.txt abmag 0.
+ps1y passbands/PS1/y_filt_tonry.txt abmag 0.
+sdssu passbands/SDSS/sdss_u.dat abmag 0.
+sdssg passbands/SDSS/sdss_g.dat abmag 0.
+sdssr passbands/SDSS/sdss_r.dat abmag 0.
+sdssi passbands/SDSS/sdss_i.dat abmag 0.
+sdssz passbands/SDSS/sdss_z.dat abmag 0.

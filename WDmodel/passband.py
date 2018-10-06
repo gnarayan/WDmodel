@@ -329,7 +329,7 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None, mag_zero=0.):
     # define the standards
     vega = S.Vega
     vega.convert('flam')
-    ab   = S.FlatSpectrum(3631, waveunits='angstrom', fluxunits='jy')
+    ab   = S.FlatSpectrum(0., waveunits='angstrom', fluxunits='abmag')
     ab.convert('flam')
 
     # defile the magnitude sysem
@@ -363,9 +363,10 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None, mag_zero=0.):
         except ValueError:
             # if that fails, try to load the passband interpreting obsmode as a file
             message = 'Could not load pb {} as an obsmode string {}'.format(pb, obsmode)
-            print(message)
+            warnings.warn(message, RuntimeWarning)
+            bandpassfile = io.get_filepath(obsmode)
             try:
-                bp = S.FileBandpass(obsmode)
+                bp = S.FileBandpass(bandpassfile)
             except ValueError:
                 message = 'Could not load passband {} from obsmode or file {}'.format(pb, obsmode)
                 raise RuntimeError(message)
@@ -380,7 +381,7 @@ def get_pbmodel(pbnames, model, pbfile=None, mag_type=None, mag_zero=0.):
             warnings.warn(message, RuntimeWarning)
 
         # interpolate the standard onto the model wavelengths
-        sinterp = interp1d(standard.wave, standard.flux, fill_value='extrapolate', assume_sorted=True)
+        sinterp = interp1d(standard.wave, standard.flux, fill_value='extrapolate')
         standard_flux = sinterp(model._wave)
         standard = np.rec.fromarrays([model._wave, standard_flux], names='wave,flux')
 
