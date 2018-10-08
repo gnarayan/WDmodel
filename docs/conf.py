@@ -40,7 +40,7 @@ MOCK_MODULES = ['numpy','numpy.polynomial','numpy.polynomial.polynomial',
                 'scipy','scipy.stats','scipy.signal','scipy.interpolate','scipy.ndimage','scipy.ndimage.filters',
                 'astropy','astropy.constants','astropy.visualization',
                 'emcee','emcee.utils','emcee.ptsampler','emcee.autocorr',
-                'celerite','celerite.modeling',
+                'celerite','celerite.modeling','astropy.table',
                 'corner','extinction','h5py','iminuit','mpi4py','pysynphot','uncertainties',
                 'matplotlib', 'matplotlib.mlab', 'matplotlib.pyplot','matplotlib.gridspec',
                 'matplotlib.backends', 'matplotlib.backends.backend_pdf', 'matplotlib.font_manager']
