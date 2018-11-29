@@ -5,7 +5,7 @@ WDmodel
 
 About
 -----
-|github| |license| |docs|
+|github| |license| |docs| |doi| 
 
 ``WDmodel`` is a DA White Dwarf model atmosphere fitting code. It fits observed
 spectrophotometry of DA White Dwarfs to infer intrinsic model atmosphere
@@ -29,6 +29,9 @@ Click on the badges above  for code, licensing and documentation.
 .. |docs| image:: http://readthedocs.org/projects/wdmodel/badge/?version=latest
     :alt: Documentation Status
     :target: http://wdmodel.readthedocs.io/en/latest/?badge=latest
+    
+.. |doi| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.1699215.svg
+   :target: https://doi.org/10.5281/zenodo.1699215
 
 Compatibility
 -------------
