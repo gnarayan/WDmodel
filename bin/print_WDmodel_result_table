@@ -9,10 +9,9 @@ from __future__ import unicode_literals
 import sys
 import argparse
 import warnings
-warnings.simplefilter('once')
 import glob
 import numpy as np
-from matplotlib.mlab import rec2txt
+import astropy.table as at
 import WDmodel.io
 
 
@@ -28,6 +27,8 @@ def get_options(args=None):
             help="Specify a custom output root directory. Directories go under outroot/objname/subdir.")
     parser.add_argument('-o', '--outdir', required=False,\
             help="Specify a custom output directory. Default is CWD+objname/ subdir")
+    parser.add_argument('-v', '--verbose', help="print warnings",
+                    action="store_true")
     args = parser.parse_args(args=args)
     return args
 
@@ -43,6 +44,8 @@ def main(inargs=None):
     else:
         specfiles = args.specfiles
 
+    verbose = args.verbose
+
     out = []
     colnames = []
     colbool = False
@@ -53,8 +56,9 @@ def main(inargs=None):
         try:
             params = WDmodel.io.read_params(outfile)
         except IOError as e:
-            message = 'Could not get results for {}({}) from outfile {}'.format(objname, specfile, outfile)
-            warnings.warn(message)
+            if verbose:
+                message = 'Could not get results for {}({}) from outfile {}'.format(objname, specfile, outfile)
+                warnings.warn(message)
             params = None
             continue
         this_out = []
@@ -74,10 +78,15 @@ def main(inargs=None):
         colbool=True
         out.append(this_out)
     colnames = [str(x) for x in colnames]
-    out = np.rec.fromrecords(out, names=colnames)
-    out.sort()
-    precision = [None, None] + [2,2,2]*7 + [5,5,5] + [2,2,2] + [4,4,4]
-    print(rec2txt(out, precision=precision ))
+
+    out = at.Table(rows=out, names=colnames)
+    out.sort('obj')
+
+    collengths = [2,2,2]*7 + [5,5,5] + [2,2,2] + [4,4,4]
+    for i, col in enumerate(colnames[2:]):
+        out[col].format = '%0.{}f'.format(collengths[i])
+    out.write('result_table.dat', format='ascii', overwrite=True)
+    print(out)
 
 
 if __name__=='__main__':
