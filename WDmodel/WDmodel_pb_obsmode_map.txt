@@ -24,3 +24,12 @@ decamy passbands/DECam/decam_y.txt abmag 0.
 gaia_g passbands/Gaia/gaia_g.dat vegamag 0.
 gaia_bp passbands/Gaia/gaia_bp.dat vegamag 0.
 gaia_rp passbands/Gaia/gaia_rp.dat vegamag 0.
+LS_bass_g  passbands/LegacySurvey/bass-g.am1p1.conv.dat abmag 0.
+LS_bass_r  passbands/LegacySurvey/bass-r.am1p1.conv.dat abmag 0.
+LS_DECam_u passbands/LegacySurvey/decam.u.am1p4.dat abmag 0.
+LS_DECam_g passbands/LegacySurvey/decam.g.am1p4.dat abmag 0.
+LS_DECam_r passbands/LegacySurvey/decam.r.am1p4.dat abmag 0.
+LS_DECam_i passbands/LegacySurvey/decam.i.am1p4.dat abmag 0.
+LS_DECam_z passbands/LegacySurvey/decam.z.am1p4.dat abmag 0.
+LS_DECam_Y passbands/LegacySurvey/decam.Y.am1p4.dat abmag 0.
+LS_KP_z    passbands/LegacySurvey/kpzdccdcorr3.bp abmag 0.
