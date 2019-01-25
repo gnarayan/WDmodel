@@ -32,4 +32,4 @@ LS_DECam_r passbands/LegacySurvey/decam.r.am1p4.dat abmag 0.
 LS_DECam_i passbands/LegacySurvey/decam.i.am1p4.dat abmag 0.
 LS_DECam_z passbands/LegacySurvey/decam.z.am1p4.dat abmag 0.
 LS_DECam_Y passbands/LegacySurvey/decam.Y.am1p4.dat abmag 0.
-LS_KP_z    passbands/LegacySurvey/kpzdccdcorr3.bp abmag 0.
+LS_KP_z    passbands/LegacySurvey/kpzdccdcorr3.am1p1.conv.dat abmag 0.
