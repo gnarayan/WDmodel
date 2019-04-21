@@ -49,7 +49,6 @@ install:
     - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
           conda install --yes --file dependencies_py27.txt;
       else
-          pip install iminuit;
           conda install --yes --file dependencies_py36.txt;
       fi
     - python setup.py install
