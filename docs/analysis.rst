@@ -142,7 +142,7 @@ these plots.
 
 .. figure:: images/example_fit_posterior.png
    :align: center
-   :figwidth: 50%
+   :width: 50%
    :scale: 50%
 
 A corner plot of the posterior distribution. If the model and data are not in

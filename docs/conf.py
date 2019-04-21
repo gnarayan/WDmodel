@@ -114,7 +114,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'WDmodel'
-copyright = u'2017, Gautham Narayan'
+copyright = u'2019, Gautham Narayan'
 author = u'Gautham Narayan'
 
 # The version info for the project you're documenting, acts as replacement for
