@@ -1,9 +1,8 @@
 name: WDmodel
 channels:
-  - mpi4py
+  - conda-forge
   - defaults
   - http://ssb.stsci.edu/astroconda
-  - conda-forge
 dependencies:
   - args=0.1.0=py36_0
   - ca-certificates=2018.8.13=ha4d7672_0

@@ -1,9 +1,8 @@
 name: WDmodel
 channels:
-- mpi4py
+- conda-forge
 - defaults
 - http://ssb.stsci.edu/astroconda
-- conda-forge
 dependencies:
 - args=0.1.0=py27_0
 - celerite=0.2.0=np112py27_0
