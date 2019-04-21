@@ -86,9 +86,10 @@ def main(inargs=None):
             warnings.warn(message)
             continue
 
-        sedmid = np.rec.fromarrays([fullsed.wave, fullsed.flux], names='wave,flux')
-        sedlo  = np.rec.fromarrays([fullsed.wave, fullsed.flux - fullsed.flux_err], names='wave,flux')
-        sedhi  = np.rec.fromarrays([fullsed.wave, fullsed.flux + fullsed.flux_err], names='wave,flux')
+        names = str('wave,flux')
+        sedmid = np.rec.fromarrays([fullsed.wave, fullsed.flux], names=names)
+        sedlo  = np.rec.fromarrays([fullsed.wave, fullsed.flux - fullsed.flux_err], names=names)
+        sedhi  = np.rec.fromarrays([fullsed.wave, fullsed.flux + fullsed.flux_err], names=names)
 
         magsmid = WDmodel.passband.get_model_synmags(sedmid, pbs)
         magslo  = WDmodel.passband.get_model_synmags(sedlo, pbs)
