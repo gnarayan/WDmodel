@@ -10,10 +10,7 @@ import glob
 from setuptools import find_packages, setup
 
 
-if sys.version_info.major == 2:
-    dep_file = 'dependencies_py27.txt'
-else:
-    dep_file = 'dependencies_py36.txt'
+dep_file = 'dependencies_py36.txt'
 
 with open(dep_file,'r') as f:
     required = f.read().splitlines()
@@ -60,7 +57,6 @@ setup(
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
         'Natural Language :: English',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering :: Astronomy',
         'Topic :: Scientific/Engineering :: Physics'
