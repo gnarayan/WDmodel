@@ -878,8 +878,6 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
 
         # set walkers to start production at final burnin state
         pos = result[0]
-        if samptype != 'ensemble':
-            pos = pos.reshape(ntemps, nwalkers, nparam)
 
         # setup incremental chain saving
         chain = outf.create_group("chain")
