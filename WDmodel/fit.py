@@ -876,11 +876,8 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
             message = "{} = {:f}".format(k,v)
             print(message)
 
-        # adjust the walkers to start around the MAP position from burnin
-        pos = emcee.utils.sample_ball(p1, std, size=ntemps*nwalkers)
-        pos = fix_pos(pos, free_param_names, params)
-        if samptype != 'ensemble':
-            pos = pos.reshape(ntemps, nwalkers, nparam)
+        # set walkers to start production at final burnin state
+        pos = result[0]
 
         # setup incremental chain saving
         chain = outf.create_group("chain")
