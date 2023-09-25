@@ -136,8 +136,12 @@ def main(inargs=None):
 
 
     # set the object name and create output directories
-    objname, outdir = io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot,\
+    objname, outdir1, bs1 = io.set_objname_outdir_for_specfile(specfile, outdir=outdir, outroot=outroot,\
                         redo=redo, resume=resume)
+    objname2, outdir2, bs2 = io.set_objname_outdir_for_specfile(specfile2, outdir=outdir, outroot=outroot,\
+                        redo=redo, resume=resume)
+    # outdir = outdir1+'_'+objname2
+    outdir=outdir1
     message = "Writing to outdir {}".format(outdir)
     print(message)
 
@@ -168,6 +172,10 @@ def main(inargs=None):
         out = fit.pre_process_spectrum(spec, bluelim, redlim, model, params,\
                 rebin=rebin, lamshift=lamshift, vel=vel, blotch=blotch, rescale=rescale)
         spec, cont_model, linedata, continuumdata, scale_factor, params  = out
+
+        out2 = fit.pre_process_spectrum(spec2, bluelim2, redlim2, model, params,\
+                rebin=rebin2, lamshift=lamshift2, vel=vel2, blotch=blotch2, rescale=rescale2)
+        spec2, cont_model2, linedata2, continuumdata2, scale_factor2, not_params  = out2
 
         # get photometry
         if not ignorephot:
@@ -295,10 +303,10 @@ def main(inargs=None):
         io.write_params(mcmc_params, outfile)
 
         # plot the MCMC output
-        plot_out = viz.plot_mcmc_model(spec, phot, linedata,\
-                    scale_factor, phot_dispersion,\
-                    objname, outdir, specfile,\
-                    model, covmodel, cont_model, pbs,\
+        plot_out = viz.plot_mcmc_model(spec, spec2, phot, linedata,\
+                    scale_factor, scale_factor2, phot_dispersion,\
+                    objname, objname2, outdir, specfile, specfile2,\
+                    model, covmodel, covmodel2, cont_model, cont_model2, pbs,\
                     mcmc_params, param_names, in_samp, in_lnprob,\
                     covtype=covtype, balmer=balmer,\
                     ndraws=ndraws, everyn=everyn, savefig=savefig)

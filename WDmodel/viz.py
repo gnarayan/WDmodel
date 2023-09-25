@@ -134,7 +134,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
     return fig
 
 
-def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmodel, result, param_names, samples,\
+def plot_mcmc_spectrum_fit(spec, other_spec, objname, specfile, scale_factor, model, covmodel, result, param_names, samples,\
         ndraws=21, everyn=1):
     """
     Plot the spectrum of the DA White Dwarf and the "best fit" model
@@ -224,16 +224,27 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
     pixel_scale = 1./np.median(np.gradient(spec.wave))
 
     # plot one draw of the sample, bundled into a dict
-    def plot_one(this_draw, color='red', alpha=1., label=None, i=1):
-        teff = this_draw['teff']['value']
-        logg = this_draw['logg']['value']
-        av   = this_draw['av']['value']
-        rv   = this_draw['rv']['value']
-        dl   = this_draw['dl']['value']
-        fwhm = this_draw['fwhm']['value']
-        fsig = this_draw['fsig']['value']
-        tau  = this_draw['tau']['value']
-        fw   = this_draw['fw']['value']
+    def plot_one(this_draw, other_spec, color='red', alpha=1., label=None, i=1):
+        if other_spec:
+            teff = this_draw['teff']['value']
+            logg = this_draw['logg']['value']
+            av   = this_draw['av']['value']
+            rv   = this_draw['rv']['value']
+            dl   = this_draw['dl']['value']
+            fwhm = this_draw['fwhm2']['value']
+            fsig = this_draw['fsig2']['value']
+            tau  = this_draw['tau2']['value']
+            fw   = this_draw['fw2']['value']
+        else:
+            teff = this_draw['teff']['value']
+            logg = this_draw['logg']['value']
+            av   = this_draw['av']['value']
+            rv   = this_draw['rv']['value']
+            dl   = this_draw['dl']['value']
+            fwhm = this_draw['fwhm']['value']
+            fsig = this_draw['fsig']['value']
+            tau  = this_draw['tau']['value']
+            fw   = this_draw['fw']['value']
 
         mod, full_mod = model._get_full_obs_model(teff, logg, av, fwhm, spec.wave,\
                 rv=rv, pixel_scale=pixel_scale)
@@ -251,7 +262,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
     for i in range(ndraws):
         for j, param in enumerate(param_names):
             this_draw[param]['value'] = draws[i,j]
-        smoothedmod, wres, cov, full_mod, out_draw = plot_one(this_draw, color='orange', alpha=0.3, i=i)
+        smoothedmod, wres, cov, full_mod, out_draw = plot_one(this_draw, other_spec, color='orange', alpha=0.3, i=i)
         wres_err = np.diag(cov)**0.5
         out.append((smoothedmod, wres, wres_err, full_mod, out_draw))
 
@@ -269,7 +280,7 @@ def plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor, model, covmode
         outlabel += thislabel
 
     # finally, overplot the best result draw as solid
-    smoothedmod, wres, cov, full_mod, out_draw = plot_one(result, color='red', alpha=1., label=outlabel)
+    smoothedmod, wres, cov, full_mod, out_draw = plot_one(result, other_spec, color='red', alpha=1., label=outlabel)
     wres_err = np.diag(cov)**0.5
     out.append((smoothedmod, wres, wres_err, full_mod, out_draw))
 
@@ -681,9 +692,9 @@ def plot_mcmc_line_fit(spec, linedata, model, cont_model, draws, balmer=None):
     return fig, fig2
 
 
-def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
-        objname, outdir, specfile,\
-        model, covmodel, cont_model, pbs,\
+def plot_mcmc_model(spec, spec2, phot, linedata, scale_factor, scale_factor2, phot_dispersion,\
+        objname, objname2, outdir, specfile, specfile2,\
+        model, covmodel, covmodel2, cont_model, cont_model2, pbs,\
         params, param_names, samples, samples_lnprob,\
         covtype='Matern32', balmer=None, ndraws=21, everyn=1, savefig=False):
     """
@@ -778,11 +789,20 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
     outfilename = io.get_outfile(outdir, specfile, '_mcmc.pdf')
     with PdfPages(outfilename) as pdf:
         # plot spectrum and model
-        fig, draws  =  plot_mcmc_spectrum_fit(spec, objname, specfile, scale_factor,\
+        fig, draws  =  plot_mcmc_spectrum_fit(spec,False, objname, specfile, scale_factor,\
                 model, covmodel, params, param_names, samples,\
                 ndraws=ndraws, everyn=everyn)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum.pdf')
+            fig.savefig(outfile)
+        pdf.savefig(fig)
+
+        # plot spectrum and model
+        fig, draws2  =  plot_mcmc_spectrum_fit(spec2,True, objname2, specfile2, scale_factor2,\
+                model, covmodel2, params, param_names, samples,\
+                ndraws=ndraws, everyn=everyn)
+        if savefig:
+            outfile = io.get_outfile(outdir, specfile, '_mcmc_spectrum2.pdf')
             fig.savefig(outfile)
         pdf.savefig(fig)
 
@@ -799,6 +819,13 @@ def plot_mcmc_model(spec, phot, linedata, scale_factor, phot_dispersion,\
                 cont_model, draws, covtype=covtype, everyn=everyn)
         if savefig:
             outfile = io.get_outfile(outdir, specfile, '_mcmc_nogp.pdf')
+            fig.savefig(outfile)
+        pdf.savefig(fig)
+
+        fig = plot_mcmc_spectrum_nogp_fit(spec2, objname2, specfile2, scale_factor2,\
+                cont_model2, draws2, covtype=covtype, everyn=everyn)
+        if savefig:
+            outfile = io.get_outfile(outdir, specfile, '_mcmc_nogp2.pdf')
             fig.savefig(outfile)
         pdf.savefig(fig)
 

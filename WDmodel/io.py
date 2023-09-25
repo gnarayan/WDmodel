@@ -934,7 +934,7 @@ def set_objname_outdir_for_specfile(specfile, outdir=None, outroot=None, redo=Fa
         dirname = outdir
     if not nocreate:
         make_outdirs(dirname, redo=redo, resume=resume)
-    return objname, dirname
+    return objname, dirname, basespec
 
 
 def get_outfile(outdir, specfile, ext, check=False, redo=False, resume=False):
