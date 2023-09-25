@@ -69,7 +69,7 @@ class WDmodel_Likelihood(Model):
     # defines the parameter names of the model
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, phot, model, covmodel, pbs, pixel_scale=1., phot_dispersion=0.):
+    def get_value(self, spec, spec2, phot, model, covmodel, covmodel2, pbs, pixel_scale=1., phot_dispersion=0.):
         """
         Returns the log likelihood of the model
 
@@ -107,16 +107,22 @@ class WDmodel_Likelihood(Model):
             phot_chi = 0.
             mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm,\
                     spec.wave, rv=self.rv, pixel_scale=pixel_scale)
+            mod2 = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
+                    spec2.wave, rv=self.rv, pixel_scale=pixel_scale)
         else:
             mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
                     spec.wave, rv=self.rv, pixel_scale=pixel_scale)
+            mod2, full2 = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
+                    spec2.wave, rv=self.rv, pixel_scale=pixel_scale)
             mod_mags = get_model_synmags(full, pbs, mu=self.mu)
             phot_res = phot.mag - mod_mags.mag
             phot_chi = np.sum(phot_res**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
+        mod2 *= (1./(4.*np.pi*(self.dl)**2.))
         res = spec.flux - mod
-        return covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau, self.fw) - (phot_chi/2.)
+        res2 = spec2.flux - mod2
+        return (covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau, self.fw) - (phot_chi/2.)) + (covmodel2.lnlikelihood(spec2.wave, res2, spec2.flux_err, self.fsig2, self.tau2, self.fw2))
 
 
 class WDmodel_Posterior(object):
@@ -197,12 +203,15 @@ class WDmodel_Posterior(object):
         boundscheck and returns ``-inf``. This is not an issue as
         the samplers used in the methods in :py:mod:`WDmodel.fit`.
     """
-    def __init__(self, spec, phot, model, covmodel, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
+    def __init__(self, spec, spec2, phot, model, covmodel, covmodel2, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
         self.spec      = spec
+        self.spec2     = spec2
         self.wavescale = spec.wave.ptp()
+        self.wavescale2 = spec2.wave.ptp()
         self.phot      = phot
         self.model     = model
         self.covmodel  = covmodel
+        self.covmodel2 = covmodel2
         self.pbs       = pbs
         self._lnlike   = lnlike
         self.pixscale  = pixel_scale
@@ -239,7 +248,7 @@ class WDmodel_Posterior(object):
         if prior:
             return out
 
-        loglike = self._lnlike.get_value(self.spec, self.phot, self.model, self.covmodel, self.pbs,\
+        loglike = self._lnlike.get_value(self.spec,self.spec2, self.phot, self.model, self.covmodel, self.covmodel2, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         if likelihood:
             return loglike
@@ -269,7 +278,7 @@ class WDmodel_Posterior(object):
             the log likelihood of the model parameters given the data
         """
         self._lnlike.set_parameter_vector(theta)
-        out = self._lnlike.get_value(self.spec, self.phot, self.model, self.covmodel, self.pbs,\
+        out = self._lnlike.get_value(self.spec, self.spec2, self.phot, self.model, self.covmodel, self.covmodel2, self.pbs,\
                 pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
         return out
 
@@ -382,6 +391,26 @@ class WDmodel_Posterior(object):
 
             fw = self._lnlike.get_parameter('fw')
             out += halfcauchy.logpdf(fw, loc=0, scale=3)
+
+            fwhm2  = self._lnlike.get_parameter('fwhm2')
+            # The FWHM is converted into a gaussian sigma for convolution.
+            # That convolution kernel is truncated at 4 standard deviations by default.
+            # If twice that scale is less than 1 pixel, then we're not actually modifying the data.
+            # This is what sets the hard lower bound on the data, not fwhm=0.
+            gsig  = (fwhm2/self.model._fwhm_to_sigma)*self.pixscale
+            if 8.*gsig < 1.:
+                return -np.inf
+            # normal on fwhm
+            fwhm02 = self.p0['fwhm2']
+            out += norm.logpdf(fwhm2, fwhm02, 8.)
+
+            # half-Cauchy on the kernel amplitudes (both stationary and white)
+            fsig2 = self._lnlike.get_parameter('fsig2')
+            out += halfcauchy.logpdf(fsig2, loc=0, scale=3)
+
+            fw2 = self._lnlike.get_parameter('fw2')
+            out += halfcauchy.logpdf(fw2, loc=0, scale=3)
+
 
             # normal on mu
             mu  = self._lnlike.get_parameter('mu')

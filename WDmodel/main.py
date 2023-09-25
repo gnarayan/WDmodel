@@ -92,6 +92,15 @@ def main(inargs=None):
     rescale   = args.rescale
     blotch    = args.blotch
 
+    specfile2  = args.specfile2
+    spectable2 = args.spectable2
+    lamshift2  = args.lamshift2
+    vel2       = args.vel2
+    bluelim2, redlim2   = args.trimspec2
+    rebin2     = args.rebin2
+    rescale2   = args.rescale2
+    blotch2    = args.blotch2
+
     outdir    = args.outdir
     outroot   = args.outroot
 
@@ -146,8 +155,13 @@ def main(inargs=None):
         fwhm, lamshift = io.get_spectrum_resolution(specfile, spectable, fwhm=fwhm, lamshift=lamshift)
         params['fwhm']['value'] = fwhm
 
+        fwhm2 = params['fwhm2']['value']
+        fwhm2, lamshift2 = io.get_spectrum_resolution(specfile2, spectable2, fwhm=fwhm2, lamshift=lamshift2)
+        params['fwhm2']['value'] = fwhm2
+
         # read spectrum
         spec = io.read_spec(specfile)
+        spec2 = io.read_spec(specfile2)
 
 
         # pre-process spectrum
@@ -248,6 +262,8 @@ def main(inargs=None):
     # between the systematic residuals between data and model
     errscale = np.median(spec.flux_err)
     covmodel = covariance.WDmodel_CovModel(errscale, covtype, coveps)
+    errscale2 = np.median(spec2.flux_err)
+    covmodel2 = covariance.WDmodel_CovModel(errscale2, covtype, coveps)
 
     ##### MCMC #####
 
@@ -256,7 +272,7 @@ def main(inargs=None):
     if not args.skipmcmc:
 
         # do the fit
-        result = fit.fit_model(spec, phot, model, covmodel, pbs, migrad_params,\
+        result = fit.fit_model(spec,spec2, phot, model, covmodel,covmodel2 ,pbs, migrad_params,\
                     objname, outdir, specfile,\
                     phot_dispersion=phot_dispersion,\
                     samptype=samptype, ascale=ascale,\

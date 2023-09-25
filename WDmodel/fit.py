@@ -655,7 +655,7 @@ def hyper_param_guess(spec, phot, model, pbs, params):
     return out_params
 
 
-def fit_model(spec, phot, model, covmodel, pbs, params,\
+def fit_model(spec, spec2, phot, model, covmodel, covmodel2, pbs, params,\
             objname, outdir, specfile,\
             phot_dispersion=0.,\
             samptype='ensemble', ascale=2.0,\
@@ -810,12 +810,16 @@ def fit_model(spec, phot, model, covmodel, pbs, params,\
         inspec = spec[::everyn]
     else:
         inspec = spec
+    if everyn != 1:
+        inspec2 = spec2[::everyn]
+    else:
+        inspec2 = spec2
 
     # even if we only take every nth sample, the pixel scale is the same
     pixel_scale = 1./np.median(np.gradient(spec.wave))
 
     # configure the posterior function
-    lnpost = likelihood.WDmodel_Posterior(inspec, phot, model, covmodel, pbs, lnlike,\
+    lnpost = likelihood.WDmodel_Posterior(inspec,inspec2, phot, model, covmodel,covmodel2, pbs, lnlike,\
             pixel_scale=pixel_scale, phot_dispersion=phot_dispersion)
 
     # setup the sampler

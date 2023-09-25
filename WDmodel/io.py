@@ -22,7 +22,7 @@ import h5py
 from six.moves import range
 
 # Declare this tuple to init the likelihood model, and to preserve order of parameters
-_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw", "mu")
+_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw","fwhm2", "fsig2", "tau2", "fw2", "mu")
 
 
 def get_options(args, comm):
@@ -112,6 +112,24 @@ def get_options(args, comm):
     spectrum.add_argument('--rescale',  required=False, action="store_true", default=False,\
             help="Rescale the spectrum to make the noise ~1. Changes the value, bounds, scale on dl also")
     spectrum.add_argument('--blotch', required=False, action='store_true',\
+            default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
+    # spectrum2 options
+    
+    spectrum.add_argument('--specfile2', required=True, \
+            help="Specify spectrum to fit")
+    spectrum.add_argument('--spectable2', required=False,  default="data/spectroscopy/spectable_resolution.dat",\
+            help="Specify file containing a fwhm lookup table for specfile")
+    spectrum.add_argument('--lamshift2', required=False, type='NoneOrFloat', default=None,\
+            help="Specify a flat wavelength shift in Angstrom to fix  slit centering errors")
+    spectrum.add_argument('--vel2', required=False, type=float, default=0.,\
+            help="Specify a velocity shift in kmps to apply to the spectrum")
+    spectrum.add_argument('--trimspec2', required=False, nargs=2, default=(None,None),
+                type='NoneOrFloat', metavar=("BLUELIM", "REDLIM"), help="Trim spectrum to wavelength range")
+    spectrum.add_argument('--rebin2',  required=False, type=int, default=1,\
+            help="Rebin the spectrum by an integer factor. Output wavelengths remain uncorrelated.")
+    spectrum.add_argument('--rescale2',  required=False, action="store_true", default=False,\
+            help="Rescale the spectrum to make the noise ~1. Changes the value, bounds, scale on dl also")
+    spectrum.add_argument('--blotch2', required=False, action='store_true',\
             default=False, help="Blotch the spectrum to remove gaps/cosmic rays before fitting?")
 
     # photometry options
@@ -354,7 +372,7 @@ def write_params(params, outfile):
         json.dump(params, f, indent=4)
 
 
-def read_params(param_file=None):
+def read_params(param_file='/home/berres2002/berre/desktop/code/python/wd_dust/new_params.json'):
     """
     Read a JSON file that configures the default guesses and bounds for the
     parameters, as well as if they should be fixed.
