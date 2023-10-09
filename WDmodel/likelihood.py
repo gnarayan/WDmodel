@@ -69,7 +69,7 @@ class WDmodel_Likelihood(Model):
     # defines the parameter names of the model
     parameter_names = io._PARAMETER_NAMES
 
-    def get_value(self, spec, spec2, phot, model, covmodel, covmodel2, pbs, pixel_scale=1., phot_dispersion=0.):
+    def get_value(self, spec, spec2, phot, model, covmodel, covmodel2, pbs, pixel_scale=1., pixel_scale2=1., phot_dispersion=0.):
         """
         Returns the log likelihood of the model
 
@@ -108,12 +108,14 @@ class WDmodel_Likelihood(Model):
             mod = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm,\
                     spec.wave, rv=self.rv, pixel_scale=pixel_scale)
             mod2 = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
-                    spec2.wave, rv=self.rv, pixel_scale=pixel_scale)
+                    spec2.wave, rv=self.rv, pixel_scale=pixel_scale2)
         else:
             mod, full = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm,\
                     spec.wave, rv=self.rv, pixel_scale=pixel_scale)
-            mod2, full2 = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
-                    spec2.wave, rv=self.rv, pixel_scale=pixel_scale)
+            # mod2, full2 = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
+            #         spec2.wave, rv=self.rv, pixel_scale=pixel_scale)
+            mod2 = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
+                    spec2.wave, rv=self.rv, pixel_scale=pixel_scale2)
             mod_mags = get_model_synmags(full, pbs, mu=self.mu)
             phot_res = phot.mag - mod_mags.mag
             phot_chi = np.sum(phot_res**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
@@ -203,7 +205,7 @@ class WDmodel_Posterior(object):
         boundscheck and returns ``-inf``. This is not an issue as
         the samplers used in the methods in :py:mod:`WDmodel.fit`.
     """
-    def __init__(self, spec, spec2, phot, model, covmodel, covmodel2, pbs, lnlike, pixel_scale=1., phot_dispersion=0.):
+    def __init__(self, spec, spec2, phot, model, covmodel, covmodel2, pbs, lnlike, pixel_scale=1., pixel_scale2=1, phot_dispersion=0.):
         self.spec      = spec
         self.spec2     = spec2
         self.wavescale = spec.wave.ptp()
@@ -215,6 +217,7 @@ class WDmodel_Posterior(object):
         self.pbs       = pbs
         self._lnlike   = lnlike
         self.pixscale  = pixel_scale
+        self.pixscale2 = pixel_scale2
         self.phot_dispersion = phot_dispersion
         init_p0 = lnlike.get_parameter_dict(include_frozen=True)
         self.p0 = init_p0
@@ -249,7 +252,7 @@ class WDmodel_Posterior(object):
             return out
 
         loglike = self._lnlike.get_value(self.spec,self.spec2, self.phot, self.model, self.covmodel, self.covmodel2, self.pbs,\
-                pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
+                pixel_scale=self.pixscale, pixel_scale2=self.pixscale2, phot_dispersion=self.phot_dispersion)
         if likelihood:
             return loglike
 
@@ -279,7 +282,7 @@ class WDmodel_Posterior(object):
         """
         self._lnlike.set_parameter_vector(theta)
         out = self._lnlike.get_value(self.spec, self.spec2, self.phot, self.model, self.covmodel, self.covmodel2, self.pbs,\
-                pixel_scale=self.pixscale, phot_dispersion=self.phot_dispersion)
+                pixel_scale=self.pixscale, pixel_scale2=self.pixscale2, phot_dispersion=self.phot_dispersion)
         return out
 
 

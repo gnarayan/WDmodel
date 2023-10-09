@@ -239,10 +239,12 @@ def main(inargs=None):
         # to avoid minuit messing up inputs, it can be skipped entirely to force the MCMC to start at a specific position
         if not args.skipminuit:
             # do a quick fit to refine the input params
-            migrad_params  = fit.quick_fit_spec_model(spec, model, params)
+            migrad_params  = fit.quick_fit_spec_model(spec, spec2, model, params)
 
             # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
             viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor,\
+                model, migrad_params, save=True)
+            viz.plot_minuit_spectrum_fit(spec2, objname2, outdir, specfile2, scale_factor2,\
                 model, migrad_params, save=True)
         else:
             # we didn't run minuit, so we'll assume the user intended to start us at some specific position
@@ -252,6 +254,9 @@ def main(inargs=None):
             migrad_params['fsig']['value'] = 0.
             migrad_params['fsig']['fixed'] = True
             migrad_params['tau']['fixed']  = True
+            migrad_params['fsig2']['value'] = 0.
+            migrad_params['fsig2']['fixed'] = True
+            migrad_params['tau2']['fixed']  = True
 
         # If we don't have a user supplied initial guess of mu, get a guess
         migrad_params = fit.hyper_param_guess(spec, phot, model, pbs, migrad_params)

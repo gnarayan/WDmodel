@@ -411,7 +411,7 @@ def pre_process_spectrum(spec, bluelimit, redlimit, model, params,\
     return spec, cont_model, linedata, continuumdata, scale_factor, out_params
 
 
-def quick_fit_spec_model(spec, model, params):
+def quick_fit_spec_model(spec, spec2, model, params):
     """
     Does a quick fit of the spectrum to get an initial guess of the fit parameters
 
@@ -457,6 +457,7 @@ def quick_fit_spec_model(spec, model, params):
     # we don't actually fit for these values
     rv   = params['rv']['value']
     fwhm = params['fwhm']['value']
+    fwhm2 = params['fwhm2']['value']
 
     fix_teff = params['teff']['fixed']
     fix_logg = params['logg']['fixed']
@@ -468,12 +469,14 @@ def quick_fit_spec_model(spec, model, params):
         raise RuntimeError(message)
 
     pixel_scale = 1./np.median(np.gradient(spec.wave))
+    pixel_scale2 = 1./np.median(np.gradient(spec2.wave))
 
     if dl0 is None:
         # only dl and fwhm are allowed to have None as input values
         # fwhm will get set to a default fwhm if it's None
         mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, pixel_scale=pixel_scale)
-        c0   = spec.flux.mean()/mod.mean()
+        mod2 = model._get_obs_model(teff0, logg0, av0, fwhm2, spec2.wave, rv=rv, pixel_scale=pixel_scale2)
+        c0   = np.mean([spec.flux.mean()/mod.mean(), spec2.flux.mean()/mod2.mean()])
         dl0 = (1./(4.*np.pi*c0))**0.5
 
     teff_scale = params['teff']['scale']
@@ -489,8 +492,10 @@ def quick_fit_spec_model(spec, model, params):
     # ignore the covariance and define a simple chi2 to minimize
     def chi2(teff, logg, av, dl):
         mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, pixel_scale=pixel_scale)
+        mod2 = model._get_obs_model(teff, logg, av, fwhm2, spec2.wave, rv=rv, pixel_scale=pixel_scale2)
         mod *= (1./(4.*np.pi*(dl)**2.))
-        chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)
+        mod2 *= (1./(4.*np.pi*(dl)**2.))
+        chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.) + np.sum(((spec2.flux-mod2)/spec2.flux_err)**2.)
         return chi2
 
     # use minuit to refine our starting guess
@@ -817,10 +822,11 @@ def fit_model(spec, spec2, phot, model, covmodel, covmodel2, pbs, params,\
 
     # even if we only take every nth sample, the pixel scale is the same
     pixel_scale = 1./np.median(np.gradient(spec.wave))
+    pixel_scale2 = 1./np.median(np.gradient(spec2.wave))
 
     # configure the posterior function
     lnpost = likelihood.WDmodel_Posterior(inspec,inspec2, phot, model, covmodel,covmodel2, pbs, lnlike,\
-            pixel_scale=pixel_scale, phot_dispersion=phot_dispersion)
+            pixel_scale=pixel_scale, pixel_scale2=pixel_scale2, phot_dispersion=phot_dispersion)
 
     # setup the sampler
     if samptype == 'ensemble':
