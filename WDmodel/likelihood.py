@@ -121,7 +121,7 @@ class WDmodel_Likelihood(Model):
             phot_chi = np.sum(phot_res**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
-        mod2 *= (1./(4.*np.pi*(self.dl)**2.))
+        mod2 *= (1./(4.*np.pi*(self.dl2)**2.))
         res = spec.flux - mod
         res2 = spec2.flux - mod2
         return (covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau, self.fw) - (phot_chi/2.)) + (covmodel2.lnlikelihood(spec2.wave, res2, spec2.flux_err, self.fsig2, self.tau2, self.fw2))

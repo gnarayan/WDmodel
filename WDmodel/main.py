@@ -243,9 +243,9 @@ def main(inargs=None):
 
             # save the minuit fit result - this will not be perfect, but if it's bad, refine starting position
             viz.plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor,\
-                model, migrad_params, save=True)
+                model, migrad_params, two=False, save=True)
             viz.plot_minuit_spectrum_fit(spec2, objname2, outdir, specfile2, scale_factor2,\
-                model, migrad_params, save=True)
+                model, migrad_params,two=True, save=True)
         else:
             # we didn't run minuit, so we'll assume the user intended to start us at some specific position
             migrad_params = io.copy_params(params)

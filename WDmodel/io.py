@@ -22,7 +22,7 @@ import h5py
 from six.moves import range
 
 # Declare this tuple to init the likelihood model, and to preserve order of parameters
-_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw","fwhm2", "fsig2", "tau2", "fw2", "mu")
+_PARAMETER_NAMES = ("teff", "logg", "av", "rv", "dl", "fwhm", "fsig", "tau", "fw", "dl2", "fwhm2", "fsig2", "tau2", "fw2", "mu")
 
 
 def get_options(args, comm):

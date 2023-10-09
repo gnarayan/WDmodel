@@ -453,6 +453,7 @@ def quick_fit_spec_model(spec, spec2, model, params):
     logg0 = params['logg']['value']
     av0   = params['av']['value']
     dl0   = params['dl']['value']
+    dl02  = params['dl2']['value']
 
     # we don't actually fit for these values
     rv   = params['rv']['value']
@@ -463,6 +464,7 @@ def quick_fit_spec_model(spec, spec2, model, params):
     fix_logg = params['logg']['fixed']
     fix_av   = params['av']['fixed']
     fix_dl   = params['dl']['fixed']
+    fix_dl2   = params['dl2']['fixed']
 
     if all((fix_teff, fix_logg, fix_av, fix_dl)):
         message = "All of teff, logg, av, dl are marked as fixed - nothing to fit."
@@ -475,34 +477,40 @@ def quick_fit_spec_model(spec, spec2, model, params):
         # only dl and fwhm are allowed to have None as input values
         # fwhm will get set to a default fwhm if it's None
         mod = model._get_obs_model(teff0, logg0, av0, fwhm, spec.wave, rv=rv, pixel_scale=pixel_scale)
-        mod2 = model._get_obs_model(teff0, logg0, av0, fwhm2, spec2.wave, rv=rv, pixel_scale=pixel_scale2)
-        c0   = np.mean([spec.flux.mean()/mod.mean(), spec2.flux.mean()/mod2.mean()])
+        # mod2 = model._get_obs_model(teff0, logg0, av0, fwhm2, spec2.wave, rv=rv, pixel_scale=pixel_scale2)
+        c0   = spec.flux.mean()/mod.mean()
         dl0 = (1./(4.*np.pi*c0))**0.5
+    if dl02 is None:
+        mod2 = model._get_obs_model(teff0, logg0, av0, fwhm2, spec2.wave, rv=rv, pixel_scale=pixel_scale2)
+        c02   = spec2.flux.mean()/mod2.mean()
+        dl02 = (1./(4.*np.pi*c02))**0.5
 
     teff_scale = params['teff']['scale']
     logg_scale = params['logg']['scale']
     av_scale   = params['av']['scale']
     dl_scale   = params['dl']['scale']
+    dl2_scale   = params['dl2']['scale']
 
     teff_bounds = params['teff']['bounds']
     logg_bounds = params['logg']['bounds']
     av_bounds   = params['av']['bounds']
     dl_bounds   = params['dl']['bounds']
+    dl2_bounds   = params['dl2']['bounds']
 
     # ignore the covariance and define a simple chi2 to minimize
-    def chi2(teff, logg, av, dl):
+    def chi2(teff, logg, av, dl,dl2):
         mod = model._get_obs_model(teff, logg, av, fwhm, spec.wave, rv=rv, pixel_scale=pixel_scale)
         mod2 = model._get_obs_model(teff, logg, av, fwhm2, spec2.wave, rv=rv, pixel_scale=pixel_scale2)
         mod *= (1./(4.*np.pi*(dl)**2.))
-        mod2 *= (1./(4.*np.pi*(dl)**2.))
+        mod2 *= (1./(4.*np.pi*(dl2)**2.))
         chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.) + np.sum(((spec2.flux-mod2)/spec2.flux_err)**2.)
         return chi2
-
+    print(fix_dl2)
     # use minuit to refine our starting guess
-    m = Minuit(chi2, teff=teff0, logg=logg0, av=av0, dl=dl0,\
-                fix_teff=fix_teff, fix_logg=fix_logg, fix_av=fix_av, fix_dl=fix_dl,\
-                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_dl=dl_scale,\
-                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_dl=dl_bounds,\
+    m = Minuit(chi2, teff=teff0, logg=logg0, av=av0, dl=dl0, dl2=dl02,\
+                fix_teff=fix_teff, fix_logg=fix_logg, fix_av=fix_av, fix_dl=fix_dl, fix_dl2=fix_dl2,\
+                error_teff=teff_scale, error_logg=logg_scale, error_av=av_scale, error_dl=dl_scale, error_dl2=dl2_scale,\
+                limit_teff=teff_bounds, limit_logg=logg_bounds, limit_av=av_bounds, limit_dl=dl_bounds, limit_dl2=dl2_bounds,\
                 print_level=1, pedantic=True, errordef=1)
 
     outfnmin, outpar = m.migrad()
@@ -538,6 +546,8 @@ def quick_fit_spec_model(spec, spec2, model, params):
         # value of being better than None
         if migrad_params['dl']['value'] is None:
             migrad_params['dl']['value'] = result['dl']
+        if migrad_params['dl2']['value'] is None:
+            migrad_params['dl2']['value'] = result['dl2']
 
         message = "Something seems to have gone wrong refining parameters with migrad. You should probably stop."
         warnings.warn(message, RuntimeWarning)

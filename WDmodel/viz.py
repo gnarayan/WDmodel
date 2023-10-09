@@ -22,7 +22,7 @@ import corner
 from six.moves import range
 
 
-def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, model, result, save=True):
+def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, model, result, two, save=True):
     """
     Plot the MLE fit of the spectrum with the model, assuming uncorrelated
     noise.
@@ -74,7 +74,7 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
         facecolor='grey', alpha=0.5, interpolate=True)
     ax_spec.plot(spec.wave, spec.flux, color='black', linestyle='-', marker='None', label=specfile)
 
-    print_params = ('teff', 'logg', 'av', 'dl')
+    print_params = ('teff', 'logg', 'av', 'dl', 'dl2')
     outlabel = 'Model\n'
     for param in print_params:
         val = result[param]['value']
@@ -106,7 +106,10 @@ def plot_minuit_spectrum_fit(spec, objname, outdir, specfile, scale_factor, mode
     teff = result['teff']['value']
     logg = result['logg']['value']
     av   = result['av']['value']
-    dl   = result['dl']['value']
+    if two:
+        dl   = result['dl2']['value']
+    else:
+        dl   = result['dl']['value']
     rv   = result['rv']['value']
     fwhm = result['fwhm']['value']
 
@@ -230,7 +233,7 @@ def plot_mcmc_spectrum_fit(spec, other_spec, objname, specfile, scale_factor, mo
             logg = this_draw['logg']['value']
             av   = this_draw['av']['value']
             rv   = this_draw['rv']['value']
-            dl   = this_draw['dl']['value']
+            dl   = this_draw['dl2']['value']
             fwhm = this_draw['fwhm2']['value']
             fsig = this_draw['fsig2']['value']
             tau  = this_draw['tau2']['value']
