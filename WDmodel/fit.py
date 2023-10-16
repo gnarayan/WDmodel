@@ -97,6 +97,15 @@ def polyfit_continuum(continuumdata, wave):
     cont_model = np.rec.fromarrays([wave, out], names=names)
     return cont_model
 
+def cut_lyman(spec):
+    wave = spec.wave
+    WB = 1265.0
+    WA = 1185.0
+    ZE  = np.where((wave >= WA)&(wave<= WB) )
+    continuumdata  = (np.delete(wave,ZE),np.delete(spec.flux,ZE),np.delete(spec.flux_err,ZE))
+    names_cont=str('wave,flux,flux_err')
+    continuumdata = np.rec.fromarrays(continuumdata, names=names_cont)
+    return continuumdata
 
 def orig_cut_lines(spec, model):
     """
@@ -162,6 +171,7 @@ def orig_cut_lines(spec, model):
     linedata = np.rec.fromarrays(linedata, names=names)
     names=str('wave,flux,flux_err')
     continuumdata = np.rec.fromarrays(continuumdata, names=names)
+    continuumdata = cut_lyman(continuumdata)
     return linedata, continuumdata
 
 
