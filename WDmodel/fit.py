@@ -503,7 +503,7 @@ def quick_fit_spec_model(spec, spec2, model, params):
         mod2 = model._get_obs_model(teff, logg, av, fwhm2, spec2.wave, rv=rv, pixel_scale=pixel_scale2)
         mod *= (1./(4.*np.pi*(dl)**2.))
         mod2 *= (1./(4.*np.pi*(dl2)**2.))
-        chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.) + np.sum(((spec2.flux-mod2)/spec2.flux_err)**2.)
+        chi2 = np.sum(((spec.flux-mod)/spec.flux_err)**2.)/2. + np.sum(((spec2.flux-mod2)/spec2.flux_err)**2.)/2.
         return chi2
     print(fix_dl2)
     # use minuit to refine our starting guess
