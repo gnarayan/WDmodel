@@ -210,10 +210,15 @@ def main(inargs=None):
         outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=True, redo=redo, resume=resume)
         io.write_fit_inputs(spec, phot, cont_model, linedata, continuumdata,\
                rvmodel, covtype, coveps, phot_dispersion, scale_factor, outfile)
+        outfile2 = io.get_outfile(outdir, specfile2, '_inputs.hdf5', check=True, redo=redo, resume=resume)
+        io.write_fit_inputs(spec2, phot, cont_model2, linedata2, continuumdata2,\
+               rvmodel, covtype, coveps, phot_dispersion, scale_factor2, outfile2)
     else:
         outfile = io.get_outfile(outdir, specfile, '_inputs.hdf5', check=False, redo=redo, resume=resume)
+        outfile2 = io.get_outfile(outdir, specfile2, '_inputs.hdf5', check=False, redo=redo, resume=resume)
         try:
             spec, cont_model, linedata, continuumdata, phot, fit_config = io.read_fit_inputs(outfile)
+            spec2, cont_model2, linedata2, continuumdata2, notphot, fit_config2 = io.read_fit_inputs(outfile2)
         except IOError as e:
             message = '{}\nMust run fit to generate inputs before attempting to resume'.format(e)
             raise RuntimeError(message)
@@ -221,6 +226,7 @@ def main(inargs=None):
         covtype  = fit_config['covtype']
         coveps   = fit_config['coveps']
         scale_factor    = fit_config['scale_factor']
+        scale_factor2    = fit_config2['scale_factor']
         phot_dispersion = fit_config['phot_dispersion']
         if phot is not None:
             pbnames = list(phot.pb)
