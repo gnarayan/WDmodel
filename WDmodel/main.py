@@ -179,7 +179,7 @@ def main(inargs=None):
 
         # get photometry
         if not ignorephot:
-            phot = io.get_phot_for_obj(objname, photfile)
+            phot = io.get_phot_for_obj(objname, objname2, photfile)
         else:
             params['mu']['value'] = 0.
             params['mu']['fixed'] = True
