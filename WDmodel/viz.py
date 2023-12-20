@@ -871,13 +871,35 @@ def plot_mcmc_model(spec, spec2, phot, linedata, scale_factor, scale_factor2, ph
     sigma_spec = mad_spec/scaling
     sigma_mod  = mad_mod/scaling
 
+    smoothedmod2, wres2, wres_err2, full_mod2, best_params2 = draws2[-1]
+    res_spec2 = []
+    res_mod2  = []
+    bestmu2 = best_params2['mu']['value']
+    full_mod2.flux*=(10**(-0.4*bestmu2))
+    for draw in draws2[:-1]:
+        ts, tr, trerr, tm, params = draw
+        mu = params['mu']['value']
+        tm.flux*=(10**(-0.4*mu))
+        res_spec2.append((ts+tr-smoothedmod2-wres2))
+        res_mod2.append((tm.flux - full_mod2.flux))
+    res_spec2 = np.vstack(res_spec2)
+    res_mod2  = np.vstack(res_mod2)
+    mad_spec2 = np.median(np.abs(res_spec2), axis=0)
+    mad_mod2  = np.median(np.abs(res_mod2), axis=0)
+    scaling  = norm.ppf(3/4.)
+    sigma_spec2 = mad_spec2/scaling
+    sigma_mod2  = mad_mod2/scaling
+
+
     names=str('wave,flux,flux_err,norm_flux')
     model_spec = np.rec.fromarrays((spec.wave, smoothedmod+wres, sigma_spec, smoothedmod), names=names)
+    model_spec2 = np.rec.fromarrays((spec2.wave, smoothedmod2+wres2, sigma_spec2, smoothedmod2), names=names)
     names=str('wave,flux,flux_err')
     SED_model  = np.rec.fromarrays((full_mod.wave, full_mod.flux, sigma_mod), names=names)
+    SED_model2  = np.rec.fromarrays((full_mod2.wave, full_mod2.flux, sigma_mod2), names=names)
 
     if mag_draws is not None:
         _, model_mags, _ = mag_draws[-1]
     else:
         model_mags = None
-    return model_spec, SED_model, model_mags
+    return model_spec, model_spec2,  SED_model, SED_model2, model_mags

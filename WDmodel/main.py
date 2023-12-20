@@ -321,13 +321,19 @@ def main(inargs=None):
                     mcmc_params, param_names, in_samp, in_lnprob,\
                     covtype=covtype, balmer=balmer,\
                     ndraws=ndraws, everyn=everyn, savefig=savefig)
-        model_spec, full_mod, model_mags = plot_out
+        model_spec, model_spec2, full_mod, full_mod2, model_mags = plot_out
 
         spec_model_file = io.get_outfile(outdir, specfile, '_spec_model.dat')
         io.write_spectrum_model(spec, model_spec, spec_model_file)
 
+        spec_model_file2 = io.get_outfile(outdir, specfile2, '_spec_model.dat')
+        io.write_spectrum_model(spec2, model_spec2, spec_model_file2)
+
         full_model_file = io.get_outfile(outdir, specfile, '_full_model.hdf5')
         io.write_full_model(full_mod, full_model_file)
+
+        full_model_file2 = io.get_outfile(outdir, specfile2, '_full_model.hdf5')
+        io.write_full_model(full_mod2, full_model_file2)
 
         if phot is not None:
             phot_model_file = io.get_outfile(outdir, specfile, '_phot_model.dat')
