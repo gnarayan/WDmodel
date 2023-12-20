@@ -821,9 +821,9 @@ def get_phot_for_obj(objname, objname2, filename):
         message = 'Got no matches for object {} in file {}. Trying spec2 objname'.format(objname, filename)
         mask = mask2
         # raise RuntimeError(message)
-    elif nmatch2 == 0:
-        message = 'Got no matches for object {} in file {}. Did you want --ignorephot?'.format(objname2, filename)
-        raise RuntimeError(message)
+        if nmatch2 == 0:
+            message = 'Got no matches for object {} in file {}. Did you want --ignorephot?'.format(objname2, filename)
+            raise RuntimeError(message)
     elif nmatch > 1:
         message = 'Got multiple matches for object {} in file {}'.format(objname, filename)
         raise RuntimeError(message)
