@@ -9,6 +9,7 @@ from __future__ import unicode_literals
 import numpy as np
 import celerite
 import warnings
+from scipy.stats import multivariate_normal,norm
 
 __all__=['WDmodel_CovModel']
 
@@ -102,7 +103,7 @@ class WDmodel_CovModel(object):
         print(message)
 
 
-    def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw):
+    def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw, gp_off=False):
         """
         Return the log likelihood of the Gaussian process
 
@@ -142,8 +143,12 @@ class WDmodel_CovModel(object):
         --------
         :py:meth:`getgp`
         """
-        gp = self.getgp(wave, flux_err, fsig, tau, fw)
-        return gp.log_likelihood(res)
+        if gp_off:
+            # return multivariate_normal(mean=np.zeros_like(flux_err),cov=np.diag(flux_err**2)).logpdf(res)
+            return np.sum(norm(loc=np.zeros_like(flux_err),scale=flux_err).logpdf(res))
+        else:
+            gp = self.getgp(wave, flux_err, fsig, tau, fw)
+            return gp.log_likelihood(res)
 
 
     def predict(self, wave, res, flux_err, fsig, tau, fw, mean_only=False):

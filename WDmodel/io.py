@@ -276,7 +276,7 @@ def get_options(args, comm):
         message = 'Number of burnin steps must be greater than zero ({})'.format(args.nburnin)
         raise ValueError(message)
 
-    if args.nprod <= 0:
+    if args.nprod <= 0 and args.resume !=True:
         message = 'Number of production steps must be greater than zero ({})'.format(args.nprod)
         raise ValueError(message)
 

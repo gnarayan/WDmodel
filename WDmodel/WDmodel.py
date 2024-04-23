@@ -145,8 +145,9 @@ class WDmodel(object):
         elif rvmodel == 'f99':
             self._law = extinction.fitzpatrick99
         elif rvmodel == 'custom':
-            custom_reddening_file = io.get_pkgfile('reddening_custom.txt')
-            custom_reddening = io.read_reddening(custom_reddening_file)
+            # custom_reddening_file = io.get_pkgfile('reddening_custom.txt')
+            custom_reddening_file = '/projects/caps/uiucsn/WDmodel/notes/g23_31_short.csv'
+            custom_reddening = io.read_reddening(custom_reddening_file,delimiter=',')
             self._custom_spline_red = spinterp.splrep(custom_reddening.wave, custom_reddening.Aext, task=0, s=0, k=3)
             self._law = self._custom_extinction
         else:

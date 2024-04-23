@@ -114,17 +114,20 @@ class WDmodel_Likelihood(Model):
                     spec.wave, rv=self.rv, pixel_scale=pixel_scale)
             # mod2, full2 = model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
             #         spec2.wave, rv=self.rv, pixel_scale=pixel_scale)
-            mod2 = model._get_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
+            mod2 , full2= model._get_full_obs_model(self.teff, self.logg, self.av, self.fwhm2,\
                     spec2.wave, rv=self.rv, pixel_scale=pixel_scale2)
             mod_mags = get_model_synmags(full, pbs, mu=self.mu)
-            phot_res = phot.mag - mod_mags.mag
+            # mod_mags2= get_model_synmags(full2,pbs,mu=self.mu)
+            phot_res = (phot.mag - mod_mags.mag)
+            # phot_res2 = (phot.mag - mod_mags2.mag)
+            # phot_chi2 = np.sum(phot_res2**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
             phot_chi = np.sum(phot_res**2./((phot.mag_err**2.)+(phot_dispersion**2.)))
 
         mod *= (1./(4.*np.pi*(self.dl)**2.))
         mod2 *= (1./(4.*np.pi*(self.dl2)**2.))
         res = spec.flux - mod
         res2 = spec2.flux - mod2
-        return (covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau, self.fw) - (phot_chi/2.)) + (covmodel2.lnlikelihood(spec2.wave, res2, spec2.flux_err, self.fsig2, self.tau2, self.fw2))
+        return (covmodel.lnlikelihood(spec.wave, res, spec.flux_err, self.fsig, self.tau, self.fw) - (phot_chi/2.)) + (covmodel2.lnlikelihood(spec2.wave, res2, spec2.flux_err, self.fsig2, self.tau2, self.fw2) )#- (phot_chi2/2.))
 
 
 class WDmodel_Posterior(object):
@@ -400,7 +403,7 @@ class WDmodel_Posterior(object):
             # That convolution kernel is truncated at 4 standard deviations by default.
             # If twice that scale is less than 1 pixel, then we're not actually modifying the data.
             # This is what sets the hard lower bound on the data, not fwhm=0.
-            gsig  = (fwhm2/self.model._fwhm_to_sigma)*self.pixscale
+            gsig  = (fwhm2/self.model._fwhm_to_sigma)*self.pixscale2
             if 8.*gsig < 1.:
                 return -np.inf
             # normal on fwhm
