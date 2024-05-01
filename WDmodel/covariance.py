@@ -73,7 +73,8 @@ class WDmodel_CovModel(object):
         trivially possible to break the model by redefining them. Access to
         them is best through the functions connected to the models.
     """
-    def __init__(self, errscale, covtype='Matern32', coveps=1e-12):
+    def __init__(self, errscale, covtype='Matern32', coveps=1e-12, no_gp=False):
+        self._no_gp = no_gp
         # if we rescale the problem, errscale should be 1.
         # if not, it is the median error of the data
         self._errscale = errscale
@@ -103,7 +104,7 @@ class WDmodel_CovModel(object):
         print(message)
 
 
-    def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw, gp_off=False):
+    def lnlikelihood(self, wave, res, flux_err, fsig, tau, fw, gp_off=None):
         """
         Return the log likelihood of the Gaussian process
 
@@ -143,6 +144,8 @@ class WDmodel_CovModel(object):
         --------
         :py:meth:`getgp`
         """
+        if gp_off == None:
+            gp_off = self._no_gp
         if gp_off:
             # return multivariate_normal(mean=np.zeros_like(flux_err),cov=np.diag(flux_err**2)).logpdf(res)
             return np.sum(norm(loc=np.zeros_like(flux_err),scale=flux_err).logpdf(res))

@@ -254,7 +254,11 @@ def plot_mcmc_spectrum_fit(spec, other_spec, objname, specfile, scale_factor, mo
         smoothedmod = mod* (1./(4.*np.pi*(dl)**2.))
 
         res = spec.flux - smoothedmod
-        wres, cov = covmodel.predict(spec.wave, res, spec.flux_err, fsig, tau, fw)
+        if covmodel._no_gp == True:
+            cov = np.diag(spec.flux_err**2)
+            wres = np.zeros_like(spec.wave)
+        else:
+            wres, cov = covmodel.predict(spec.wave, res, spec.flux_err, fsig, tau, fw)
         ax_spec.plot(spec.wave, smoothedmod+wres,\
                 color=color, linestyle='-',marker='None', alpha=alpha, label=label)
         out_draw = io.copy_params(this_draw)
