@@ -177,6 +177,7 @@ def get_options(args, comm):
                 default='Matern32', help='Specify parametric form of the covariance function to model the spectrum')
     covmodel.add_argument('--coveps', required=False, type=float, default=1e-12,\
             help="Specify accuracy of Matern32 kernel approximation")
+    covmodel.add_argument('--no_gp', required=False, type="bool", default=False, help="Remove Gaussian Process for spec2")
 
     # MCMC config options
     mcmc = parser.add_argument_group('mcmc', 'MCMC options')

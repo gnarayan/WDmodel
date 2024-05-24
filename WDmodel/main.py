@@ -113,6 +113,7 @@ def main(inargs=None):
 
     covtype   = args.covtype
     coveps    = args.coveps
+    no_gp     = args.no_gp
 
     samptype  = args.samptype
     ascale    = args.ascale
@@ -283,7 +284,7 @@ def main(inargs=None):
     covmodel = covariance.WDmodel_CovModel(errscale, covtype, coveps)
     errscale2 = np.median(spec2.flux_err)
     # initialization of the UV gp allows for no_gp parameter
-    covmodel2 = covariance.WDmodel_CovModel(errscale2, covtype, coveps, no_gp=True)
+    covmodel2 = covariance.WDmodel_CovModel(errscale2, covtype, coveps, no_gp=no_gp)
     if covmodel2._no_gp==True:
         print('No GP for spec2')
     ##### MCMC #####
